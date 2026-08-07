@@ -42,3 +42,6 @@ htmlcov/
 .DS_Store
 .idea/
 *.swp
+
+# Vector store directory (one .db per course)
+index/

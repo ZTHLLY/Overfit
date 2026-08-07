@@ -1,0 +1,32 @@
+{# User message for the `mock` command.
+
+   Chunks are labelled with their citation rather than pasted in raw. The
+   label is what makes grounding checkable: the model has been handed the
+   exact string it must reproduce in the `source` and `page` fields, so a
+   fabricated citation becomes obvious rather than plausible. #}
+Course: {{ course }}
+{% if topic %}Focus: {{ topic }}
+{% endif %}
+Write {{ count }} practice exam questions from the material below.
+
+MATERIAL
+{% for chunk in chunks %}
+[{{ chunk.citation }}]
+{{ chunk.text }}
+
+{% endfor %}
+END OF MATERIAL
+
+Write up to {{ count }} questions drawn from the passages above.
+
+For each question set:
+  topic     two to five words naming what is being tested
+  question  self-contained; a student should be able to answer it without
+            seeing the passage it came from
+  answer    complete, and supported by the material
+  source    the file name shown in brackets above, exactly as written
+  page      the page number shown in brackets above
+
+Spread the questions across different passages. Do not write two questions
+that test the same point. If a passage is administrative, a citation, or a
+fragment of a table, skip it.

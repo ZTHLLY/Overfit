@@ -1,0 +1,22 @@
+{# The answer key. Every entry carries its citation: the point of this tool
+   is not to be believed, it is to be checkable. #}
+# {{ course }} — Practice Exam Answers
+
+*Generated {{ generated_at }}.*
+
+{% for topic, group in grouped %}
+## {{ topic }}
+
+{% for item in group %}
+### {{ item.number }}. {{ item.question }}
+
+{{ item.answer }}
+
+> Source: **{{ item.source }}**, page {{ item.page }}
+
+{% endfor %}
+{% endfor %}
+---
+
+<sub>If an answer does not match its cited page, the model got it wrong — the
+citation is there so you can tell.</sub>
