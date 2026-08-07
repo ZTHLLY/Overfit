@@ -1,0 +1,148 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1440 1180" width="1440" height="1180" font-family="Inter, Helvetica, Arial, sans-serif">
+  <defs>
+    <marker id="arrow-amber" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse">
+      <path d="M 0 0 L 10 5 L 0 10 z" fill="#D97706"/>
+    </marker>
+    <marker id="arrow-blue" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse">
+      <path d="M 0 0 L 10 5 L 0 10 z" fill="#2563EB"/>
+    </marker>
+  </defs>
+
+  <rect id="canvas-background" x="0" y="0" width="1440" height="1180" fill="#FFFFFF"/>
+
+  <g id="header">
+    <text x="60" y="58" font-size="32" font-weight="700" fill="#78350F">Stage 2 · Storage</text>
+    <text x="60" y="90" font-size="15" fill="#475569">Layer 5. One SQLite file, two operations, zero services. This is the only thing Ingestion and Query have in common.</text>
+    <line x1="60" y1="112" x2="1380" y2="112" stroke="#E2E8F0" stroke-width="1.5"/>
+  </g>
+
+  <g id="input-bar">
+    <rect x="60" y="140" width="1320" height="64" rx="10" fill="#F3E8FF" stroke="#7C3AED" stroke-width="1.5"/>
+    <text x="88" y="167" font-size="11" font-weight="700" letter-spacing="1.2" fill="#7C3AED">INPUT ← STAGE 1</text>
+    <text x="88" y="190" font-size="13" fill="#4C1D95">A list of EmbeddedChunk — chunk text, a 768-dimensional vector, and the source file, page and section it came from.</text>
+  </g>
+
+  <g id="panel-storage">
+    <rect x="60" y="234" width="1320" height="790" rx="14" fill="#FFFBEB" stroke="#FCD34D" stroke-width="1.5"/>
+    <text x="92" y="272" font-size="13" font-weight="700" letter-spacing="1" fill="#B45309">LAYER 5 · VECTOR STORE</text>
+  </g>
+
+  <g id="operation-add">
+    <rect x="92" y="310" width="700" height="150" rx="10" fill="#FEF3C7" stroke="#D97706" stroke-width="1.5"/>
+    <text x="116" y="344" font-size="17" font-weight="700" font-family="monospace" fill="#78350F">add(chunks, embeddings)</text>
+    <text x="116" y="366" font-size="10.5" font-weight="700" letter-spacing="1.2" fill="#D97706">WRITE · CALLED ONLY BY INGESTION</text>
+    <text x="116" y="396" font-size="12.5" fill="#92400E">One INSERT per chunk, all inside a single transaction.</text>
+    <text x="116" y="416" font-size="12.5" fill="#92400E">Keyed on chunk_id and idempotent, so re-running a partly failed</text>
+    <text x="116" y="436" font-size="12.5" fill="#92400E">ingest repairs the index instead of duplicating it.</text>
+  </g>
+
+  <g id="table-chunks">
+    <rect x="92" y="500" width="700" height="300" rx="10" fill="#FFFFFF" stroke="#D97706" stroke-width="1.5"/>
+    <text x="116" y="534" font-size="17" font-weight="700" font-family="monospace" fill="#78350F">chunks</text>
+    <text x="116" y="554" font-size="12" fill="#92400E">Text, vector and provenance living in the same row — this is what makes citation possible.</text>
+
+    <rect x="116" y="570" width="652" height="30" fill="#FDE68A"/>
+    <text x="124" y="590" font-size="10.5" font-weight="700" font-family="monospace" fill="#78350F">chunk_id</text>
+    <text x="274" y="590" font-size="10.5" font-weight="700" font-family="monospace" fill="#78350F">text</text>
+    <text x="484" y="590" font-size="10.5" font-weight="700" font-family="monospace" fill="#78350F">source</text>
+    <text x="624" y="590" font-size="10.5" font-weight="700" font-family="monospace" fill="#78350F">page</text>
+    <text x="674" y="590" font-size="10.5" font-weight="700" font-family="monospace" fill="#78350F">embedding</text>
+
+    <rect x="116" y="600" width="652" height="32" fill="#FFFBEB"/>
+    <text x="124" y="621" font-size="10.5" font-family="monospace" fill="#92400E">lecture3_p12_c2</text>
+    <text x="274" y="621" font-size="10.5" font-family="monospace" fill="#92400E">Overfitting happens whe…</text>
+    <text x="484" y="621" font-size="10.5" font-family="monospace" fill="#92400E">lecture3.pdf</text>
+    <text x="624" y="621" font-size="10.5" font-family="monospace" fill="#92400E">12</text>
+    <text x="674" y="621" font-size="10.5" font-family="monospace" fill="#92400E">[0.023, …]</text>
+
+    <rect x="116" y="632" width="652" height="32" fill="#FFFFFF"/>
+    <text x="124" y="653" font-size="10.5" font-family="monospace" fill="#92400E">lecture3_p13_c1</text>
+    <text x="274" y="653" font-size="10.5" font-family="monospace" fill="#92400E">A model with high varia…</text>
+    <text x="484" y="653" font-size="10.5" font-family="monospace" fill="#92400E">lecture3.pdf</text>
+    <text x="624" y="653" font-size="10.5" font-family="monospace" fill="#92400E">13</text>
+    <text x="674" y="653" font-size="10.5" font-family="monospace" fill="#92400E">[-0.117, …]</text>
+
+    <rect x="116" y="664" width="652" height="32" fill="#FFFBEB"/>
+    <text x="124" y="685" font-size="10.5" font-family="monospace" fill="#92400E">lecture5_p08_c4</text>
+    <text x="274" y="685" font-size="10.5" font-family="monospace" fill="#92400E">The bias-variance trade…</text>
+    <text x="484" y="685" font-size="10.5" font-family="monospace" fill="#92400E">lecture5.pdf</text>
+    <text x="624" y="685" font-size="10.5" font-family="monospace" fill="#92400E">8</text>
+    <text x="674" y="685" font-size="10.5" font-family="monospace" fill="#92400E">[0.441, …]</text>
+
+    <rect x="116" y="570" width="652" height="126" fill="none" stroke="#FCD34D" stroke-width="1"/>
+    <line x1="268" y1="570" x2="268" y2="696" stroke="#FCD34D" stroke-width="1"/>
+    <line x1="478" y1="570" x2="478" y2="696" stroke="#FCD34D" stroke-width="1"/>
+    <line x1="618" y1="570" x2="618" y2="696" stroke="#FCD34D" stroke-width="1"/>
+    <line x1="668" y1="570" x2="668" y2="696" stroke="#FCD34D" stroke-width="1"/>
+
+    <text x="116" y="726" font-size="12.5" fill="#92400E">The embedding column is handled by the sqlite-vec extension; every other column is</text>
+    <text x="116" y="746" font-size="12.5" fill="#92400E">plain SQLite you can open with any client and inspect by hand.</text>
+    <text x="116" y="774" font-size="12" font-style="italic" fill="#B45309">If you can read this table, you can debug the whole retrieval layer.</text>
+  </g>
+
+  <g id="operation-search">
+    <rect x="92" y="840" width="700" height="150" rx="10" fill="#FEF3C7" stroke="#D97706" stroke-width="1.5"/>
+    <text x="116" y="874" font-size="17" font-weight="700" font-family="monospace" fill="#78350F">search(query_vec, top_k=5)</text>
+    <text x="116" y="896" font-size="10.5" font-weight="700" letter-spacing="1.2" fill="#D97706">READ · CALLED ONLY BY QUERY</text>
+    <text x="116" y="926" font-size="12.5" fill="#92400E">Scores every stored vector against the query vector by cosine similarity</text>
+    <text x="116" y="948" font-size="13" font-family="monospace" fill="#78350F">score = (a · b) / (|a| × |b|)</text>
+    <text x="400" y="948" font-size="12" font-style="italic" fill="#B45309">1.0 = same direction, 0.0 = unrelated</text>
+    <text x="116" y="972" font-size="12.5" fill="#92400E">and returns the k best rows with their metadata still attached.</text>
+  </g>
+
+  <g id="cache">
+    <rect x="830" y="310" width="518" height="330" rx="10" fill="#FEF3C7" stroke="#D97706" stroke-width="1.5"/>
+    <text x="854" y="344" font-size="17" font-weight="700" fill="#78350F">cache</text>
+    <text x="854" y="366" font-size="10.5" font-weight="700" letter-spacing="1.2" fill="#D97706">KEYED BY FILE CONTENT HASH</text>
+    <text x="854" y="398" font-size="12.5" fill="#92400E">Two things are memoised:</text>
+    <text x="866" y="420" font-size="12.5" fill="#92400E">· the parsed page text</text>
+    <text x="866" y="440" font-size="12.5" fill="#92400E">· the chunk embeddings</text>
+    <text x="854" y="472" font-size="12.5" fill="#92400E">Rename a file, touch it, or re-export it — nothing</text>
+    <text x="854" y="492" font-size="12.5" fill="#92400E">re-runs. Change one sentence inside it and only</text>
+    <text x="854" y="512" font-size="12.5" fill="#92400E">that one file is rebuilt.</text>
+    <text x="854" y="544" font-size="12.5" fill="#92400E">This matters because embedding is the only step</text>
+    <text x="854" y="564" font-size="12.5" fill="#92400E">that costs money, and without a cache it is the</text>
+    <text x="854" y="584" font-size="12.5" fill="#92400E">step you would repeat on every single command.</text>
+    <line x1="854" y1="602" x2="1324" y2="602" stroke="#FCD34D" stroke-width="1"/>
+    <text x="854" y="624" font-size="12" font-style="italic" fill="#B45309">same .db file · delete it to force a full rebuild</text>
+  </g>
+
+  <g id="note-why-sqlite">
+    <rect x="830" y="690" width="518" height="300" rx="10" fill="#FFFFFF" stroke="#FCD34D" stroke-width="1.5"/>
+    <text x="854" y="724" font-size="17" font-weight="700" fill="#78350F">Why a single file</text>
+    <text x="854" y="756" font-size="12.5" fill="#92400E">Nothing to run. No Docker, no daemon, no cloud</text>
+    <text x="854" y="776" font-size="12.5" fill="#92400E">account, no connection string to leak.</text>
+    <text x="854" y="806" font-size="12.5" fill="#92400E">The index is just a file, so you can commit it, hand</text>
+    <text x="854" y="826" font-size="12.5" fill="#92400E">it to a classmate, or delete it and rebuild it.</text>
+    <text x="854" y="856" font-size="12.5" fill="#92400E">The API shape — add() and search() — is the same</text>
+    <text x="854" y="876" font-size="12.5" fill="#92400E">one pgvector, Qdrant and Pinecone expose, so</text>
+    <text x="854" y="896" font-size="12.5" fill="#92400E">moving later means rewriting one file.</text>
+    <line x1="854" y1="920" x2="1324" y2="920" stroke="#FCD34D" stroke-width="1"/>
+    <text x="854" y="944" font-size="12.5" fill="#92400E">Trade-off: brute-force cosine across every row.</text>
+    <text x="854" y="964" font-size="12.5" fill="#92400E">Fine at a few thousand chunks. Wrong at a million.</text>
+  </g>
+
+  <g id="output-bar">
+    <rect x="60" y="1054" width="1320" height="64" rx="10" fill="#DBEAFE" stroke="#2563EB" stroke-width="1.5"/>
+    <text x="88" y="1081" font-size="11" font-weight="700" letter-spacing="1.2" fill="#2563EB">OUTPUT → STAGE 3</text>
+    <text x="88" y="1104" font-size="13" fill="#1E40AF">The top-k most similar chunks, each still carrying its similarity score plus the file, page and section it belongs to.</text>
+  </g>
+
+  <g id="flow" fill="none" stroke="#D97706" stroke-width="2.5">
+    <path d="M442,204 V310" marker-end="url(#arrow-amber)"/>
+    <path d="M442,460 V500" marker-end="url(#arrow-amber)"/>
+    <path d="M442,800 V840" marker-end="url(#arrow-amber)"/>
+    <path d="M442,990 V1054" marker-end="url(#arrow-blue)" stroke="#2563EB"/>
+  </g>
+
+  <g id="annotations" font-size="11" fill="#B45309">
+    <text x="454" y="286">write path</text>
+    <text x="454" y="490">rows land here</text>
+    <text x="454" y="830">read path</text>
+    <text x="454" y="1030" fill="#2563EB">top-k out</text>
+  </g>
+
+  <g id="footnote">
+    <text x="60" y="1155" font-size="12.5" fill="#64748B">Two functions is the entire public surface of this stage. Everything above and below it can be rewritten without touching the other side.</text>
+  </g>
+</svg>

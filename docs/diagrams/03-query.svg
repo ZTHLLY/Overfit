@@ -1,0 +1,151 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1440 1260" width="1440" height="1260" font-family="Inter, Helvetica, Arial, sans-serif">
+  <defs>
+    <marker id="arrow" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse">
+      <path d="M 0 0 L 10 5 L 0 10 z" fill="#2563EB"/>
+    </marker>
+    <marker id="arrow-green" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse">
+      <path d="M 0 0 L 10 5 L 0 10 z" fill="#16A34A"/>
+    </marker>
+    <marker id="arrow-slate" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="6" markerHeight="6" orient="auto-start-reverse">
+      <path d="M 0 0 L 10 5 L 0 10 z" fill="#93C5FD"/>
+    </marker>
+  </defs>
+
+  <rect id="canvas-background" x="0" y="0" width="1440" height="1260" fill="#FFFFFF"/>
+
+  <g id="header">
+    <text x="60" y="58" font-size="32" font-weight="700" fill="#1E3A5F">Stage 3 · Query</text>
+    <text x="60" y="90" font-size="15" fill="#475569">Layers 6–7. Runs on every command. Retrieval decides what the model is allowed to see; the JSON schema decides what it is allowed to say.</text>
+    <line x1="60" y1="112" x2="1380" y2="112" stroke="#E2E8F0" stroke-width="1.5"/>
+  </g>
+
+  <g id="input-bar">
+    <rect x="60" y="140" width="1320" height="64" rx="10" fill="#F1F5F9" stroke="#475569" stroke-width="1.5"/>
+    <text x="88" y="167" font-size="11" font-weight="700" letter-spacing="1.2" fill="#64748B">INPUT</text>
+    <text x="88" y="190" font-size="14" font-family="monospace" fill="#0F172A">overfit mock --course IFN636</text>
+    <text x="420" y="190" font-size="13" fill="#475569">— a command, plus a vector store that Stage 1 already built</text>
+  </g>
+
+  <g id="panel-query">
+    <rect x="60" y="234" width="1320" height="862" rx="14" fill="#EFF6FF" stroke="#93C5FD" stroke-width="1.5"/>
+    <text x="92" y="272" font-size="13" font-weight="700" letter-spacing="1" fill="#2563EB">QUERY PIPELINE</text>
+    <text x="92" y="302" font-size="11" font-weight="700" letter-spacing="1" fill="#60A5FA">WHAT THE STEP DOES</text>
+    <text x="738" y="302" font-size="11" font-weight="700" letter-spacing="1" fill="#60A5FA">WHAT IT PRODUCES</text>
+  </g>
+
+  <!-- ROW 1 — RETRIEVER -->
+  <g id="layer-6-retriever">
+    <rect x="92" y="320" width="610" height="160" rx="10" fill="#DBEAFE" stroke="#2563EB" stroke-width="1.5"/>
+    <text x="116" y="354" font-size="18" font-weight="700" fill="#1E3A5F">6 · Retriever</text>
+    <text x="116" y="382" font-size="13" fill="#1E40AF">Embed the request with the same model used at ingestion — a</text>
+    <text x="116" y="402" font-size="13" fill="#1E40AF">different model means a different coordinate system and</text>
+    <text x="116" y="422" font-size="13" fill="#1E40AF">meaningless distances — then ask the store for the k nearest</text>
+    <text x="116" y="442" font-size="13" fill="#1E40AF">chunks by cosine similarity.</text>
+    <text x="116" y="466" font-size="12" font-style="italic" fill="#2563EB">cosine top-k · what this step misses, nothing downstream recovers</text>
+  </g>
+  <g id="artifact-retrieved-chunks">
+    <rect x="738" y="320" width="610" height="160" rx="10" fill="#FFFFFF" stroke="#BFDBFE" stroke-width="1.5"/>
+    <text x="762" y="348" font-size="11" font-weight="700" letter-spacing="0.8" fill="#60A5FA">list[RetrievedChunk]</text>
+    <text x="762" y="378" font-size="12.5" font-family="monospace" fill="#1E40AF">RetrievedChunk(score=0.83,</text>
+    <text x="822" y="398" font-size="12.5" font-family="monospace" fill="#1E40AF">text="Overfitting happens when …",</text>
+    <text x="822" y="418" font-size="12.5" font-family="monospace" fill="#1E40AF">source="lecture3.pdf", page=12)</text>
+    <text x="762" y="438" font-size="12.5" font-family="monospace" fill="#1E40AF">RetrievedChunk(score=0.79, … page=8)</text>
+    <text x="762" y="458" font-size="12.5" font-family="monospace" fill="#1E40AF">… three more</text>
+  </g>
+
+  <!-- ROW 2 — PROMPT ASSEMBLY -->
+  <g id="step-prompt-assembly">
+    <rect x="92" y="504" width="610" height="200" rx="10" fill="#DBEAFE" stroke="#2563EB" stroke-width="1.5"/>
+    <text x="116" y="538" font-size="18" font-weight="700" fill="#1E3A5F">Prompt assembly</text>
+    <text x="116" y="566" font-size="13" fill="#1E40AF">A Jinja2 template turns the retrieved chunks into a prompt. The</text>
+    <text x="116" y="586" font-size="13" fill="#1E40AF">chunks are not pasted in raw: each one is labelled with the file</text>
+    <text x="116" y="606" font-size="13" fill="#1E40AF">and page it came from so the model can cite it, and the system</text>
+    <text x="116" y="626" font-size="13" fill="#1E40AF">instruction forbids answering from anything outside them.</text>
+    <text x="116" y="656" font-size="13" fill="#1E40AF">Order matters — the middle of a long context is where models</text>
+    <text x="116" y="676" font-size="13" fill="#1E40AF">pay least attention, so keep k small rather than generous.</text>
+  </g>
+  <g id="artifact-prompt-anatomy">
+    <rect x="738" y="504" width="610" height="200" rx="10" fill="#FFFFFF" stroke="#BFDBFE" stroke-width="1.5"/>
+    <text x="762" y="532" font-size="11" font-weight="700" letter-spacing="0.8" fill="#60A5FA">THE ASSEMBLED PROMPT</text>
+    <rect x="762" y="546" width="562" height="40" rx="6" fill="#F1F5F9" stroke="#CBD5E1" stroke-width="1"/>
+    <text x="776" y="564" font-size="10" font-weight="700" letter-spacing="0.8" fill="#64748B">SYSTEM</text>
+    <text x="776" y="579" font-size="11.5" fill="#334155">Answer only from the material below. If it isn't there, say so.</text>
+    <rect x="762" y="594" width="562" height="62" rx="6" fill="#EFF6FF" stroke="#BFDBFE" stroke-width="1"/>
+    <text x="776" y="612" font-size="10" font-weight="700" letter-spacing="0.8" fill="#2563EB">MATERIAL</text>
+    <text x="776" y="628" font-size="11.5" font-family="monospace" fill="#1E40AF">[lecture3.pdf p12] Overfitting happens when a model …</text>
+    <text x="776" y="646" font-size="11.5" font-family="monospace" fill="#1E40AF">[lecture5.pdf  p8] The bias-variance trade-off says …</text>
+    <rect x="762" y="664" width="562" height="30" rx="6" fill="#F1F5F9" stroke="#CBD5E1" stroke-width="1"/>
+    <text x="776" y="684" font-size="11.5" fill="#334155"><tspan font-weight="700" fill="#64748B">TASK  </tspan>Write 10 exam questions. Every item must name its source.</text>
+  </g>
+
+  <!-- ROW 3 — GENERATOR -->
+  <g id="layer-7-generator">
+    <rect x="92" y="728" width="610" height="160" rx="10" fill="#DBEAFE" stroke="#2563EB" stroke-width="1.5"/>
+    <text x="116" y="762" font-size="18" font-weight="700" fill="#1E3A5F">7 · Generator</text>
+    <text x="116" y="790" font-size="13" fill="#1E40AF">Send the prompt to Gemini with a JSON schema attached. The</text>
+    <text x="116" y="810" font-size="13" fill="#1E40AF">schema is the real anti-hallucination device: the model cannot</text>
+    <text x="116" y="830" font-size="13" fill="#1E40AF">return an item without a source field, so it has to point at</text>
+    <text x="116" y="850" font-size="13" fill="#1E40AF">something in the material it was actually handed.</text>
+    <text x="116" y="874" font-size="12" font-style="italic" fill="#2563EB">gemini-2.5-pro · --cheap switches to flash</text>
+  </g>
+  <g id="artifact-json">
+    <rect x="738" y="728" width="610" height="160" rx="10" fill="#FFFFFF" stroke="#BFDBFE" stroke-width="1.5"/>
+    <text x="762" y="756" font-size="11" font-weight="700" letter-spacing="0.8" fill="#60A5FA">SCHEMA-CONSTRAINED JSON</text>
+    <text x="762" y="786" font-size="12.5" font-family="monospace" fill="#1E40AF">{"questions": [</text>
+    <text x="792" y="806" font-size="12.5" font-family="monospace" fill="#1E40AF">{"q": "What is overfitting?",</text>
+    <text x="807" y="826" font-size="12.5" font-family="monospace" fill="#1E40AF">"answer": "A model that has learned noise …",</text>
+    <text x="807" y="846" font-size="12.5" font-family="monospace" fill="#1E40AF">"source": "lecture3.pdf", "page": 12}, …</text>
+    <text x="762" y="866" font-size="12.5" font-family="monospace" fill="#1E40AF">]}</text>
+  </g>
+
+  <!-- ROW 4 — RENDERING -->
+  <g id="step-rendering">
+    <rect x="92" y="912" width="610" height="150" rx="10" fill="#DBEAFE" stroke="#2563EB" stroke-width="1.5"/>
+    <text x="116" y="946" font-size="18" font-weight="700" fill="#1E3A5F">Rendering</text>
+    <text x="116" y="974" font-size="13" fill="#1E40AF">A second Jinja2 template writes the JSON out as Markdown and</text>
+    <text x="116" y="994" font-size="13" fill="#1E40AF">splits it in two, so you can sit the mock exam first and check</text>
+    <text x="116" y="1014" font-size="13" fill="#1E40AF">yourself against the answers afterwards.</text>
+    <text x="116" y="1042" font-size="12" font-style="italic" fill="#2563EB">the artifact is the product — nothing to copy out of a chat window</text>
+  </g>
+  <g id="artifact-markdown">
+    <rect x="738" y="912" width="610" height="150" rx="10" fill="#FFFFFF" stroke="#BFDBFE" stroke-width="1.5"/>
+    <text x="762" y="940" font-size="11" font-weight="700" letter-spacing="0.8" fill="#60A5FA">IFN636_answers.md</text>
+    <text x="762" y="970" font-size="12.5" font-family="monospace" fill="#166534">## Q1</text>
+    <text x="762" y="990" font-size="12.5" font-family="monospace" fill="#1E40AF">What is overfitting?</text>
+    <text x="762" y="1016" font-size="12.5" font-family="monospace" fill="#1E40AF">Answer: A model that has learned noise …</text>
+    <text x="762" y="1038" font-size="12.5" font-family="monospace" font-weight="700" fill="#166534">Source: lecture3.pdf (page 12)</text>
+  </g>
+
+  <g id="output-bar">
+    <rect x="60" y="1126" width="1320" height="64" rx="10" fill="#DCFCE7" stroke="#16A34A" stroke-width="1.5"/>
+    <text x="88" y="1153" font-size="11" font-weight="700" letter-spacing="1.2" fill="#16A34A">OUTPUT</text>
+    <text x="88" y="1176" font-size="13" fill="#166534">IFN636_mock_exam.md and IFN636_answers.md — two Markdown files on disk, shareable as-is, every answer pointing back at a lecture and a page.</text>
+  </g>
+
+  <g id="flow" fill="none" stroke="#2563EB" stroke-width="2.5">
+    <path d="M397,204 V320" marker-end="url(#arrow)"/>
+    <path d="M397,480 V504" marker-end="url(#arrow)"/>
+    <path d="M397,704 V728" marker-end="url(#arrow)"/>
+    <path d="M397,888 V912" marker-end="url(#arrow)"/>
+    <path d="M397,1062 V1126" marker-end="url(#arrow-green)" stroke="#16A34A"/>
+  </g>
+
+  <g id="flow-artifact-links" fill="none" stroke="#BFDBFE" stroke-width="1.6" stroke-dasharray="5 4">
+    <path d="M702,400 H738" marker-end="url(#arrow-slate)"/>
+    <path d="M702,604 H738" marker-end="url(#arrow-slate)"/>
+    <path d="M702,808 H738" marker-end="url(#arrow-slate)"/>
+    <path d="M702,987 H738" marker-end="url(#arrow-slate)"/>
+  </g>
+
+  <g id="annotations" font-size="11" fill="#93C5FD">
+    <text x="409" y="290">embed + search</text>
+    <text x="409" y="498">build the prompt</text>
+    <text x="409" y="722">call the model</text>
+    <text x="409" y="906">render</text>
+    <text x="409" y="1100" fill="#16A34A">write files</text>
+  </g>
+
+  <g id="footnote">
+    <text x="60" y="1230" font-size="12.5" fill="#64748B">Everything here is a prompt-construction problem, not a model problem. If the answer is wrong, check what was retrieved before blaming the LLM.</text>
+  </g>
+</svg>

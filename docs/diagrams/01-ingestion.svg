@@ -1,0 +1,137 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1440 1140" width="1440" height="1140" font-family="Inter, Helvetica, Arial, sans-serif">
+  <defs>
+    <marker id="arrow" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse">
+      <path d="M 0 0 L 10 5 L 0 10 z" fill="#7C3AED"/>
+    </marker>
+    <marker id="arrow-slate" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="6" markerHeight="6" orient="auto-start-reverse">
+      <path d="M 0 0 L 10 5 L 0 10 z" fill="#94A3B8"/>
+    </marker>
+  </defs>
+
+  <rect id="canvas-background" x="0" y="0" width="1440" height="1140" fill="#FFFFFF"/>
+
+  <g id="header">
+    <text x="60" y="58" font-size="32" font-weight="700" fill="#3B0764">Stage 1 · Ingestion</text>
+    <text x="60" y="90" font-size="15" fill="#475569">Layers 1–4. Runs once per document, then everything is cached. Metadata is attached here and must survive every later step.</text>
+    <line x1="60" y1="112" x2="1380" y2="112" stroke="#E2E8F0" stroke-width="1.5"/>
+  </g>
+
+  <g id="input-bar">
+    <rect x="60" y="140" width="1320" height="64" rx="10" fill="#F1F5F9" stroke="#475569" stroke-width="1.5"/>
+    <text x="88" y="167" font-size="11" font-weight="700" letter-spacing="1.2" fill="#64748B">INPUT</text>
+    <text x="88" y="190" font-size="14" font-family="monospace" fill="#0F172A">courses/IFN636/*.pdf</text>
+    <text x="360" y="190" font-size="13" fill="#475569">— a folder of lecture PDFs, exactly as downloaded from the unit site</text>
+  </g>
+
+  <g id="panel-ingestion">
+    <rect x="60" y="234" width="1320" height="746" rx="14" fill="#FAF5FF" stroke="#C4B5FD" stroke-width="1.5"/>
+    <text x="92" y="272" font-size="13" font-weight="700" letter-spacing="1" fill="#7C3AED">INGESTION PIPELINE</text>
+    <text x="92" y="302" font-size="11" font-weight="700" letter-spacing="1" fill="#A78BFA">WHAT THE LAYER DOES</text>
+    <text x="738" y="302" font-size="11" font-weight="700" letter-spacing="1" fill="#A78BFA">WHAT THE DATA LOOKS LIKE AFTERWARDS</text>
+  </g>
+
+  <!-- ROW 1 — LOADER -->
+  <g id="layer-1-loader">
+    <rect x="92" y="320" width="610" height="140" rx="10" fill="#F3E8FF" stroke="#7C3AED" stroke-width="1.5"/>
+    <text x="116" y="354" font-size="18" font-weight="700" fill="#3B0764">1 · Loader</text>
+    <text x="116" y="382" font-size="13" fill="#4C1D95">Walk the course directory, filter by extension, collect paths.</text>
+    <text x="116" y="402" font-size="13" fill="#4C1D95">No parsing here — the point of a separate layer is that adding</text>
+    <text x="116" y="422" font-size="13" fill="#4C1D95">Drive or Notion later changes this file and nothing else.</text>
+    <text x="116" y="446" font-size="12" font-style="italic" fill="#7C3AED">Python stdlib · pathlib</text>
+  </g>
+  <g id="shape-1-paths">
+    <rect x="738" y="320" width="610" height="140" rx="10" fill="#FFFFFF" stroke="#DDD6FE" stroke-width="1.5"/>
+    <text x="762" y="348" font-size="11" font-weight="700" letter-spacing="0.8" fill="#A78BFA">list[Path]</text>
+    <text x="762" y="380" font-size="12.5" font-family="monospace" fill="#4C1D95">[</text>
+    <text x="777" y="400" font-size="12.5" font-family="monospace" fill="#4C1D95">PosixPath("courses/IFN636/lecture3.pdf"),</text>
+    <text x="777" y="420" font-size="12.5" font-family="monospace" fill="#4C1D95">PosixPath("courses/IFN636/lecture5.pdf"), ...</text>
+    <text x="762" y="440" font-size="12.5" font-family="monospace" fill="#4C1D95">]</text>
+  </g>
+
+  <!-- ROW 2 — PARSER -->
+  <g id="layer-2-parser">
+    <rect x="92" y="482" width="610" height="140" rx="10" fill="#F3E8FF" stroke="#7C3AED" stroke-width="1.5"/>
+    <text x="116" y="516" font-size="18" font-weight="700" fill="#3B0764">2 · Parser</text>
+    <text x="116" y="544" font-size="13" fill="#4C1D95">Extract text page by page and keep the page number attached.</text>
+    <text x="116" y="564" font-size="13" fill="#4C1D95">Also where cleanup belongs: strip headers and footers, rejoin</text>
+    <text x="116" y="584" font-size="13" fill="#4C1D95">hyphenated line breaks, drop slide furniture.</text>
+    <text x="116" y="608" font-size="12" font-style="italic" fill="#7C3AED">pypdf · traceability starts here — a lost page number never comes back</text>
+  </g>
+  <g id="shape-2-parsed-document">
+    <rect x="738" y="482" width="610" height="140" rx="10" fill="#FFFFFF" stroke="#DDD6FE" stroke-width="1.5"/>
+    <text x="762" y="510" font-size="11" font-weight="700" letter-spacing="0.8" fill="#A78BFA">ParsedDocument</text>
+    <text x="762" y="542" font-size="12.5" font-family="monospace" fill="#4C1D95">ParsedDocument(</text>
+    <text x="777" y="562" font-size="12.5" font-family="monospace" fill="#4C1D95">source="lecture3.pdf",</text>
+    <text x="777" y="582" font-size="12.5" font-family="monospace" fill="#4C1D95">pages=[Page(number=1, text="Lecture 3: ..."),</text>
+    <text x="830" y="602" font-size="12.5" font-family="monospace" fill="#4C1D95">Page(number=2, text="Bias-variance ...")])</text>
+  </g>
+
+  <!-- ROW 3 — CHUNKER -->
+  <g id="layer-3-chunker">
+    <rect x="92" y="644" width="610" height="140" rx="10" fill="#F3E8FF" stroke="#7C3AED" stroke-width="1.5"/>
+    <text x="116" y="678" font-size="18" font-weight="700" fill="#3B0764">3 · Chunker</text>
+    <text x="116" y="706" font-size="13" fill="#4C1D95">Cut each page into ~500-token pieces with 50 tokens of overlap,</text>
+    <text x="116" y="726" font-size="13" fill="#4C1D95">copying source · page · section onto every piece. Small chunks</text>
+    <text x="116" y="746" font-size="13" fill="#4C1D95">retrieve precisely; large ones preserve context. Pick your poison.</text>
+    <text x="116" y="770" font-size="12" font-style="italic" fill="#7C3AED">hand-rolled · the single most under-rated layer in any RAG system</text>
+  </g>
+  <g id="shape-3-chunk">
+    <rect x="738" y="644" width="610" height="140" rx="10" fill="#FFFFFF" stroke="#DDD6FE" stroke-width="1.5"/>
+    <text x="762" y="672" font-size="11" font-weight="700" letter-spacing="0.8" fill="#A78BFA">list[Chunk]</text>
+    <text x="762" y="704" font-size="12.5" font-family="monospace" fill="#4C1D95">Chunk(id="lecture3_p12_c2",</text>
+    <text x="807" y="724" font-size="12.5" font-family="monospace" fill="#4C1D95">text="Overfitting happens when a model ...",</text>
+    <text x="807" y="744" font-size="12.5" font-family="monospace" fill="#4C1D95">source="lecture3.pdf", page=12,</text>
+    <text x="807" y="764" font-size="12.5" font-family="monospace" fill="#4C1D95">section="3.2 Bias-Variance")</text>
+  </g>
+
+  <!-- ROW 4 — EMBEDDER -->
+  <g id="layer-4-embedder">
+    <rect x="92" y="806" width="610" height="140" rx="10" fill="#F3E8FF" stroke="#7C3AED" stroke-width="1.5"/>
+    <text x="116" y="840" font-size="18" font-weight="700" fill="#3B0764">4 · Embedder</text>
+    <text x="116" y="868" font-size="13" fill="#4C1D95">Send each chunk's text to the embedding model and get back a</text>
+    <text x="116" y="888" font-size="13" fill="#4C1D95">768-dimensional vector, so that semantic closeness becomes</text>
+    <text x="116" y="908" font-size="13" fill="#4C1D95">geometric closeness. Batch the calls; retry on rate limits.</text>
+    <text x="116" y="932" font-size="12" font-style="italic" fill="#7C3AED">Gemini text-embedding-004 · the only expensive step, so cache it hard</text>
+  </g>
+  <g id="shape-4-embedded-chunk">
+    <rect x="738" y="806" width="610" height="140" rx="10" fill="#FFFFFF" stroke="#DDD6FE" stroke-width="1.5"/>
+    <text x="762" y="834" font-size="11" font-weight="700" letter-spacing="0.8" fill="#A78BFA">list[EmbeddedChunk]</text>
+    <text x="762" y="866" font-size="12.5" font-family="monospace" fill="#4C1D95">EmbeddedChunk(</text>
+    <text x="777" y="886" font-size="12.5" font-family="monospace" fill="#4C1D95">chunk=Chunk(id="lecture3_p12_c2", ...),</text>
+    <text x="777" y="906" font-size="12.5" font-family="monospace" fill="#4C1D95">embedding=[0.023, -0.451, 0.118, ...])</text>
+    <text x="762" y="928" font-size="11.5" font-style="italic" fill="#A78BFA">768 floats · metadata still riding along</text>
+  </g>
+
+  <g id="output-bar">
+    <rect x="60" y="1010" width="1320" height="64" rx="10" fill="#FEF3C7" stroke="#D97706" stroke-width="1.5"/>
+    <text x="88" y="1037" font-size="11" font-weight="700" letter-spacing="1.2" fill="#B45309">OUTPUT → STAGE 2</text>
+    <text x="88" y="1060" font-size="13" fill="#92400E">Written into the SQLite vector store: one row per chunk, holding the text, the vector and the metadata. Ingestion is now done and will not run again unless a file changes.</text>
+  </g>
+
+  <g id="flow" fill="none" stroke="#7C3AED" stroke-width="2.5">
+    <path d="M397,204 V320" marker-end="url(#arrow)"/>
+    <path d="M397,460 V482" marker-end="url(#arrow)"/>
+    <path d="M397,622 V644" marker-end="url(#arrow)"/>
+    <path d="M397,784 V806" marker-end="url(#arrow)"/>
+    <path d="M397,946 V1010" marker-end="url(#arrow)" stroke="#D97706"/>
+  </g>
+
+  <g id="flow-shape-links" fill="none" stroke="#C4B5FD" stroke-width="1.6" stroke-dasharray="5 4">
+    <path d="M702,390 H738" marker-end="url(#arrow-slate)"/>
+    <path d="M702,552 H738" marker-end="url(#arrow-slate)"/>
+    <path d="M702,714 H738" marker-end="url(#arrow-slate)"/>
+    <path d="M702,876 H738" marker-end="url(#arrow-slate)"/>
+  </g>
+
+  <g id="annotations" font-size="11" fill="#94A3B8">
+    <text x="409" y="290">read</text>
+    <text x="409" y="476">parse</text>
+    <text x="409" y="638">split</text>
+    <text x="409" y="800">embed</text>
+    <text x="409" y="985" fill="#B45309">persist</text>
+  </g>
+
+  <g id="footnote">
+    <text x="60" y="1110" font-size="12.5" fill="#64748B">Debug order is top to bottom: if the Parser output is garbage, no amount of chunking, embedding or prompting downstream will save the answer.</text>
+  </g>
+</svg>

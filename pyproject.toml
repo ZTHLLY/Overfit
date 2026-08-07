@@ -1,0 +1,31 @@
+[project]
+name = "overfit"
+version = "0.1.0"
+description = "Add your description here"
+readme = "README.md"
+authors = [
+    { name = "ZTHLLY", email = "zzz18011940139@gmail.com" }
+]
+requires-python = ">=3.12"
+dependencies = [
+    "jinja2>=3.1.6",
+    "openai>=2.53.0",
+    "pydantic>=2.13.4",
+    "pydantic-settings>=2.14.2",
+    "pypdf>=6.15.0",
+    "sqlite-vec>=0.1.9",
+    "typer>=0.27.1",
+]
+
+[project.scripts]
+overfit = "overfit:main"
+
+[build-system]
+requires = ["uv_build>=0.12.2,<0.13.0"]
+build-backend = "uv_build"
+
+[dependency-groups]
+dev = [
+    "pytest>=9.1.1",
+    "ruff>=0.16.1",
+]

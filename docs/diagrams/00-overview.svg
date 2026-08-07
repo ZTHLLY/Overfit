@@ -1,0 +1,132 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1580 730" width="1580" height="730" font-family="Inter, Helvetica, Arial, sans-serif">
+  <defs>
+    <marker id="arrow" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse">
+      <path d="M 0 0 L 10 5 L 0 10 z" fill="#334155"/>
+    </marker>
+    <marker id="arrow-slate" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="6" markerHeight="6" orient="auto-start-reverse">
+      <path d="M 0 0 L 10 5 L 0 10 z" fill="#64748B"/>
+    </marker>
+  </defs>
+
+  <rect id="canvas-background" x="0" y="0" width="1580" height="730" fill="#FFFFFF"/>
+
+  <g id="header">
+    <text x="60" y="58" font-size="34" font-weight="700" fill="#0F172A">Overfit — Pipeline Overview</text>
+    <text x="60" y="90" font-size="15" fill="#475569">Three stages. Ingestion builds the index once; Storage is the only thing they share; Query runs on every command.</text>
+    <line x1="60" y1="112" x2="1520" y2="112" stroke="#E2E8F0" stroke-width="1.5"/>
+  </g>
+
+  <g id="legend">
+    <line x1="1300" y1="46" x2="1332" y2="46" stroke="#334155" stroke-width="2" marker-end="url(#arrow)"/>
+    <text x="1344" y="51" font-size="12.5" fill="#475569">data flow</text>
+    <line x1="1300" y1="76" x2="1332" y2="76" stroke="#64748B" stroke-width="2" stroke-dasharray="5 4"/>
+    <text x="1344" y="81" font-size="12.5" fill="#475569">external API call</text>
+  </g>
+
+  <g id="entry-cli">
+    <rect x="310" y="140" width="960" height="68" rx="10" fill="#F1F5F9" stroke="#475569" stroke-width="1.5"/>
+    <text x="336" y="172" font-size="16" font-weight="700" fill="#0F172A">CLI · overfit mock / summary / compare / relate</text>
+    <text x="336" y="194" font-size="12.5" fill="#475569">Typer + pydantic-settings — one command in, finished files out. Not a chat loop.</text>
+  </g>
+
+  <g id="input-course-materials">
+    <rect x="60" y="250" width="190" height="270" rx="12" fill="#F1F5F9" stroke="#475569" stroke-width="1.5"/>
+    <text x="82" y="288" font-size="11" font-weight="700" letter-spacing="1.2" fill="#64748B">INPUT</text>
+    <text x="82" y="322" font-size="20" font-weight="700" fill="#0F172A">Course</text>
+    <text x="82" y="346" font-size="20" font-weight="700" fill="#0F172A">materials</text>
+    <text x="82" y="388" font-size="12.5" fill="#475569">PDF</text>
+    <text x="82" y="408" font-size="12.5" fill="#475569">Markdown</text>
+    <text x="82" y="428" font-size="12.5" fill="#475569">Lecture slides</text>
+    <line x1="82" y1="458" x2="228" y2="458" stroke="#CBD5E1" stroke-width="1"/>
+    <text x="82" y="480" font-size="11" font-family="monospace" fill="#64748B">courses/IFN636/</text>
+  </g>
+
+  <g id="stage-ingestion">
+    <rect x="310" y="250" width="280" height="270" rx="12" fill="#F3E8FF" stroke="#7C3AED" stroke-width="2"/>
+    <text x="336" y="288" font-size="11" font-weight="700" letter-spacing="1.2" fill="#7C3AED">STAGE 1 · LAYERS 1–4</text>
+    <text x="336" y="322" font-size="24" font-weight="700" fill="#3B0764">Ingestion</text>
+    <text x="336" y="352" font-size="13" font-weight="600" fill="#7C3AED">Loader → Parser →</text>
+    <text x="336" y="370" font-size="13" font-weight="600" fill="#7C3AED">Chunker → Embedder</text>
+    <text x="336" y="404" font-size="12.5" fill="#4C1D95">Reads the source files, splits</text>
+    <text x="336" y="422" font-size="12.5" fill="#4C1D95">them into chunks, and turns each</text>
+    <text x="336" y="440" font-size="12.5" fill="#4C1D95">chunk into a vector — never losing</text>
+    <text x="336" y="458" font-size="12.5" fill="#4C1D95">the file and page it came from.</text>
+    <line x1="336" y1="480" x2="564" y2="480" stroke="#C4B5FD" stroke-width="1"/>
+    <text x="336" y="500" font-size="11.5" font-style="italic" fill="#7C3AED">runs once per document · cached</text>
+  </g>
+
+  <g id="stage-storage">
+    <rect x="650" y="250" width="280" height="270" rx="12" fill="#FEF3C7" stroke="#D97706" stroke-width="2"/>
+    <text x="676" y="288" font-size="11" font-weight="700" letter-spacing="1.2" fill="#B45309">STAGE 2 · LAYER 5</text>
+    <text x="676" y="322" font-size="24" font-weight="700" fill="#78350F">Storage</text>
+    <text x="676" y="352" font-size="13" font-weight="600" fill="#B45309">Vector Store + Cache</text>
+    <text x="676" y="386" font-size="12.5" fill="#92400E">One SQLite file holding chunks,</text>
+    <text x="676" y="404" font-size="12.5" fill="#92400E">vectors and metadata together.</text>
+    <text x="676" y="430" font-size="12.5" fill="#92400E">The only seam in the system —</text>
+    <text x="676" y="448" font-size="12.5" fill="#92400E">Ingestion writes, Query reads,</text>
+    <text x="676" y="466" font-size="12.5" fill="#92400E">neither knows the other.</text>
+    <line x1="676" y1="480" x2="904" y2="480" stroke="#FCD34D" stroke-width="1"/>
+    <text x="676" y="500" font-size="11.5" font-style="italic" fill="#B45309">SQLite + sqlite-vec · zero ops</text>
+  </g>
+
+  <g id="stage-query">
+    <rect x="990" y="250" width="280" height="270" rx="12" fill="#DBEAFE" stroke="#2563EB" stroke-width="2"/>
+    <text x="1016" y="288" font-size="11" font-weight="700" letter-spacing="1.2" fill="#2563EB">STAGE 3 · LAYERS 6–7</text>
+    <text x="1016" y="322" font-size="24" font-weight="700" fill="#1E3A5F">Query</text>
+    <text x="1016" y="352" font-size="13" font-weight="600" fill="#2563EB">Retriever → Generator</text>
+    <text x="1016" y="386" font-size="12.5" fill="#1E40AF">Finds the chunks most relevant</text>
+    <text x="1016" y="404" font-size="12.5" fill="#1E40AF">to the request, then asks the LLM</text>
+    <text x="1016" y="422" font-size="12.5" fill="#1E40AF">to answer from those chunks</text>
+    <text x="1016" y="440" font-size="12.5" fill="#1E40AF">only — and to cite every one.</text>
+    <line x1="1016" y1="480" x2="1244" y2="480" stroke="#93C5FD" stroke-width="1"/>
+    <text x="1016" y="500" font-size="11.5" font-style="italic" fill="#2563EB">runs on every command</text>
+  </g>
+
+  <g id="output-artifacts">
+    <rect x="1330" y="250" width="190" height="270" rx="12" fill="#DCFCE7" stroke="#16A34A" stroke-width="1.5"/>
+    <text x="1352" y="288" font-size="11" font-weight="700" letter-spacing="1.2" fill="#16A34A">OUTPUT</text>
+    <text x="1352" y="322" font-size="20" font-weight="700" fill="#14532D">Markdown</text>
+    <text x="1352" y="346" font-size="20" font-weight="700" fill="#14532D">artifacts</text>
+    <text x="1352" y="388" font-size="11.5" font-family="monospace" fill="#166534">mock_exam.md</text>
+    <text x="1352" y="408" font-size="11.5" font-family="monospace" fill="#166534">answers.md</text>
+    <text x="1352" y="428" font-size="11.5" font-family="monospace" fill="#166534">summary.md</text>
+    <line x1="1352" y1="458" x2="1498" y2="458" stroke="#86EFAC" stroke-width="1"/>
+    <text x="1352" y="478" font-size="11" fill="#166534">every claim cites</text>
+    <text x="1352" y="494" font-size="11" fill="#166534">its file and page</text>
+  </g>
+
+  <g id="external-gemini">
+    <rect x="60" y="600" width="1460" height="70" rx="10" fill="#111827"/>
+    <text x="88" y="631" font-size="15" font-weight="700" letter-spacing="0.8" fill="#F9FAFB">EXTERNAL SERVICE · Google Gemini API</text>
+    <text x="88" y="653" font-size="13" fill="#9CA3AF">text-embedding-004 → embeddings   ·   gemini-2.5-pro / flash → generation   ·   --cheap switches to Flash   ·   single provider by design</text>
+  </g>
+
+  <g id="flow-primary" fill="none" stroke="#334155" stroke-width="2.5">
+    <path id="materials-to-ingestion" d="M250,385 H310" marker-end="url(#arrow)"/>
+    <path id="ingestion-to-storage" d="M590,385 H650" marker-end="url(#arrow)"/>
+    <path id="storage-to-query" d="M930,385 H990" marker-end="url(#arrow)"/>
+    <path id="query-to-output" d="M1270,385 H1330" marker-end="url(#arrow)"/>
+    <path id="cli-to-ingestion" d="M450,208 V250" marker-end="url(#arrow)"/>
+    <path id="cli-to-query" d="M1130,208 V250" marker-end="url(#arrow)"/>
+  </g>
+
+  <g id="flow-external" fill="none" stroke="#64748B" stroke-width="1.8" stroke-dasharray="6 5">
+    <path id="ingestion-to-gemini" d="M450,520 V600" marker-start="url(#arrow-slate)" marker-end="url(#arrow-slate)"/>
+    <path id="query-to-gemini" d="M1130,520 V600" marker-start="url(#arrow-slate)" marker-end="url(#arrow-slate)"/>
+  </g>
+
+  <g id="flow-labels" font-size="10.5" fill="#64748B" text-anchor="middle">
+    <text x="280" y="376">read</text>
+    <text x="620" y="376">write</text>
+    <text x="960" y="376">top-k</text>
+    <text x="1300" y="376">render</text>
+    <text x="462" y="236" font-size="10.5" text-anchor="start">ingest</text>
+    <text x="1142" y="236" font-size="10.5" text-anchor="start">ask</text>
+    <text x="497" y="565" font-size="10.5" text-anchor="start">embed</text>
+    <text x="1177" y="565" font-size="10.5" text-anchor="start">generate</text>
+  </g>
+
+  <g id="note-read-once">
+    <text x="60" y="700" font-size="12.5" fill="#64748B">Read it left to right once for the data path, then top to bottom for what triggers what. The three detail diagrams open up one stage each.</text>
+  </g>
+</svg>
