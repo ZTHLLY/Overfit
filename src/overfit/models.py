@@ -105,8 +105,15 @@ class Chunk:
         Determinism matters: re-ingesting an unchanged file must produce the
         same ids so that writes stay idempotent and a partly failed ingest
         repairs the index instead of duplicating it.
+
+        The whole relative path is used, not just the file name. Course
+        folders are routinely organised by week, and `week1/notes.md` and
+        `week2/notes.md` are different documents -- collapsing them to
+        "notes" made the second silently overwrite the first, losing an
+        entire file's worth of material without any error.
         """
-        stem = Path(source).stem
+        path = Path(source)
+        stem = "_".join([*path.parent.parts, path.stem]).strip("_") or path.stem
         return f"{stem}_p{page}_c{index}"
 
     @property
@@ -189,12 +196,20 @@ class GeneratedExam(BaseModel):
     and the design principle is that the weakest supported model sets the
     shape while stronger ones satisfy it for free.
 
-    Note there is no minimum length. An earlier version required at least one
-    item, reasoning that an empty list meant the model had given up. It was
-    the wrong call: a schema that forbids an empty answer forbids the only
-    honest one available when the material genuinely will not support a
-    question. Requiring output is how a system that cannot say "this is not
-    in the notes" ends up inventing something instead.
+    `items` is required but may be empty, and the distinction is the whole
+    point. Requiring at least one item forbids the only honest answer
+    available when the material will not support a question -- that is how a
+    system unable to say "this is not in the notes" ends up inventing
+    something. But giving the field a *default* is just as wrong in the other
+    direction: a reply of `{}`, or one using the model's own preferred key,
+    then validates silently as "no questions found" when what actually
+    happened was a malformed response nobody noticed.
+
+    Required-but-emptiable separates the two: a missing key is an error worth
+    retrying, an explicit empty list is an answer worth reporting.
     """
 
-    items: list[GeneratedItem] = Field(default_factory=list)
+    items: list[GeneratedItem] = Field(
+        description="One entry per question. Empty only if the material "
+        "genuinely supports none."
+    )

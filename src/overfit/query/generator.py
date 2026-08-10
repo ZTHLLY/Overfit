@@ -50,6 +50,7 @@ class GenerationResult:
     exam: GeneratedExam
     attempts: int
     dropped: list[str]  # items rejected because their citation was invented
+    raw: str = ""  # the model's last reply, kept for when the result is empty
 
 
 @lru_cache(maxsize=1)
@@ -103,7 +104,7 @@ class Generator:
             .render(course=course, chunks=chunks, count=count, topic=topic)
         )
 
-        exam, attempts = self._complete(
+        exam, attempts, raw = self._complete(
             system,
             user,
             GeneratedExam,
@@ -111,7 +112,9 @@ class Generator:
             on_token=on_token,
         )
         exam, dropped = _drop_invented_citations(exam, chunks)
-        return GenerationResult(exam=exam, attempts=attempts, dropped=dropped)
+        return GenerationResult(
+            exam=exam, attempts=attempts, dropped=dropped, raw=raw
+        )
 
     # -- internals ---------------------------------------------------------
 
@@ -180,8 +183,16 @@ class Generator:
                     problems.append(f"attempt {attempt}: {type(exc).__name__}: {exc}")
             if raw is None:
                 continue
+
+            if not raw.strip():
+                # An empty body usually means the whole reply went to a
+                # reasoning channel we did not read, not that the model had
+                # nothing to say. Retrying without the schema often shakes it
+                # loose; failing silently would look like "no questions".
+                problems.append(f"attempt {attempt}: empty response body")
+                continue
             try:
-                return schema.model_validate(_extract_json(raw)), attempt
+                return schema.model_validate(_coerce(_extract_json(raw))), attempt, raw
             except (ValidationError, ValueError, json.JSONDecodeError) as exc:
                 problems.append(f"attempt {attempt}: {_summarise(exc)}")
                 # Show the model its own mistake. Local models correct a named
@@ -277,6 +288,41 @@ def _extract_json(raw: str) -> dict:
         if not match:
             raise ValueError(f"no JSON object in reply: {text[:200]!r}") from None
         return json.loads(match.group())
+
+
+_ITEM_KEYS = {"question", "answer", "source", "page"}
+
+
+def _coerce(data: object) -> object:
+    """Accept the shapes a model reasonably chooses instead of the exact one.
+
+    Asked for `{"items": [...]}`, models routinely return the bare array, or
+    wrap it under a name of their own -- `questions`, `exam`, `results`.
+    Every one of those carries exactly the information requested; rejecting
+    them is pedantry that costs a retry, a minute, and tokens, and often
+    fails again the same way.
+
+    The rule is to coerce only where the intent is unambiguous. A bare list
+    can only be the list. A single-key object whose value is a list can only
+    be that list under another name. Anything genuinely ambiguous is passed
+    through untouched, so validation still catches real mistakes -- being
+    liberal here must not become being credulous.
+    """
+    if isinstance(data, list):
+        return {"items": data}
+
+    if isinstance(data, dict):
+        if "items" in data:
+            return data
+        # A single item returned on its own, without any list around it.
+        if _ITEM_KEYS.issubset(data.keys()):
+            return {"items": [data]}
+        # The list under a different name: {"questions": [...]}
+        lists = [value for value in data.values() if isinstance(value, list)]
+        if len(lists) == 1:
+            return {"items": lists[0]}
+
+    return data
 
 
 def _drop_invented_citations(

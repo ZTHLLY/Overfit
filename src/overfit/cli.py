@@ -397,10 +397,21 @@ def mock(
     items = result.exam.items
     if not items:
         typer.secho(
-            "The model returned no questions. That is a valid answer: the "
-            "selected material may not contain anything examinable. Try "
-            "--topic, or ingest more of the unit.",
+            "The model returned an explicitly empty list of questions.",
             fg=typer.colors.YELLOW,
+        )
+        typer.echo(
+            "That can be honest -- the passages may be administrative or "
+            "fragmentary -- but check the reply below before believing it.\n"
+        )
+        typer.echo(f"  raw response: {result.raw[:400] or '(empty body)'}\n")
+        typer.echo("  passages it was given:")
+        for chunk in chunks:
+            preview = " ".join(chunk.text.split())[:90]
+            typer.echo(f"    {chunk.citation}  {preview}")
+        typer.echo(
+            "\nIf those passages look examinable, the model is at fault: try "
+            "--topic to focus it, or a different LLM_MODEL."
         )
         raise typer.Exit(0)
 

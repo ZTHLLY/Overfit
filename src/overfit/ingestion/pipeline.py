@@ -96,7 +96,11 @@ def ingest(
         if on_file:
             on_file(position, len(files), path)
 
-        source = path.name
+        # Identify a document by its path relative to the course root, not by
+        # its file name. Weekly folders make repeated names normal, and two
+        # files called notes.md are two documents -- treating them as one
+        # means the second quietly replaces the first.
+        source = path.relative_to(directory).as_posix()
         content_hash = loader.file_hash(path)
 
         if not force and store.document_hash(source) == content_hash:
@@ -104,7 +108,7 @@ def ingest(
             continue
 
         try:
-            document = parser.parse(path)
+            document = parser.parse(path, source=source)
         except OverfitError as exc:
             finish(FileOutcome(source, "failed", detail=str(exc)))
             continue

@@ -44,8 +44,14 @@ _HEADER_REPEAT_RATIO = 0.6
 _MIN_PAGES_FOR_HEADER_DETECTION = 4
 
 
-def parse(path: Path) -> ParsedDocument:
+def parse(path: Path, source: str | None = None) -> ParsedDocument:
     """Read one file into a ParsedDocument.
+
+    Args:
+        source: the name this document should be cited by. Defaults to the
+            file name, but ingestion passes the path relative to the course
+            root, because weekly folders make repeated file names normal and
+            two documents called `notes.md` must not be treated as one.
 
     Raises:
         UnsupportedFormatError: no backend claims this extension.
@@ -62,7 +68,7 @@ def parse(path: Path) -> ParsedDocument:
     pages = [Page(number=p.number, text=drop_figure_debris(p.text)) for p in pages]
     pages = [Page(number=p.number, text=clean_page(p.text)) for p in pages]
 
-    document = ParsedDocument(source=path.name, pages=pages)
+    document = ParsedDocument(source=source or path.name, pages=pages)
 
     # Fail loudly rather than letting a blank document into the index. A
     # capability may be missing; it must not be faked.
