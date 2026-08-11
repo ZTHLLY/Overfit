@@ -53,13 +53,15 @@ def inspect(
     directory = path.expanduser().resolve() if path else settings.course_dir(course)
 
     try:
-        files = loader.find_documents(directory)
+        files = loader.find_documents(directory, settings.extension_list)
     except OverfitError as exc:
         typer.secho(str(exc), fg=typer.colors.RED, err=True)
         raise typer.Exit(1) from exc
 
     typer.secho(f"\n{directory}", fg=typer.colors.CYAN)
-    typer.echo(f"{len(files)} document(s) found\n")
+    typer.echo(f"{len(files)} document(s) found")
+    _report_ignored(directory, settings)
+    typer.echo()
 
     failures: list[str] = []
     total_pages = total_chars = 0
@@ -136,7 +138,7 @@ def chunks(
     directory = path.expanduser().resolve() if path else settings.course_dir(course)
 
     try:
-        files = loader.find_documents(directory)
+        files = loader.find_documents(directory, settings.extension_list)
     except OverfitError as exc:
         typer.secho(str(exc), fg=typer.colors.RED, err=True)
         raise typer.Exit(1) from exc
@@ -245,7 +247,9 @@ def ingest(
         raise typer.Exit(1) from exc
 
     typer.secho(f"\n{directory}", fg=typer.colors.CYAN)
-    typer.echo(f"{embedder.model} -> {embedder.dimension}d   into {settings.db_path(course).name}\n")
+    typer.echo(f"{embedder.model} -> {embedder.dimension}d   into {settings.db_path(course).name}")
+    _report_ignored(directory, settings)
+    typer.echo()
 
     total = 0
 
@@ -275,6 +279,7 @@ def ingest(
                 embedder,
                 chunk_size=settings.chunk_size,
                 chunk_overlap=settings.chunk_overlap,
+                extensions=settings.extension_list,
                 force=force,
                 on_file=announce,
                 on_result=report_one,
@@ -366,16 +371,28 @@ def mock(
         f"{len(chunks)} passages -> up to {questions} questions"
         f"{f'   (topic: {topic})' if topic else ''}"
     )
-    typer.echo(
-        "A large local model loads ~17 GB before it writes a single token, so"
-        " the first run is slow. Progress appears below once it starts.\n"
-    )
+    # typer.echo(
+    #     "A large local model loads ~17 GB before it writes a single token, so"
+    #     " the first run is slow. Progress appears below once it starts.\n"
+    # )
 
     import time as _time
 
     started = _time.monotonic()
 
+    # The callback below only fires once tokens arrive, and nothing arrives
+    # while the request is queued or the model is reasoning. Without this
+    # line the terminal sits blank for that whole period, which is
+    # indistinguishable from a hang -- and the reasonable response to a hang
+    # is to kill it, throwing away work that was going fine.
+    typer.echo("  request sent, waiting for the first token...", nl=False)
+    first = True
+
     def tick(received: int, thinking: int = 0) -> None:
+        nonlocal first
+        if first:
+            typer.echo("\r" + " " * 48 + "\r", nl=False)
+            first = False
         elapsed = _time.monotonic() - started
         total = received + thinking
         rate = total / elapsed if elapsed else 0
@@ -609,6 +626,18 @@ def embed_check() -> None:
         "\nExpect the paraphrase highest and the shopping list lowest. If the "
         "Chinese probe scores near zero, cross-language retrieval will not "
         "work and the embedding model needs reconsidering."
+    )
+
+
+def _report_ignored(directory: Path, settings) -> None:
+    """Say what was passed over, so a silent filter cannot become a mystery."""
+    ignored = loader.count_ignored(directory, settings.extension_list)
+    if not ignored:
+        return
+    summary = ", ".join(f"{count} {ext}" for ext, count in sorted(ignored.items()))
+    typer.secho(
+        f"  skipping {summary}  (EXTENSIONS={settings.extensions})",
+        fg=typer.colors.YELLOW,
     )
 
 

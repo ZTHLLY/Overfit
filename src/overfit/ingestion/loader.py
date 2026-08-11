@@ -16,7 +16,7 @@ from pathlib import Path
 
 from overfit.errors import CourseNotFoundError, NoDocumentsError
 
-__all__ = ["SUPPORTED_EXTENSIONS", "find_documents", "file_hash"]
+__all__ = ["SUPPORTED_EXTENSIONS", "find_documents", "file_hash", "count_ignored"]
 
 
 # Extensions we have a parser for. Kept here rather than in config because
@@ -64,6 +64,36 @@ def find_documents(
     # Sort by the path relative to the root so results do not depend on where
     # the course folder happens to live.
     return sorted(found, key=lambda p: p.relative_to(directory).as_posix().lower())
+
+
+def count_ignored(
+    directory: Path,
+    extensions: tuple[str, ...] = SUPPORTED_EXTENSIONS,
+) -> dict[str, int]:
+    """Files present but excluded by the configured extensions.
+
+    Filtering by extension is useful -- it is how a folder holding both a PDF
+    and a Markdown copy of the same lecture avoids being indexed twice -- but
+    a filter that works in silence is a trap. Someone adds notes.md next
+    semester, never sees it in an exam, and has nothing anywhere to explain
+    why. Reporting what was passed over costs one line of output and removes
+    an entire category of confusion.
+
+    Junk the loader would never index in any configuration (dotfiles, macOS
+    resource forks) is not reported: mentioning it would be noise, not news.
+    """
+    if not directory.is_dir():
+        return {}
+
+    wanted = {ext.lower() for ext in extensions}
+    ignored: dict[str, int] = {}
+    for path in directory.rglob("*"):
+        if not path.is_file() or _is_hidden_or_skipped(path, directory):
+            continue
+        suffix = path.suffix.lower()
+        if suffix and suffix not in wanted:
+            ignored[suffix] = ignored.get(suffix, 0) + 1
+    return ignored
 
 
 def _is_hidden_or_skipped(path: Path, root: Path) -> bool:

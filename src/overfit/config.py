@@ -98,6 +98,24 @@ class Settings(BaseSettings):
         """
         return value.expanduser().resolve()
 
+    # ---- Loading (layer 1) ----------------------------------------------
+    # Which file types to index. Restricting this matters when a folder holds
+    # the same lecture twice -- a PDF and a Markdown conversion of it, say.
+    # Both would be indexed as separate documents, so a single concept ends
+    # up with two near-identical vectors competing for the same top-k slots,
+    # and the citation a reader gets depends on which copy happened to win.
+    # PDFs also carry real page numbers; a Markdown file has none, so its
+    # citations degrade to the file as a whole.
+    extensions: str = ".pdf"
+
+    @property
+    def extension_list(self) -> tuple[str, ...]:
+        return tuple(
+            item.strip().lower()
+            for item in self.extensions.split(",")
+            if item.strip()
+        )
+
     # ---- Chunking (layer 3) ---------------------------------------------
     # Approximate token counts, measured in characters (~4 chars per token
     # for English). Exact tokenisation is not worth an API call here:

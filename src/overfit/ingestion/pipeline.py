@@ -65,6 +65,7 @@ def ingest(
     *,
     chunk_size: int,
     chunk_overlap: int,
+    extensions: tuple[str, ...] | None = None,
     force: bool = False,
     on_file: Callable[[int, int, Path], None] | None = None,
     on_result: Callable[[FileOutcome], None] | None = None,
@@ -79,7 +80,7 @@ def ingest(
     """
     started = time.monotonic()
     report = IngestReport()
-    files = loader.find_documents(directory)
+    files = loader.find_documents(directory, extensions or loader.SUPPORTED_EXTENSIONS)
 
     def finish(outcome: FileOutcome) -> None:
         """Record and announce one file, immediately.
