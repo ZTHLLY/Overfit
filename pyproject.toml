@@ -14,8 +14,42 @@ dependencies = [
     "pydantic-settings>=2.14.2",
     "pypdf>=6.15.0",
     "sqlite-vec>=0.1.9",
-    "typer>=0.27.1",
+    # Floor rather than "latest": docling-core pins typer<0.27, and since
+    # extras resolve into the same lock as the base install, an upper bound
+    # here would make the docling extra unsatisfiable. Nothing in this CLI
+    # uses anything newer than 0.15 anyway.
+    "typer>=0.15",
 ]
+
+# Optional, because it is a different class of dependency from the rest:
+# this pulls torch and model weights, where everything above is small and
+# pure Python. The default install stays quick; the heavy backend is opted
+# into once there is a reason.
+#   uv sync --extra docling
+#
+# Note the target is `docling-slim`, not `docling`. The latter is a 5 KB
+# metapackage whose only dependency is `docling-slim[standard]` -- and
+# `standard` is a kitchen sink: docx, pptx, xlsx, email and audio readers,
+# three OCR engines, plus typer and rich for a command line we never call.
+# All the code lives in docling-slim, so the extras below ask for exactly
+# what a PDF pipeline needs and nothing else.
+[project.optional-dependencies]
+docling = [
+    "docling-slim[convert-core,format-pdf,format-latex,models-local]>=2.119.0",
+    # OpenCV is optional in docling-ibm-models and the layout model imports
+    # it unconditionally, so the `standard` install only works by accident:
+    # it happens to pull an OCR engine that depends on opencv. Asking for it
+    # directly is what makes a narrow install viable. Headless because there
+    # is no GUI here and the windowed build is much larger.
+    "docling-ibm-models[opencv-python-headless]>=3.14.0",
+]
+
+# Escape hatch. A narrow install depends on knowing which modules docling
+# imports unconditionally, and that is not something its metadata promises --
+# `cv2` was already one such surprise. If a conversion dies on a
+# ModuleNotFoundError, stop bisecting and take everything:
+#   uv sync --extra docling-full
+docling-full = ["docling-slim[standard]>=2.119.0"]
 
 [project.scripts]
 overfit = "overfit.cli:app"

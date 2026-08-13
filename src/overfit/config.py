@@ -20,11 +20,19 @@ from __future__ import annotations
 import re
 from functools import lru_cache
 from pathlib import Path
+from typing import Literal
 
 from pydantic import Field, field_validator, model_validator
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
-__all__ = ["LLMSettings", "EmbedSettings", "Settings", "get_settings"]
+__all__ = ["PdfBackend", "LLMSettings", "EmbedSettings", "Settings", "get_settings"]
+
+
+# Which library turns a PDF into text -- see `parser`. Spelled as a Literal
+# rather than a plain string so that a typo fails when settings load, not ten
+# minutes into an ingest, and so the set of real options is discoverable
+# without reading the parser.
+PdfBackend = Literal["pypdf", "docling", "docling+formula"]
 
 _ENV_FILE = SettingsConfigDict(
     env_file=".env",
@@ -115,6 +123,26 @@ class Settings(BaseSettings):
             for item in self.extensions.split(",")
             if item.strip()
         )
+
+    # ---- Parsing (layer 2) ----------------------------------------------
+    # Which backend extracts text from a PDF. Only one can be in force for a
+    # given index, and the choice is recorded in the store's meta table --
+    # two backends produce materially different text from the same file, so
+    # an index built by one is not an index built by the other, even though
+    # nothing about it looks wrong.
+    #
+    #   pypdf            fast, pure Python, no models. Flattens tables and
+    #                    formulas into scattered short lines.
+    #   docling          layout-aware: real table structure, reading order,
+    #                    section headings. Roughly an order of magnitude
+    #                    slower and pulls in model weights.
+    #   docling+formula  as above, plus equation-to-LaTeX enrichment. Slower
+    #                    again, and known to space out characters in some
+    #                    versions -- worth comparing before trusting.
+    #
+    # Install the optional dependency before selecting a docling option:
+    #   uv sync --extra docling
+    pdf_backend: PdfBackend = "pypdf"
 
     # ---- Chunking (layer 3) ---------------------------------------------
     # Approximate token counts, measured in characters (~4 chars per token

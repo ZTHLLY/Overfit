@@ -42,6 +42,10 @@ def inspect(
     path: PathOpt = None,
     samples: Annotated[int, typer.Option(help="Pages to print in full.")] = 2,
     chars: Annotated[int, typer.Option(help="Characters per sample.")] = 600,
+    show_removed: Annotated[
+        bool,
+        typer.Option("--show-removed", help="Print what cleaning deleted, per file."),
+    ] = False,
 ) -> None:
     """Show what the parser actually extracts, before anything is indexed.
 
@@ -69,7 +73,7 @@ def inspect(
     for file in files:
         relative = file.relative_to(directory)
         try:
-            document = parser.parse(file)
+            document = parser.parse(file, backend=settings.pdf_backend)
         except OverfitError as exc:
             failures.append(str(relative))
             typer.secho(f"  FAIL  {relative}", fg=typer.colors.RED)
@@ -94,6 +98,9 @@ def inspect(
         if blank:
             typer.echo(f"        {blank} near-empty page(s)")
 
+        if show_removed:
+            _report_removed(file, str(relative), settings.pdf_backend)
+
     if total_pages:
         # No chunk estimate here. Dividing total characters by the chunk size
         # is wrong by a factor of three on slide decks, because chunking
@@ -109,7 +116,7 @@ def inspect(
     # Print real text last, so it is the thing left on screen.
     for file in files[:samples]:
         try:
-            document = parser.parse(file)
+            document = parser.parse(file, backend=settings.pdf_backend)
         except OverfitError:
             continue
         page = max(document.pages, key=lambda p: len(p.text))
@@ -153,7 +160,7 @@ def chunks(
     all_chunks: list = []
     for file in files:
         try:
-            document = parser.parse(file)
+            document = parser.parse(file, backend=settings.pdf_backend)
         except OverfitError as exc:
             typer.secho(f"  skip  {file.name}: {exc}", fg=typer.colors.RED)
             continue
@@ -207,6 +214,7 @@ def _open_store(course: str, *, create: bool = False):
         embed_dim=embedder.dimension,
         chunk_size=settings.chunk_size,
         chunk_overlap=settings.chunk_overlap,
+        parser=settings.pdf_backend,
     )
     store = VectorStore.open(
         settings.db_path(course), profile, course=course, create=create
@@ -280,6 +288,7 @@ def ingest(
                 chunk_size=settings.chunk_size,
                 chunk_overlap=settings.chunk_overlap,
                 extensions=settings.extension_list,
+                pdf_backend=settings.pdf_backend,
                 force=force,
                 on_file=announce,
                 on_result=report_one,
@@ -569,8 +578,10 @@ def status(course: CourseArg) -> None:
         sources = store.sources()
 
     typer.secho(f"\n{settings.db_path(course)}", fg=typer.colors.CYAN)
-    for key in ("embed_model", "embed_dim", "chunk_size", "chunk_overlap"):
-        typer.echo(f"  {key:<14} {stats[key]}")
+    for key in ("parser", "embed_model", "embed_dim", "chunk_size", "chunk_overlap"):
+        # An index built before a key existed simply does not carry it, and
+        # saying so is better than crashing on a dictionary lookup.
+        typer.echo(f"  {key:<14} {stats.get(key, '(not recorded)')}")
     typer.echo(f"  {'chunks':<14} {stats['chunks']}")
     typer.echo(f"  {'documents':<14} {stats['documents']}\n")
     for name, count in sources:
@@ -639,6 +650,71 @@ def _report_ignored(directory: Path, settings) -> None:
         f"  skipping {summary}  (EXTENSIONS={settings.extensions})",
         fg=typer.colors.YELLOW,
     )
+
+
+def _report_removed(
+    file: Path, label: str, backend: str = "pypdf", preview: int = 6
+) -> None:
+    """Show what layer 2 deleted from one document.
+
+    Deliberately prints the text rather than a rate. Cleaning cannot be
+    scored -- there is no correct amount -- so the useful output is evidence
+    a human can disagree with. A percentage says too much went; only the
+    lines themselves say the wrong thing went.
+    """
+    try:
+        report = parser.cleaning_report(file, source=label, backend=backend)
+    except OverfitError:
+        return
+
+    if not report.removals:
+        typer.echo("        cleaning removed nothing")
+        return
+
+    typer.echo(
+        f"        cleaning removed {report.removed_ratio:.1%} "
+        f"({report.chars_before:,} -> {report.chars_after:,} chars)"
+    )
+
+    if not report.numbers_preserved:
+        # Nothing else in this output matters if this line ever appears.
+        typer.secho(
+            "        PAGE NUMBERS CHANGED DURING CLEANING -- citations are unreliable",
+            fg=typer.colors.RED,
+        )
+
+    if report.furniture:
+        typer.echo("        running furniture:")
+        for line, count in sorted(report.furniture.items(), key=lambda kv: -kv[1]):
+            share = report.margin(line)
+            hits = len(
+                [r for r in report.by_stage("furniture") if r.text == line.strip()]
+            )
+            # A line that only just cleared 60% is a judgement the code made
+            # narrowly, and narrow calls are where the wrong deletions are.
+            marginal = share < 0.75
+            typer.secho(
+                f"          {count:>3}/{report.pages} pages ({share:.0%})"
+                f"  {hits:>3} removed   {line[:64]!r}"
+                f"{'   <- borderline, check this' if marginal else ''}",
+                fg=typer.colors.YELLOW if marginal else None,
+            )
+
+    numbers = report.by_stage("page-number")
+    if numbers:
+        typer.echo(f"        page numbers stripped: {len(numbers)} line(s)")
+
+    debris = report.by_stage("figure-debris")
+    if debris:
+        pages = sorted({item.page for item in debris})
+        typer.echo(
+            f"        figure debris: {len(debris)} line(s) across "
+            f"{len(pages)} page(s)"
+        )
+        for item in debris[:preview]:
+            typer.echo(f"          p{item.page}  {item.text[:64]!r}")
+        if len(debris) > preview:
+            typer.echo(f"          ... {len(debris) - preview} more")
 
 
 def _median(values: list[int]) -> int:

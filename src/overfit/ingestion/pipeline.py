@@ -66,6 +66,7 @@ def ingest(
     chunk_size: int,
     chunk_overlap: int,
     extensions: tuple[str, ...] | None = None,
+    pdf_backend: str = "pypdf",
     force: bool = False,
     on_file: Callable[[int, int, Path], None] | None = None,
     on_result: Callable[[FileOutcome], None] | None = None,
@@ -109,7 +110,7 @@ def ingest(
             continue
 
         try:
-            document = parser.parse(path, source=source)
+            document = parser.parse(path, source=source, backend=pdf_backend)
         except OverfitError as exc:
             finish(FileOutcome(source, "failed", detail=str(exc)))
             continue

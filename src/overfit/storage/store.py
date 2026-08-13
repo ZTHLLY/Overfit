@@ -49,12 +49,22 @@ class IndexProfile:
     they describe, so a mismatch makes the index invalid rather than merely
     stale. Note what is *absent*: `top_k` and anything about generation,
     because those are decided per query and leave the index untouched.
+
+    `parser` is here for a failure that is otherwise completely silent.
+    Switching PDF backend changes the extracted text, and therefore every
+    chunk and every vector -- but it does not change a single source file,
+    so the content-hash cache reports all of them unchanged and a re-ingest
+    does nothing at all. Without this field the user gets the old index and
+    no indication of it. With it, the store refuses to open and says to
+    rebuild. Only the backend name is recorded, not a version: which method
+    was used is the question worth answering here.
     """
 
     embed_model: str
     embed_dim: int
     chunk_size: int
     chunk_overlap: int
+    parser: str = "pypdf"
 
     def as_meta(self) -> dict[str, str]:
         return {
@@ -63,6 +73,7 @@ class IndexProfile:
             "embed_dim": str(self.embed_dim),
             "chunk_size": str(self.chunk_size),
             "chunk_overlap": str(self.chunk_overlap),
+            "parser": self.parser,
         }
 
 

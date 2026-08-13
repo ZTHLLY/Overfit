@@ -1,0 +1,226 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1580 1260" width="1580" height="1260" font-family="Inter, Helvetica, Arial, sans-serif">
+  <rect id="canvas-background" x="0" y="0" width="1580" height="1260" fill="#FFFFFF"/>
+  <g id="header">
+    <text x="60" y="58" font-size="34" fill="#0F172A" font-weight="700">Overfit — Evaluation Architecture</text>
+    <text x="60" y="90" font-size="15" fill="#475569">Four kinds of probe against seven layers: what each can measure, what it costs, and which failures it is blind to.</text>
+    <line x1="60" y1="112" x2="1520" y2="112" stroke="#E2E8F0" stroke-width="1.5"/>
+  </g>
+  <g id="tier-headers">
+    <text x="64" y="180" font-size="11" fill="#94A3B8" font-weight="700" letter-spacing="1.2">PIPELINE LAYER</text>
+    <text x="64" y="204" font-size="11.5" fill="#94A3B8">the seam being probed</text>
+    <text x="64" y="232" font-size="10.5" fill="#94A3B8">An empty cell is information:</text>
+    <text x="64" y="246" font-size="10.5" fill="#94A3B8">that probe is blind to that layer.</text>
+  <g id="tier-head-t0">
+    <rect x="330" y="150" width="286" height="108" rx="10" fill="#F0FDF4" stroke="#16A34A" stroke-width="1.6"/>
+    <text x="346" y="178" font-size="12.5" fill="#16A34A" font-weight="700" letter-spacing="0.5">T0 · INVARIANTS</text>
+    <rect x="346" y="190" width="87.6" height="21" rx="6" fill="#DCFCE7"/>
+    <text x="355" y="205" font-size="10.5" fill="#16A34A" font-weight="700">free · pytest</text>
+    <text x="346" y="232" font-size="11.5" fill="#475569">Boolean. Deterministic assertions that</text>
+    <text x="346" y="247" font-size="11.5" fill="#475569">must never change.</text>
+  </g>
+  <g id="tier-head-t1">
+    <rect x="628" y="150" width="286" height="108" rx="10" fill="#F8FAFC" stroke="#475569" stroke-width="1.6"/>
+    <text x="644" y="178" font-size="12.5" fill="#475569" font-weight="700" letter-spacing="0.5">T1 · INTRINSIC METRICS</text>
+    <rect x="644" y="190" width="102.6" height="21" rx="6" fill="#E2E8F0"/>
+    <text x="653" y="205" font-size="10.5" fill="#475569" font-weight="700">free · no labels</text>
+    <text x="644" y="232" font-size="11.5" fill="#475569">Readings. Statistics of the corpus itself,</text>
+    <text x="644" y="247" font-size="11.5" fill="#475569">no ground truth needed.</text>
+  </g>
+  <g id="tier-head-t2">
+    <rect x="926" y="150" width="286" height="108" rx="10" fill="#FFF1F2" stroke="#E11D48" stroke-width="1.6"/>
+    <text x="942" y="178" font-size="12.5" fill="#E11D48" font-weight="700" letter-spacing="0.5">T2 · GOLDEN SET</text>
+    <rect x="942" y="190" width="138.2" height="21" rx="6" fill="#FFE4E6"/>
+    <text x="951" y="205" font-size="10.5" fill="#E11D48" font-weight="700">30–50 items, by hand</text>
+    <text x="942" y="232" font-size="11.5" fill="#475569">recall@k · MRR. A question, and the</text>
+    <text x="942" y="247" font-size="11.5" fill="#475569">passage that answers it.</text>
+  </g>
+  <g id="tier-head-t3">
+    <rect x="1224" y="150" width="286" height="108" rx="10" fill="#F0FDFA" stroke="#0F766E" stroke-width="1.6"/>
+    <text x="1240" y="178" font-size="12.5" fill="#0F766E" font-weight="700" letter-spacing="0.5">T3 · JUDGEMENT</text>
+    <rect x="1240" y="190" width="156.6" height="21" rx="6" fill="#CCFBF1"/>
+    <text x="1249" y="205" font-size="10.5" fill="#0F766E" font-weight="700">per item · human or LLM</text>
+    <text x="1240" y="232" font-size="11.5" fill="#475569">Is the answer actually supported by the</text>
+    <text x="1240" y="247" font-size="11.5" fill="#475569">passage it cites?</text>
+  </g>
+  </g>
+  <g id="matrix">
+  <g id="row-1-loader">
+    <rect x="60" y="282" width="250" height="70" rx="8" fill="#F3E8FF" stroke="#C4B5FD" stroke-width="1.4"/>
+    <text x="76" y="309" font-size="13" fill="#7C3AED" font-weight="700">1</text>
+    <text x="94" y="309" font-size="15" fill="#0F172A" font-weight="700">Loader</text>
+    <text x="76" y="329" font-size="10.5" fill="#7C3AED" font-family="monospace">ingestion/loader.py</text>
+    <rect x="330" y="282" width="286" height="70" rx="8" fill="#F0FDF4" stroke="#E2E8F0" stroke-width="1"/>
+    <rect x="330" y="292" width="3" height="50" rx="1.5" fill="#16A34A" opacity="0.55"/>
+    <text x="346" y="306" font-size="10.5" fill="#334155">Extension filter applied. A missing courses dir</text>
+    <text x="346" y="321" font-size="10.5" fill="#334155">raises, rather than yielding an empty index.</text>
+    <rect x="628" y="282" width="286" height="70" rx="8" fill="#F8FAFC" stroke="#E2E8F0" stroke-width="1"/>
+    <rect x="628" y="292" width="3" height="50" rx="1.5" fill="#475569" opacity="0.55"/>
+    <text x="644" y="306" font-size="10.5" fill="#334155">Files indexed vs ignored, by extension.</text>
+    <rect x="926" y="282" width="286" height="70" rx="8" fill="#FFFFFF" stroke="#F1F5F9" stroke-width="1"/>
+    <text x="1069.0" y="322.0" font-size="15" fill="#CBD5E1" text-anchor="middle">—</text>
+    <rect x="1224" y="282" width="286" height="70" rx="8" fill="#FFFFFF" stroke="#F1F5F9" stroke-width="1"/>
+    <text x="1367.0" y="322.0" font-size="15" fill="#CBD5E1" text-anchor="middle">—</text>
+  </g>
+  <g id="row-2-parser">
+    <rect x="60" y="360" width="250" height="91" rx="8" fill="#F3E8FF" stroke="#C4B5FD" stroke-width="1.4"/>
+    <text x="76" y="387" font-size="13" fill="#7C3AED" font-weight="700">2</text>
+    <text x="94" y="387" font-size="15" fill="#0F172A" font-weight="700">Parser</text>
+    <text x="76" y="407" font-size="10.5" fill="#7C3AED" font-family="monospace">ingestion/parser.py</text>
+    <rect x="330" y="360" width="286" height="91" rx="8" fill="#F0FDF4" stroke="#E2E8F0" stroke-width="1"/>
+    <rect x="330" y="370" width="3" height="71" rx="1.5" fill="#16A34A" opacity="0.55"/>
+    <text x="346" y="384" font-size="10.5" fill="#334155">A PDF with no text layer is a hard failure</text>
+    <text x="346" y="399" font-size="10.5" fill="#334155">(is_empty), never an empty document flowing on.</text>
+    <rect x="628" y="360" width="286" height="91" rx="8" fill="#F8FAFC" stroke="#E2E8F0" stroke-width="1"/>
+    <rect x="628" y="370" width="3" height="71" rx="1.5" fill="#475569" opacity="0.55"/>
+    <text x="644" y="384" font-size="10.5" fill="#334155">Chars per page · blank-page rate · figure-residue</text>
+    <text x="644" y="399" font-size="10.5" fill="#334155">rate, expected ~1%. That is the known ceiling of</text>
+    <text x="644" y="414" font-size="10.5" fill="#334155">regex cleaning, so a jump means something</text>
+    <text x="644" y="429" font-size="10.5" fill="#334155">changed.</text>
+    <rect x="926" y="360" width="286" height="91" rx="8" fill="#FFFFFF" stroke="#F1F5F9" stroke-width="1"/>
+    <text x="1069.0" y="410.5" font-size="15" fill="#CBD5E1" text-anchor="middle">—</text>
+    <rect x="1224" y="360" width="286" height="91" rx="8" fill="#FFFFFF" stroke="#F1F5F9" stroke-width="1"/>
+    <text x="1367.0" y="410.5" font-size="15" fill="#CBD5E1" text-anchor="middle">—</text>
+  </g>
+  <g id="row-3-chunker">
+    <rect x="60" y="459" width="250" height="76" rx="8" fill="#F3E8FF" stroke="#C4B5FD" stroke-width="1.4"/>
+    <text x="76" y="486" font-size="13" fill="#7C3AED" font-weight="700">3</text>
+    <text x="94" y="486" font-size="15" fill="#0F172A" font-weight="700">Chunker</text>
+    <text x="76" y="506" font-size="10.5" fill="#7C3AED" font-family="monospace">ingestion/chunker.py</text>
+    <rect x="330" y="459" width="286" height="76" rx="8" fill="#F0FDF4" stroke="#E2E8F0" stroke-width="1"/>
+    <rect x="330" y="469" width="3" height="56" rx="1.5" fill="#16A34A" opacity="0.55"/>
+    <text x="346" y="483" font-size="10.5" fill="#334155">make_id stable across runs · week1/notes and</text>
+    <text x="346" y="498" font-size="10.5" fill="#334155">week2/notes do not collide · overlap loses no</text>
+    <text x="346" y="513" font-size="10.5" fill="#334155">characters at a boundary.</text>
+    <rect x="628" y="459" width="286" height="76" rx="8" fill="#F8FAFC" stroke="#E2E8F0" stroke-width="1"/>
+    <rect x="628" y="469" width="3" height="56" rx="1.5" fill="#475569" opacity="0.55"/>
+    <text x="644" y="483" font-size="10.5" fill="#334155">Chunk length distribution against the 250-token</text>
+    <text x="644" y="498" font-size="10.5" fill="#334155">target · share under 200 chars, i.e. how much of</text>
+    <text x="644" y="513" font-size="10.5" fill="#334155">the corpus selection's floor makes ineligible.</text>
+    <rect x="926" y="459" width="286" height="76" rx="8" fill="#FFFFFF" stroke="#F1F5F9" stroke-width="1"/>
+    <text x="1069.0" y="502.0" font-size="15" fill="#CBD5E1" text-anchor="middle">—</text>
+    <rect x="1224" y="459" width="286" height="76" rx="8" fill="#FFFFFF" stroke="#F1F5F9" stroke-width="1"/>
+    <text x="1367.0" y="502.0" font-size="15" fill="#CBD5E1" text-anchor="middle">—</text>
+  </g>
+  <g id="row-4-embedder">
+    <rect x="60" y="543" width="250" height="76" rx="8" fill="#F3E8FF" stroke="#C4B5FD" stroke-width="1.4"/>
+    <text x="76" y="570" font-size="13" fill="#7C3AED" font-weight="700">4</text>
+    <text x="94" y="570" font-size="15" fill="#0F172A" font-weight="700">Embedder</text>
+    <text x="76" y="590" font-size="10.5" fill="#7C3AED" font-family="monospace">embedding.py</text>
+    <rect x="330" y="543" width="286" height="76" rx="8" fill="#F0FDF4" stroke="#E2E8F0" stroke-width="1"/>
+    <rect x="330" y="553" width="3" height="56" rx="1.5" fill="#16A34A" opacity="0.55"/>
+    <text x="346" y="567" font-size="10.5" fill="#334155">‖v‖ = 1 ± 1e-6. The store's score formula is exact</text>
+    <text x="346" y="582" font-size="10.5" fill="#334155">only while this holds — assert it, do not just</text>
+    <text x="346" y="597" font-size="10.5" fill="#334155">comment it.</text>
+    <rect x="628" y="543" width="286" height="76" rx="8" fill="#F8FAFC" stroke="#E2E8F0" stroke-width="1"/>
+    <rect x="628" y="553" width="3" height="56" rx="1.5" fill="#475569" opacity="0.55"/>
+    <text x="644" y="567" font-size="10.5" fill="#334155">Dimension agreement with meta · zero and NaN</text>
+    <text x="644" y="582" font-size="10.5" fill="#334155">vectors.</text>
+    <rect x="926" y="543" width="286" height="76" rx="8" fill="#FFFFFF" stroke="#F1F5F9" stroke-width="1"/>
+    <text x="1069.0" y="586.0" font-size="15" fill="#CBD5E1" text-anchor="middle">—</text>
+    <rect x="1224" y="543" width="286" height="76" rx="8" fill="#FFFFFF" stroke="#F1F5F9" stroke-width="1"/>
+    <text x="1367.0" y="586.0" font-size="15" fill="#CBD5E1" text-anchor="middle">—</text>
+  </g>
+  <g id="row-5-vector-store">
+    <rect x="60" y="627" width="250" height="76" rx="8" fill="#FFFBEB" stroke="#FCD34D" stroke-width="1.4"/>
+    <text x="76" y="654" font-size="13" fill="#D97706" font-weight="700">5</text>
+    <text x="94" y="654" font-size="15" fill="#0F172A" font-weight="700">Vector Store</text>
+    <text x="76" y="674" font-size="10.5" fill="#D97706" font-family="monospace">storage/store.py</text>
+    <rect x="330" y="627" width="286" height="76" rx="8" fill="#F0FDF4" stroke="#E2E8F0" stroke-width="1"/>
+    <rect x="330" y="637" width="3" height="56" rx="1.5" fill="#16A34A" opacity="0.55"/>
+    <text x="346" y="651" font-size="10.5" fill="#334155">add() idempotent on re-run · count(chunks) =</text>
+    <text x="346" y="666" font-size="10.5" fill="#334155">count(vec_chunks) · a profile mismatch raises</text>
+    <text x="346" y="681" font-size="10.5" fill="#334155">IndexMismatchError instead of degrading quietly.</text>
+    <rect x="628" y="627" width="286" height="76" rx="8" fill="#F8FAFC" stroke="#E2E8F0" stroke-width="1"/>
+    <rect x="628" y="637" width="3" height="56" rx="1.5" fill="#475569" opacity="0.55"/>
+    <text x="644" y="651" font-size="10.5" fill="#334155">Cache hit rate — file-level, not chunk-level:</text>
+    <text x="644" y="666" font-size="10.5" fill="#334155">editing one page still re-embeds the whole file.</text>
+    <rect x="926" y="627" width="286" height="76" rx="8" fill="#FFFFFF" stroke="#F1F5F9" stroke-width="1"/>
+    <text x="1069.0" y="670.0" font-size="15" fill="#CBD5E1" text-anchor="middle">—</text>
+    <rect x="1224" y="627" width="286" height="76" rx="8" fill="#FFFFFF" stroke="#F1F5F9" stroke-width="1"/>
+    <text x="1367.0" y="670.0" font-size="15" fill="#CBD5E1" text-anchor="middle">—</text>
+  </g>
+  <g id="row-6-retriever">
+    <rect x="60" y="711" width="250" height="121" rx="8" fill="#EFF6FF" stroke="#BFDBFE" stroke-width="1.4"/>
+    <text x="76" y="738" font-size="13" fill="#2563EB" font-weight="700">6</text>
+    <text x="94" y="738" font-size="15" fill="#0F172A" font-weight="700">Retriever</text>
+    <text x="76" y="758" font-size="10.5" fill="#2563EB" font-family="monospace">query/retriever.py + selection.py</text>
+    <rect x="330" y="711" width="286" height="121" rx="8" fill="#F0FDF4" stroke="#E2E8F0" stroke-width="1"/>
+    <rect x="330" y="721" width="3" height="101" rx="1.5" fill="#16A34A" opacity="0.55"/>
+    <text x="346" y="735" font-size="10.5" fill="#334155">score ∈ [0,1] and equals exact cosine · MMR's λ</text>
+    <text x="346" y="750" font-size="10.5" fill="#334155">has real effect after rescaling: λ=0 reproduces</text>
+    <text x="346" y="765" font-size="10.5" fill="#334155">plain top-k, λ=1 ignores the query entirely.</text>
+    <rect x="628" y="711" width="286" height="121" rx="8" fill="#F8FAFC" stroke="#E2E8F0" stroke-width="1"/>
+    <rect x="628" y="721" width="3" height="101" rx="1.5" fill="#475569" opacity="0.55"/>
+    <text x="644" y="735" font-size="10.5" fill="#334155">Top-k score spread · pairwise similarity of the</text>
+    <text x="644" y="750" font-size="10.5" fill="#334155">selected material (redundancy) · document and</text>
+    <text x="644" y="765" font-size="10.5" fill="#334155">topic coverage of one exam's worth of material.</text>
+    <rect x="926" y="711" width="286" height="121" rx="8" fill="#FFF1F2" stroke="#E2E8F0" stroke-width="1"/>
+    <rect x="926" y="721" width="3" height="101" rx="1.5" fill="#E11D48" opacity="0.55"/>
+    <text x="942" y="735" font-size="10.5" fill="#334155">recall@5 · MRR · rank of the passage you know is</text>
+    <text x="942" y="750" font-size="10.5" fill="#334155">correct. The only cell that puts a number on the</text>
+    <text x="942" y="765" font-size="10.5" fill="#334155">ceiling — and so the only one that can say</text>
+    <text x="942" y="780" font-size="10.5" fill="#334155">whether re-ranking or hybrid search is worth</text>
+    <text x="942" y="795" font-size="10.5" fill="#334155">building. Must contain adversarial</text>
+    <text x="942" y="810" font-size="10.5" fill="#334155">near-neighbours.</text>
+    <rect x="1224" y="711" width="286" height="121" rx="8" fill="#FFFFFF" stroke="#F1F5F9" stroke-width="1"/>
+    <text x="1367.0" y="776.5" font-size="15" fill="#CBD5E1" text-anchor="middle">—</text>
+  </g>
+  <g id="row-7-generator">
+    <rect x="60" y="840" width="250" height="106" rx="8" fill="#EFF6FF" stroke="#BFDBFE" stroke-width="1.4"/>
+    <text x="76" y="867" font-size="13" fill="#2563EB" font-weight="700">7</text>
+    <text x="94" y="867" font-size="15" fill="#0F172A" font-weight="700">Generator</text>
+    <text x="76" y="887" font-size="10.5" fill="#2563EB" font-family="monospace">query/generator.py</text>
+    <rect x="330" y="840" width="286" height="106" rx="8" fill="#F0FDF4" stroke="#E2E8F0" stroke-width="1"/>
+    <rect x="330" y="850" width="3" height="86" rx="1.5" fill="#16A34A" opacity="0.55"/>
+    <text x="346" y="864" font-size="10.5" fill="#334155">_coerce takes a bare array and an aliased wrapper</text>
+    <text x="346" y="879" font-size="10.5" fill="#334155">· a missing source is still refused · absent items ≠</text>
+    <text x="346" y="894" font-size="10.5" fill="#334155">empty items · all three response_format rungs</text>
+    <text x="346" y="909" font-size="10.5" fill="#334155">validate identically.</text>
+    <rect x="628" y="840" width="286" height="106" rx="8" fill="#F8FAFC" stroke="#E2E8F0" stroke-width="1"/>
+    <rect x="628" y="850" width="3" height="86" rx="1.5" fill="#475569" opacity="0.55"/>
+    <text x="644" y="864" font-size="10.5" fill="#334155">Attempts per run · citations dropped · repeated</text>
+    <text x="644" y="879" font-size="10.5" fill="#334155">questions and topics within one paper.</text>
+    <rect x="926" y="840" width="286" height="106" rx="8" fill="#FFFFFF" stroke="#F1F5F9" stroke-width="1"/>
+    <text x="1069.0" y="898.0" font-size="15" fill="#CBD5E1" text-anchor="middle">—</text>
+    <rect x="1224" y="840" width="286" height="106" rx="8" fill="#F0FDFA" stroke="#E2E8F0" stroke-width="1"/>
+    <rect x="1224" y="850" width="3" height="86" rx="1.5" fill="#0F766E" opacity="0.55"/>
+    <text x="1240" y="864" font-size="10.5" fill="#334155">Three questions per item. Is the answer supported</text>
+    <text x="1240" y="879" font-size="10.5" fill="#334155">by the passage it cites? Is the question</text>
+    <text x="1240" y="894" font-size="10.5" fill="#334155">self-contained? Is it worth examining? Distinct</text>
+    <text x="1240" y="909" font-size="10.5" fill="#334155">from _drop_invented_citations, which only proves</text>
+    <text x="1240" y="924" font-size="10.5" fill="#334155">the citation points somewhere real.</text>
+  </g>
+  </g>
+  <g id="footnotes">
+  <g id="reading-order">
+    <rect x="60" y="992" width="730" height="222" rx="10" fill="#F8FAFC" stroke="#CBD5E1" stroke-width="1.4"/>
+    <text x="84" y="1024" font-size="15" fill="#0F172A" font-weight="700">Reading order — why there is no single score</text>
+    <text x="84" y="1048" font-size="11.5" fill="#475569">Failures compound downstream, so one end-to-end number cannot tell you where to work.</text>
+    <circle cx="92" cy="1070" r="4" fill="#16A34A"/>
+    <text x="106" y="1074" font-size="11" fill="#0F172A" font-weight="700">T0 red</text>
+    <text x="155.7" y="1074" font-size="11" fill="#475569">→   stop. Nothing in the columns to its right means anything yet.</text>
+    <circle cx="92" cy="1093" r="4" fill="#475569"/>
+    <text x="106" y="1097" font-size="11" fill="#0F172A" font-weight="700">T1 abnormal</text>
+    <text x="193.8" y="1097" font-size="11" fill="#475569">→   a data problem — extraction or chunking, never the model.</text>
+    <circle cx="92" cy="1116" r="4" fill="#E11D48"/>
+    <text x="106" y="1120" font-size="11" fill="#0F172A" font-weight="700">T2 low</text>
+    <text x="156.5" y="1120" font-size="11" fill="#475569">→   retrieval is the ceiling. This number is what decides whether re-ranking or hybrid search is worth building,</text>
+    <text x="106" y="1137" font-size="11" fill="#475569">instead of guessing.</text>
+    <circle cx="92" cy="1156" r="4" fill="#0F766E"/>
+    <text x="106" y="1160" font-size="11" fill="#0F172A" font-weight="700">T2 high, T3 low</text>
+    <text x="210.8" y="1160" font-size="11" fill="#475569">→   the model was handed the right material and ignored it. The only failure in the whole pipeline</text>
+    <text x="106" y="1177" font-size="11" fill="#475569">that is about the model.</text>
+  </g>
+  <g id="golden-set-traps">
+    <rect x="810" y="992" width="700" height="222" rx="10" fill="#FFF1F2" stroke="#FDA4AF" stroke-width="1.4"/>
+    <text x="834" y="1024" font-size="15" fill="#881337" font-weight="700">Two traps in the golden set — decide before labelling, not after</text>
+    <text x="834" y="1050" font-size="11.5" fill="#9F1239" font-weight="700">Anchor on (source, page), not chunk id.</text>
+    <text x="834" y="1067" font-size="11" fill="#7F1D1D">Ids carry an in-page counter — c{index} — so changing chunk_size silently repoints every label at different text.</text>
+    <text x="834" y="1083" font-size="11" fill="#7F1D1D">Store the IndexProfile fingerprint with the set and warn on mismatch, the way the store already refuses a</text>
+    <text x="834" y="1099" font-size="11" fill="#7F1D1D">mismatched index.</text>
+    <text x="834" y="1129" font-size="11.5" fill="#9F1239" font-weight="700">Sample the near-neighbour failure, not around it.</text>
+    <text x="834" y="1146" font-size="11" fill="#7F1D1D">"What is overfitting" and a passage defining underfitting sit close in embedding space and opposite in meaning. A set</text>
+    <text x="834" y="1162" font-size="11" fill="#7F1D1D">without those pairs reports a recall the system has not earned, and hides the exact gap re-ranking exists to close.</text>
+  </g>
+  </g>
+</svg>
