@@ -684,7 +684,8 @@ def _report_removed(
         )
 
     if report.furniture:
-        typer.echo("        running furniture:")
+        how = "labelled by the backend" if report.furniture_labelled else "detected at 60% of pages"
+        typer.echo(f"        running furniture ({how}):")
         for line, count in sorted(report.furniture.items(), key=lambda kv: -kv[1]):
             share = report.margin(line)
             hits = len(
@@ -692,7 +693,8 @@ def _report_removed(
             )
             # A line that only just cleared 60% is a judgement the code made
             # narrowly, and narrow calls are where the wrong deletions are.
-            marginal = share < 0.75
+            # A label carries no such margin, so flagging one would be noise.
+            marginal = share < 0.75 and not report.furniture_labelled
             typer.secho(
                 f"          {count:>3}/{report.pages} pages ({share:.0%})"
                 f"  {hits:>3} removed   {line[:64]!r}"

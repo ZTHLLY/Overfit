@@ -58,10 +58,28 @@ class Page:
 
     The page number is captured here and nowhere else. If it is lost at this
     point no downstream layer can reconstruct it, and citations die with it.
+
+    The two line collections carry something different from the text: what
+    the *backend* knew about it. A layout-aware reader classifies every block
+    it finds -- this is a running footer, that is a table, this is a formula
+    -- and dropping those verdicts at the door means the cleaning stage has
+    to rediscover them by guesswork, badly. A footer identified by a model
+    reading the page is not the same kind of fact as a line that happened to
+    appear on 65% of pages.
+
+    Both are empty when the backend cannot say, which is the honest state for
+    a reader that only returns glyphs. Cleaning falls back to statistics
+    there, and only there.
     """
 
     number: int  # 1-based, matching what a human sees in a PDF reader
     text: str
+    # Lines the backend identified as a running header or footer.
+    furniture: tuple[str, ...] = ()
+    # Lines belonging to a block that is not prose -- a table, an equation, a
+    # heading, a caption. They look exactly like extraction debris (short,
+    # unpunctuated, no bullet) and must never be deleted as such.
+    structured: tuple[str, ...] = ()
 
 
 @dataclass(frozen=True, slots=True)

@@ -72,6 +72,10 @@ class CleaningReport:
     furniture: dict[str, int] = field(default_factory=dict)
     removals: list[Removal] = field(default_factory=list)
     numbers_preserved: bool = True
+    # True when the backend named the furniture, False when a 60% frequency
+    # threshold guessed it. Worth surfacing: a narrow margin is a reason to
+    # look twice at a guess and means nothing at all about a label.
+    furniture_labelled: bool = False
 
     @property
     def removed_ratio(self) -> float:
@@ -108,12 +112,15 @@ def cleaning_report(
     removals: list[Removal] = []
     cleaned = _clean(raw, record=removals)
 
+    labelled = Counter(line for page in raw for line in set(page.furniture))
+
     return CleaningReport(
         source=source or path.name,
         pages=len(raw),
         chars_before=sum(len(page.text) for page in raw),
         chars_after=sum(len(page.text) for page in cleaned),
-        furniture=find_running_lines(raw),
+        furniture=dict(labelled) if labelled else find_running_lines(raw),
+        furniture_labelled=bool(labelled),
         removals=removals,
         # The one thing in this layer that is a hard invariant rather than a
         # judgement call. If it ever fails, every citation downstream is off
@@ -177,37 +184,62 @@ def _clean(pages: list[Page], record: list[Removal] | None = None) -> list[Page]
     trusting if it describes the same code that ran -- a second
     implementation written for the report would start accurate and drift.
     """
+    labelled = {line for page in pages for line in page.furniture}
+    protected = frozenset(line for page in pages for line in page.structured)
+
     # Below a handful of pages the frequency test is meaningless -- a 3-page
     # handout may legitimately repeat a phrase at the top of every page -- so
-    # the whole stage is skipped, page numbers included.
-    if len(pages) < _MIN_PAGES_FOR_HEADER_DETECTION:
-        stripped = pages
+    # the whole stage is skipped, page numbers included. A backend that
+    # labelled the furniture itself is exempt from that caution: it did not
+    # count anything, so there is nothing for a small sample to distort.
+    long_enough = len(pages) >= _MIN_PAGES_FOR_HEADER_DETECTION
+    if labelled:
+        furniture = labelled
+    elif long_enough:
+        furniture = set(find_running_lines(pages))
     else:
-        furniture = find_running_lines(pages)
-        stripped = []
-        for page in pages:
-            kept: list[str] = []
-            for line in page.text.splitlines():
-                if line.strip() and line.strip() in furniture:
-                    _note(record, page.number, "furniture", line)
-                elif _is_bare_page_number(line):
-                    _note(record, page.number, "page-number", line)
-                else:
-                    kept.append(line)
-            stripped.append(Page(number=page.number, text="\n".join(kept)))
+        furniture = set()
+
+    stripped: list[Page] = []
+    for page in pages:
+        # Bare page numbers are dropped alongside furniture rather than by
+        # their own rule, and share its guard: on a three-page handout a lone
+        # "2" is as likely to be an answer as a page number.
+        if not (labelled or long_enough):
+            stripped.append(page)
+            continue
+        kept: list[str] = []
+        for line in page.text.splitlines():
+            if line.strip() and line.strip() in furniture:
+                _note(record, page.number, "furniture", line)
+            elif _is_bare_page_number(line):
+                _note(record, page.number, "page-number", line)
+            else:
+                kept.append(line)
+        stripped.append(_replacing(page, "\n".join(kept)))
 
     debrided: list[Page] = []
     for page in stripped:
         lines = page.text.splitlines()
-        keep = _debris_mask(lines)
+        keep = _debris_mask(lines, protected)
         for line, wanted in zip(lines, keep):
             if not wanted:
                 _note(record, page.number, "figure-debris", line)
-        debrided.append(Page(number=page.number, text="\n".join(
-            line for line, wanted in zip(lines, keep) if wanted
-        )))
+        debrided.append(
+            _replacing(page, "\n".join(l for l, w in zip(lines, keep) if w))
+        )
 
-    return [Page(number=p.number, text=clean_page(p.text)) for p in debrided]
+    return [_replacing(p, clean_page(p.text)) for p in debrided]
+
+
+def _replacing(page: Page, text: str) -> Page:
+    """A copy with new text, keeping the number and the backend's verdicts."""
+    return Page(
+        number=page.number,
+        text=text,
+        furniture=page.furniture,
+        structured=page.structured,
+    )
 
 
 def _note(record: list[Removal] | None, page: int, stage: str, line: str) -> None:
@@ -283,21 +315,62 @@ def _parse_docling(path: Path, *, formulas: bool) -> list[Page]:
         raise ExtractionError(path, f"{type(exc).__name__}: {exc}") from exc
 
     buckets: dict[int, list[str]] = {}
+    furniture: dict[int, list[str]] = {}
+    structured: dict[int, list[str]] = {}
     highest = 0
+
     for item, _level in document.iterate_items():
         number = _docling_page_of(item)
         if number is None:
             continue
         highest = max(highest, number)
         text = _docling_text_of(item, document)
-        if text:
-            buckets.setdefault(number, []).append(text)
+        if not text:
+            continue
+        buckets.setdefault(number, []).append(text)
+
+        # Record the verdict rather than acting on it. Deleting a footer here
+        # would be simpler and worse: it happens before the cleaning stage, so
+        # it would never appear in the report, and a header wrongly classified
+        # by the layout model would vanish with no way to notice.
+        label = _docling_label_of(item)
+        if label in _FURNITURE_LABELS:
+            furniture.setdefault(number, []).extend(_lines(text))
+        elif label and label not in _PROSE_LABELS:
+            structured.setdefault(number, []).extend(_lines(text))
 
     total = _docling_page_count(document) or highest
     return [
-        Page(number=number, text="\n\n".join(buckets.get(number, [])))
+        Page(
+            number=number,
+            text="\n\n".join(buckets.get(number, [])),
+            furniture=tuple(furniture.get(number, ())),
+            structured=tuple(structured.get(number, ())),
+        )
         for number in range(1, total + 1)
     ]
+
+
+# From docling's DocItemLabel. Only `text` is prose; everything else is a
+# block whose shape was recognised, and recognised shapes are precisely what
+# the debris rule must leave alone.
+_FURNITURE_LABELS = frozenset({"page_header", "page_footer"})
+_PROSE_LABELS = frozenset({"text"})
+
+
+def _lines(text: str) -> list[str]:
+    return [line.strip() for line in text.splitlines() if line.strip()]
+
+
+def _docling_label_of(item: object) -> str:
+    """The block's classification, as a plain string.
+
+    DocItemLabel is a str enum, so `.value` is taken rather than str() --
+    the latter renders as "DocItemLabel.PAGE_FOOTER" on some Python versions
+    and would silently match nothing.
+    """
+    label = getattr(item, "label", None)
+    return str(getattr(label, "value", label) or "")
 
 
 def _docling_page_of(item: object) -> int | None:
@@ -522,14 +595,23 @@ def drop_figure_debris(text: str) -> str:
     return "\n".join(line for line, wanted in zip(lines, keep) if wanted)
 
 
-def _debris_mask(lines: list[str]) -> list[bool]:
+def _debris_mask(
+    lines: list[str], protected: frozenset[str] = frozenset()
+) -> list[bool]:
     """True for every line worth keeping.
 
     Split out from `drop_figure_debris` so that the diagnostic can report
     exactly which lines were discarded without re-deriving the rule. The
     decision lives here once; both callers only apply it.
+
+    `protected` holds lines the backend already classified as a table, an
+    equation or a heading. This rule exists to delete text whose structure
+    was *lost*; a line that arrived with its structure named is outside its
+    jurisdiction, whatever it looks like.
     """
-    flags = [_is_fragment(line) for line in lines]
+    flags = [
+        _is_fragment(line) and line.strip() not in protected for line in lines
+    ]
 
     keep = [True] * len(lines)
     run_start = 0
