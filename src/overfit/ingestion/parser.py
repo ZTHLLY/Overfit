@@ -86,6 +86,29 @@ class CleaningReport:
     def by_stage(self, stage: str) -> list[Removal]:
         return [item for item in self.removals if item.stage == stage]
 
+    def furniture_lines(self) -> tuple[int, list[tuple[str, int]]]:
+        """Bare page numbers as a count, everything else listed, commonest first.
+
+        The two ways furniture is found produce very different shapes, and one
+        display cannot serve both. A frequency threshold finds *one* line
+        repeated across most pages. A layout model labels *every* block it
+        considers furniture, and on a slide deck that is one page number per
+        page -- seventy entries of "1 page (1%)", which buries the handful of
+        lines actually worth reading.
+
+        Numbers are the part nobody needs to see individually; the rest is the
+        part where a misclassified heading would be hiding.
+        """
+        numbers = 0
+        named: list[tuple[str, int]] = []
+        for line, count in self.furniture.items():
+            if _is_bare_page_number(line):
+                numbers += count
+            else:
+                named.append((line, count))
+        named.sort(key=lambda pair: (-pair[1], pair[0]))
+        return numbers, named
+
     def margin(self, line: str) -> float:
         """How comfortably a furniture line cleared the threshold, in [0, 1].
 
@@ -319,7 +342,7 @@ def _parse_docling(path: Path, *, formulas: bool) -> list[Page]:
     structured: dict[int, list[str]] = {}
     highest = 0
 
-    for item, _level in document.iterate_items():
+    for item, _level in _docling_items(document):
         number = _docling_page_of(item)
         if number is None:
             continue
@@ -333,10 +356,16 @@ def _parse_docling(path: Path, *, formulas: bool) -> list[Page]:
         # would be simpler and worse: it happens before the cleaning stage, so
         # it would never appear in the report, and a header wrongly classified
         # by the layout model would vanish with no way to notice.
-        label = _docling_label_of(item)
-        if label in _FURNITURE_LABELS:
+        # Classify by *layer* first, not by label. Docling sorts every block
+        # into a content layer before it labels it, and the layer is the
+        # stronger statement: a block filed outside the body is one the model
+        # decided is not part of the document's content at all. Reading the
+        # label instead let anything in the furniture layer carrying an
+        # unexpected label -- a caption, a stray "text" -- slip through as
+        # prose, which is how a page footer ends up embedded as a chunk.
+        if _docling_layer_of(item) != "body":
             furniture.setdefault(number, []).extend(_lines(text))
-        elif label and label not in _PROSE_LABELS:
+        elif (label := _docling_label_of(item)) and label not in _PROSE_LABELS:
             structured.setdefault(number, []).extend(_lines(text))
 
     total = _docling_page_count(document) or highest
@@ -354,12 +383,66 @@ def _parse_docling(path: Path, *, formulas: bool) -> list[Page]:
 # From docling's DocItemLabel. Only `text` is prose; everything else is a
 # block whose shape was recognised, and recognised shapes are precisely what
 # the debris rule must leave alone.
-_FURNITURE_LABELS = frozenset({"page_header", "page_footer"})
 _PROSE_LABELS = frozenset({"text"})
+
+
+def _docling_layer_of(item: object) -> str:
+    """Which content layer a block was filed under: body, furniture, notes..."""
+    layer = getattr(item, "content_layer", None)
+    return str(getattr(layer, "value", layer) or "body")
 
 
 def _lines(text: str) -> list[str]:
     return [line.strip() for line in text.splitlines() if line.strip()]
+
+
+def _docling_items(document: object):
+    """Walk the document, including the layer docling would hide by default.
+
+    `iterate_items` traverses only `ContentLayer.BODY`. Page headers and
+    footers live in `ContentLayer.FURNITURE` and are therefore dropped before
+    this module ever sees them -- which sounds convenient and is the exact
+    failure this pipeline keeps trying to avoid. Two reasons it is not
+    acceptable:
+
+    * The deletion happens upstream of cleaning, so `cleaning_report` cannot
+      show it. A layout model that mistakes a real section heading for a page
+      header removes it with no trace anywhere.
+    * It is unreliable in a way that hides its own unreliability. On this
+      corpus the same footer was assigned to FURNITURE on some pages and to
+      BODY on others, so the frequency heuristic silently found it on 65% of
+      pages instead of 100% and reported a borderline call -- covering for a
+      misclassification nobody could see.
+
+    Asking for both layers puts every decision back in front of the cleaning
+    stage, which removes furniture too, but records it while doing so.
+    """
+    try:
+        from docling_core.types.doc import ContentLayer
+    except ImportError:  # pragma: no cover - older docling-core
+        return document.iterate_items()
+
+    if not _accepts_layers(document.iterate_items):
+        return document.iterate_items()
+    return document.iterate_items(
+        included_content_layers={ContentLayer.BODY, ContentLayer.FURNITURE}
+    )
+
+
+def _accepts_layers(method: object) -> bool:
+    return _accepts_parameter(
+        getattr(method, "__func__", method), "included_content_layers"
+    )
+
+
+@lru_cache(maxsize=8)
+def _accepts_parameter(function: object, name: str) -> bool:
+    import inspect
+
+    try:
+        return name in inspect.signature(function).parameters
+    except (TypeError, ValueError):
+        return False
 
 
 def _docling_label_of(item: object) -> str:
@@ -406,19 +489,9 @@ def _docling_text_of(item: object, document: object) -> str:
     return str(text).strip() if text else ""
 
 
-@lru_cache(maxsize=8)
-def _accepts_doc_function(function: object) -> bool:
-    import inspect
-
-    try:
-        return "doc" in inspect.signature(function).parameters
-    except (TypeError, ValueError):
-        return False
-
-
 def _accepts_doc(method: object) -> bool:
     """Whether a bound method takes a `doc` argument, cached per function."""
-    return _accepts_doc_function(getattr(method, "__func__", method))
+    return _accepts_parameter(getattr(method, "__func__", method), "doc")
 
 
 def _docling_page_count(document: object) -> int:
