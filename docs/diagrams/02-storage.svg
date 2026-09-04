@@ -1,148 +1,163 @@
-<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1440 1180" width="1440" height="1180" font-family="Inter, Helvetica, Arial, sans-serif">
+<?xml version="1.0" encoding="UTF-8"?>
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1600 1240" width="1600" height="1240">
+  <title>Overfit storage architecture</title>
+  <desc>The current SQLite and sqlite-vec schema, compatibility profile, write operations, search calculation, and read-side introspection.</desc>
   <defs>
-    <marker id="arrow-amber" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse">
-      <path d="M 0 0 L 10 5 L 0 10 z" fill="#D97706"/>
-    </marker>
-    <marker id="arrow-blue" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse">
-      <path d="M 0 0 L 10 5 L 0 10 z" fill="#2563EB"/>
-    </marker>
+    <filter id="shadow" x="-10%" y="-10%" width="120%" height="125%"><feDropShadow dx="0" dy="3" stdDeviation="5" flood-color="#0F172A" flood-opacity="0.08"/></filter>
+    <marker id="arrow-amber" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto"><path d="M0 0L10 5L0 10Z" fill="#D97706"/></marker>
+    <marker id="arrow-blue" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto"><path d="M0 0L10 5L0 10Z" fill="#2563EB"/></marker>
+    <style>
+      .sans{font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Arial,sans-serif}.mono{font-family:"SFMono-Regular",Consolas,"Liberation Mono",monospace}
+      .h1{font-size:34px;font-weight:750;fill:#0F172A}.sub{font-size:15px;fill:#475569}.eyebrow{font-size:11px;font-weight:750;letter-spacing:1.45px}.title{font-size:20px;font-weight:750}.body{font-size:13px;fill:#475569}.small{font-size:11.5px;fill:#64748B}.code{font-size:11.7px;fill:#334155}.field{font-size:11.7px;fill:#475569}.key{font-size:11.7px;font-weight:700;fill:#0F172A}
+    </style>
   </defs>
+  <rect width="1600" height="1240" fill="#F8FAFC"/>
 
-  <rect id="canvas-background" x="0" y="0" width="1440" height="1180" fill="#FFFFFF"/>
-
-  <g id="header">
-    <text x="60" y="58" font-size="32" font-weight="700" fill="#78350F">Stage 2 · Storage</text>
-    <text x="60" y="90" font-size="15" fill="#475569">Layer 5. One SQLite file, two operations, zero services. This is the only thing Ingestion and Query have in common.</text>
-    <line x1="60" y1="112" x2="1380" y2="112" stroke="#E2E8F0" stroke-width="1.5"/>
+  <g id="header" class="sans">
+    <text x="64" y="62" class="h1">Stage 2 · Storage</text>
+    <text x="64" y="92" class="sub">A per-course SQLite index is the seam between ingestion and every read command. Text and vectors share a row identity.</text>
+    <rect x="1410" y="43" width="126" height="31" rx="15.5" fill="#FFFBEB" stroke="#FDE68A"/>
+    <text x="1473" y="63" text-anchor="middle" font-size="12" font-weight="700" fill="#B45309">SCHEMA · v1</text>
+    <line x1="64" y1="116" x2="1536" y2="116" stroke="#CBD5E1"/>
   </g>
 
-  <g id="input-bar">
-    <rect x="60" y="140" width="1320" height="64" rx="10" fill="#F3E8FF" stroke="#7C3AED" stroke-width="1.5"/>
-    <text x="88" y="167" font-size="11" font-weight="700" letter-spacing="1.2" fill="#7C3AED">INPUT ← STAGE 1</text>
-    <text x="88" y="190" font-size="13" fill="#4C1D95">A list of EmbeddedChunk — chunk text, a 768-dimensional vector, and the source file, page and section it came from.</text>
+  <g id="lifecycle" class="sans">
+    <rect x="64" y="142" width="1472" height="112" rx="16" fill="#FFFFFF" stroke="#FCD34D"/>
+    <rect x="64" y="142" width="8" height="112" rx="4" fill="#F59E0B"/>
+    <text x="92" y="172" class="eyebrow" fill="#B45309">OPEN LIFECYCLE · VectorStore.open(path, profile, create=...)</text>
+    <text x="92" y="204" class="title" fill="#78350F">index/&lt;safe-course&gt;.db</text>
+    <text x="92" y="231" class="body">Load sqlite-vec → enable WAL → create schema if needed → persist initial meta → compare recorded profile values with the live profile</text>
+    <rect x="1148" y="166" width="360" height="62" rx="10" fill="#FFF7ED" stroke="#FED7AA"/>
+    <text x="1166" y="189" font-size="11" font-weight="750" fill="#C2410C">CREATE POLICY</text>
+    <text x="1166" y="211" class="small"><tspan class="mono">ingest</tspan>: create allowed · reads: missing index is an error</text>
   </g>
 
-  <g id="panel-storage">
-    <rect x="60" y="234" width="1320" height="790" rx="14" fill="#FFFBEB" stroke="#FCD34D" stroke-width="1.5"/>
-    <text x="92" y="272" font-size="13" font-weight="700" letter-spacing="1" fill="#B45309">LAYER 5 · VECTOR STORE</text>
+  <g id="schema" class="sans">
+    <rect x="64" y="292" width="920" height="667" rx="18" fill="#FFFFFF" stroke="#FCD34D"/>
+    <text x="92" y="327" class="eyebrow" fill="#B45309">PHYSICAL SCHEMA · ONE FILE, FOUR TABLES</text>
+
+    <g id="chunks-table">
+      <rect x="92" y="356" width="404" height="275" rx="14" fill="#FFFFFF" stroke="#F59E0B" stroke-width="1.5"/>
+      <rect x="92" y="356" width="404" height="44" rx="14" fill="#FEF3C7"/>
+      <path d="M92 386V400H496V386" fill="#FEF3C7"/>
+      <text x="112" y="383" font-size="15" font-weight="750" fill="#78350F">chunks</text>
+      <text x="466" y="383" text-anchor="end" class="small mono">ordinary table</text>
+      <g>
+        <text x="114" y="431" class="key mono">rowid</text><text x="240" y="431" class="field">INTEGER PRIMARY KEY</text>
+        <text x="114" y="459" class="key mono">id</text><text x="240" y="459" class="field">UNIQUE · deterministic chunk ID</text>
+        <text x="114" y="487" class="key mono">text</text><text x="240" y="487" class="field">retrievable source text</text>
+        <text x="114" y="515" class="key mono">source</text><text x="240" y="515" class="field">relative path · indexed</text>
+        <text x="114" y="543" class="key mono">page</text><text x="240" y="543" class="field">first page · required</text>
+        <text x="114" y="571" class="key mono">page_end</text><text x="240" y="571" class="field">optional last page</text>
+        <text x="114" y="599" class="key mono">section</text><text x="240" y="599" class="field">optional · currently unpopulated</text>
+      </g>
+    </g>
+
+    <g id="vectors-table">
+      <rect x="552" y="356" width="404" height="178" rx="14" fill="#FFFFFF" stroke="#F59E0B" stroke-width="1.5"/>
+      <rect x="552" y="356" width="404" height="44" rx="14" fill="#FEF3C7"/>
+      <path d="M552 386V400H956V386" fill="#FEF3C7"/>
+      <text x="572" y="383" font-size="15" font-weight="750" fill="#78350F">vec_chunks</text>
+      <text x="926" y="383" text-anchor="end" class="small mono">vec0 virtual table</text>
+      <text x="574" y="431" class="key mono">rowid</text><text x="700" y="431" class="field">same rowid as chunks</text>
+      <text x="574" y="459" class="key mono">embedding</text><text x="700" y="459" class="field">float[embed_dim]</text>
+      <rect x="574" y="485" width="360" height="30" rx="7" fill="#FFFBEB"/>
+      <text x="754" y="505" text-anchor="middle" class="small">dimension fixed when the virtual table is created</text>
+    </g>
+
+    <g id="documents-table">
+      <rect x="92" y="670" width="404" height="210" rx="14" fill="#FFFFFF" stroke="#F59E0B" stroke-width="1.5"/>
+      <rect x="92" y="670" width="404" height="44" rx="14" fill="#FEF3C7"/>
+      <path d="M92 700V714H496V700" fill="#FEF3C7"/>
+      <text x="112" y="697" font-size="15" font-weight="750" fill="#78350F">documents</text>
+      <text x="466" y="697" text-anchor="end" class="small mono">file cache</text>
+      <text x="114" y="745" class="key mono">source</text><text x="240" y="745" class="field">TEXT PRIMARY KEY</text>
+      <text x="114" y="773" class="key mono">hash</text><text x="240" y="773" class="field">SHA-256 file content</text>
+      <text x="114" y="801" class="key mono">chunk_count</text><text x="240" y="801" class="field">last successful write</text>
+      <text x="114" y="829" class="key mono">indexed_at</text><text x="240" y="829" class="field">UTC ISO timestamp</text>
+      <text x="114" y="859" class="small">Logical link by <tspan class="mono">source</tspan>; no SQL foreign key.</text>
+    </g>
+
+    <g id="meta-table">
+      <rect x="552" y="572" width="404" height="308" rx="14" fill="#FFFFFF" stroke="#F59E0B" stroke-width="1.5"/>
+      <rect x="552" y="572" width="404" height="44" rx="14" fill="#FEF3C7"/>
+      <path d="M552 602V616H956V602" fill="#FEF3C7"/>
+      <text x="572" y="599" font-size="15" font-weight="750" fill="#78350F">meta</text>
+      <text x="926" y="599" text-anchor="end" class="small mono">key / value</text>
+      <text x="574" y="647" class="key mono">schema_version</text><text x="758" y="647" class="field mono">1</text>
+      <text x="574" y="675" class="key mono">embed_model</text><text x="758" y="675" class="field">configured model name</text>
+      <text x="574" y="703" class="key mono">embed_dim</text><text x="758" y="703" class="field">probed vector width</text>
+      <text x="574" y="731" class="key mono">chunk_size</text><text x="758" y="731" class="field">approximate tokens</text>
+      <text x="574" y="759" class="key mono">chunk_overlap</text><text x="758" y="759" class="field">approximate tokens</text>
+      <text x="574" y="787" class="key mono">parser</text><text x="758" y="787" class="field">PDF backend name</text>
+      <rect x="574" y="815" width="360" height="46" rx="8" fill="#FFF7ED" stroke="#FED7AA"/>
+      <text x="592" y="835" font-size="11.5" font-weight="700" fill="#9A3412">Mismatch → IndexMismatchError</text>
+      <text x="592" y="852" font-size="10.8" fill="#9A3412">Rebuild instead of comparing incompatible vectors.</text>
+    </g>
+
+    <path d="M496 445H542" fill="none" stroke="#D97706" stroke-width="2" marker-end="url(#arrow-amber)"/>
+    <text x="519" y="433" text-anchor="middle" class="small mono">rowid</text>
+    <path d="M294 631V660" fill="none" stroke="#D97706" stroke-width="1.8" stroke-dasharray="5 4" marker-end="url(#arrow-amber)"/>
+    <text x="309" y="650" class="small mono">source</text>
   </g>
 
-  <g id="operation-add">
-    <rect x="92" y="310" width="700" height="150" rx="10" fill="#FEF3C7" stroke="#D97706" stroke-width="1.5"/>
-    <text x="116" y="344" font-size="17" font-weight="700" font-family="monospace" fill="#78350F">add(chunks, embeddings)</text>
-    <text x="116" y="366" font-size="10.5" font-weight="700" letter-spacing="1.2" fill="#D97706">WRITE · CALLED ONLY BY INGESTION</text>
-    <text x="116" y="396" font-size="12.5" fill="#92400E">One INSERT per chunk, all inside a single transaction.</text>
-    <text x="116" y="416" font-size="12.5" fill="#92400E">Keyed on chunk_id and idempotent, so re-running a partly failed</text>
-    <text x="116" y="436" font-size="12.5" fill="#92400E">ingest repairs the index instead of duplicating it.</text>
+  <g id="api" class="sans">
+    <rect x="1020" y="292" width="516" height="667" rx="18" fill="#FFFFFF" stroke="#CBD5E1"/>
+    <text x="1048" y="327" class="eyebrow" fill="#475569">IMPLEMENTED STORE API</text>
+
+    <g id="write-api">
+      <rect x="1048" y="356" width="460" height="194" rx="14" fill="#FFFBEB" stroke="#FDE68A"/>
+      <text x="1070" y="385" class="eyebrow" fill="#B45309">WRITE SIDE · INGESTION</text>
+      <text x="1070" y="418" class="code mono">remove_document(source)</text>
+      <text x="1070" y="439" class="small">delete vectors, chunks, and cache row for one source</text>
+      <text x="1070" y="472" class="code mono">add(list[EmbeddedChunk])</text>
+      <text x="1070" y="493" class="small">validate width; replace duplicate ID; insert joined rows</text>
+      <text x="1070" y="526" class="code mono">record_document(source, hash, count)</text>
+    </g>
+
+    <g id="search-api">
+      <rect x="1048" y="570" width="460" height="210" rx="14" fill="#EFF6FF" stroke="#BFDBFE"/>
+      <text x="1070" y="599" class="eyebrow" fill="#2563EB">VECTOR SEARCH</text>
+      <text x="1070" y="630" class="code mono">search(query_vector, top_k, fetch_k=None)</text>
+      <text x="1070" y="660" class="body">1 · serialize the unit-normalised float32 query</text>
+      <text x="1070" y="683" class="body">2 · <tspan class="mono">MATCH</tspan> vec_chunks with <tspan class="mono">k = max(fetch_k, top_k)</tspan></text>
+      <text x="1070" y="706" class="body">3 · join chunk text and provenance by rowid</text>
+      <text x="1070" y="729" class="body">4 · convert L2 distance to cosine similarity</text>
+      <rect x="1070" y="744" width="416" height="25" rx="6" fill="#DBEAFE"/>
+      <text x="1278" y="761" text-anchor="middle" font-size="12" font-weight="700" fill="#1E40AF">score = 1 − distance² / 2 · return first top_k</text>
+    </g>
+
+    <g id="read-api">
+      <rect x="1048" y="800" width="460" height="135" rx="14" fill="#F8FAFC" stroke="#E2E8F0"/>
+      <text x="1070" y="829" class="eyebrow" fill="#475569">CACHE + INTROSPECTION</text>
+      <text x="1070" y="858" class="code mono">document_hash(source) · all_embedded()</text>
+      <text x="1070" y="882" class="code mono">stats() · sources()</text>
+      <text x="1070" y="910" class="small"><tspan class="mono">all_embedded()</tspan> reads every vector for clustering and MMR.</text>
+      <text x="1070" y="927" class="small"><tspan class="mono">stats()</tspan> flags chunk/vector count disagreement.</text>
+    </g>
   </g>
 
-  <g id="table-chunks">
-    <rect x="92" y="500" width="700" height="300" rx="10" fill="#FFFFFF" stroke="#D97706" stroke-width="1.5"/>
-    <text x="116" y="534" font-size="17" font-weight="700" font-family="monospace" fill="#78350F">chunks</text>
-    <text x="116" y="554" font-size="12" fill="#92400E">Text, vector and provenance living in the same row — this is what makes citation possible.</text>
-
-    <rect x="116" y="570" width="652" height="30" fill="#FDE68A"/>
-    <text x="124" y="590" font-size="10.5" font-weight="700" font-family="monospace" fill="#78350F">chunk_id</text>
-    <text x="274" y="590" font-size="10.5" font-weight="700" font-family="monospace" fill="#78350F">text</text>
-    <text x="484" y="590" font-size="10.5" font-weight="700" font-family="monospace" fill="#78350F">source</text>
-    <text x="624" y="590" font-size="10.5" font-weight="700" font-family="monospace" fill="#78350F">page</text>
-    <text x="674" y="590" font-size="10.5" font-weight="700" font-family="monospace" fill="#78350F">embedding</text>
-
-    <rect x="116" y="600" width="652" height="32" fill="#FFFBEB"/>
-    <text x="124" y="621" font-size="10.5" font-family="monospace" fill="#92400E">lecture3_p12_c2</text>
-    <text x="274" y="621" font-size="10.5" font-family="monospace" fill="#92400E">Overfitting happens whe…</text>
-    <text x="484" y="621" font-size="10.5" font-family="monospace" fill="#92400E">lecture3.pdf</text>
-    <text x="624" y="621" font-size="10.5" font-family="monospace" fill="#92400E">12</text>
-    <text x="674" y="621" font-size="10.5" font-family="monospace" fill="#92400E">[0.023, …]</text>
-
-    <rect x="116" y="632" width="652" height="32" fill="#FFFFFF"/>
-    <text x="124" y="653" font-size="10.5" font-family="monospace" fill="#92400E">lecture3_p13_c1</text>
-    <text x="274" y="653" font-size="10.5" font-family="monospace" fill="#92400E">A model with high varia…</text>
-    <text x="484" y="653" font-size="10.5" font-family="monospace" fill="#92400E">lecture3.pdf</text>
-    <text x="624" y="653" font-size="10.5" font-family="monospace" fill="#92400E">13</text>
-    <text x="674" y="653" font-size="10.5" font-family="monospace" fill="#92400E">[-0.117, …]</text>
-
-    <rect x="116" y="664" width="652" height="32" fill="#FFFBEB"/>
-    <text x="124" y="685" font-size="10.5" font-family="monospace" fill="#92400E">lecture5_p08_c4</text>
-    <text x="274" y="685" font-size="10.5" font-family="monospace" fill="#92400E">The bias-variance trade…</text>
-    <text x="484" y="685" font-size="10.5" font-family="monospace" fill="#92400E">lecture5.pdf</text>
-    <text x="624" y="685" font-size="10.5" font-family="monospace" fill="#92400E">8</text>
-    <text x="674" y="685" font-size="10.5" font-family="monospace" fill="#92400E">[0.441, …]</text>
-
-    <rect x="116" y="570" width="652" height="126" fill="none" stroke="#FCD34D" stroke-width="1"/>
-    <line x1="268" y1="570" x2="268" y2="696" stroke="#FCD34D" stroke-width="1"/>
-    <line x1="478" y1="570" x2="478" y2="696" stroke="#FCD34D" stroke-width="1"/>
-    <line x1="618" y1="570" x2="618" y2="696" stroke="#FCD34D" stroke-width="1"/>
-    <line x1="668" y1="570" x2="668" y2="696" stroke="#FCD34D" stroke-width="1"/>
-
-    <text x="116" y="726" font-size="12.5" fill="#92400E">The embedding column is handled by the sqlite-vec extension; every other column is</text>
-    <text x="116" y="746" font-size="12.5" fill="#92400E">plain SQLite you can open with any client and inspect by hand.</text>
-    <text x="116" y="774" font-size="12" font-style="italic" fill="#B45309">If you can read this table, you can debug the whole retrieval layer.</text>
+  <g id="boundary" class="sans">
+    <rect x="64" y="995" width="1472" height="168" rx="18" fill="#0F172A"/>
+    <text x="92" y="1029" class="eyebrow" fill="#FCD34D">WHY THIS FILE IS THE ARCHITECTURAL SEAM</text>
+    <g>
+      <rect x="92" y="1052" width="428" height="83" rx="11" fill="#1E293B" stroke="#475569"/>
+      <text x="112" y="1078" font-size="13" font-weight="700" fill="#F8FAFC">Ingestion knows write contracts</text>
+      <text x="112" y="1101" font-size="11.5" fill="#CBD5E1">add · remove_document · record_document</text>
+      <text x="112" y="1121" font-size="10.8" fill="#94A3B8">No query or prompt logic enters the store.</text>
+      <rect x="586" y="1052" width="428" height="83" rx="11" fill="#1E293B" stroke="#475569"/>
+      <text x="606" y="1078" font-size="13" font-weight="700" fill="#F8FAFC">Storage owns compatibility</text>
+      <text x="606" y="1101" font-size="11.5" fill="#CBD5E1">schema + vector width + profile verification</text>
+      <text x="606" y="1121" font-size="10.8" fill="#94A3B8">The live profile is built before every CLI open.</text>
+      <rect x="1080" y="1052" width="428" height="83" rx="11" fill="#1E293B" stroke="#475569"/>
+      <text x="1100" y="1078" font-size="13" font-weight="700" fill="#F8FAFC">Query knows read contracts</text>
+      <text x="1100" y="1101" font-size="11.5" fill="#CBD5E1">search · all_embedded · stats · sources</text>
+      <text x="1100" y="1121" font-size="10.8" fill="#94A3B8">No parser or chunker is invoked on read.</text>
+    </g>
   </g>
 
-  <g id="operation-search">
-    <rect x="92" y="840" width="700" height="150" rx="10" fill="#FEF3C7" stroke="#D97706" stroke-width="1.5"/>
-    <text x="116" y="874" font-size="17" font-weight="700" font-family="monospace" fill="#78350F">search(query_vec, top_k=5)</text>
-    <text x="116" y="896" font-size="10.5" font-weight="700" letter-spacing="1.2" fill="#D97706">READ · CALLED ONLY BY QUERY</text>
-    <text x="116" y="926" font-size="12.5" fill="#92400E">Scores every stored vector against the query vector by cosine similarity</text>
-    <text x="116" y="948" font-size="13" font-family="monospace" fill="#78350F">score = (a · b) / (|a| × |b|)</text>
-    <text x="400" y="948" font-size="12" font-style="italic" fill="#B45309">1.0 = same direction, 0.0 = unrelated</text>
-    <text x="116" y="972" font-size="12.5" fill="#92400E">and returns the k best rows with their metadata still attached.</text>
-  </g>
-
-  <g id="cache">
-    <rect x="830" y="310" width="518" height="330" rx="10" fill="#FEF3C7" stroke="#D97706" stroke-width="1.5"/>
-    <text x="854" y="344" font-size="17" font-weight="700" fill="#78350F">cache</text>
-    <text x="854" y="366" font-size="10.5" font-weight="700" letter-spacing="1.2" fill="#D97706">KEYED BY FILE CONTENT HASH</text>
-    <text x="854" y="398" font-size="12.5" fill="#92400E">Two things are memoised:</text>
-    <text x="866" y="420" font-size="12.5" fill="#92400E">· the parsed page text</text>
-    <text x="866" y="440" font-size="12.5" fill="#92400E">· the chunk embeddings</text>
-    <text x="854" y="472" font-size="12.5" fill="#92400E">Rename a file, touch it, or re-export it — nothing</text>
-    <text x="854" y="492" font-size="12.5" fill="#92400E">re-runs. Change one sentence inside it and only</text>
-    <text x="854" y="512" font-size="12.5" fill="#92400E">that one file is rebuilt.</text>
-    <text x="854" y="544" font-size="12.5" fill="#92400E">This matters because embedding is the only step</text>
-    <text x="854" y="564" font-size="12.5" fill="#92400E">that costs money, and without a cache it is the</text>
-    <text x="854" y="584" font-size="12.5" fill="#92400E">step you would repeat on every single command.</text>
-    <line x1="854" y1="602" x2="1324" y2="602" stroke="#FCD34D" stroke-width="1"/>
-    <text x="854" y="624" font-size="12" font-style="italic" fill="#B45309">same .db file · delete it to force a full rebuild</text>
-  </g>
-
-  <g id="note-why-sqlite">
-    <rect x="830" y="690" width="518" height="300" rx="10" fill="#FFFFFF" stroke="#FCD34D" stroke-width="1.5"/>
-    <text x="854" y="724" font-size="17" font-weight="700" fill="#78350F">Why a single file</text>
-    <text x="854" y="756" font-size="12.5" fill="#92400E">Nothing to run. No Docker, no daemon, no cloud</text>
-    <text x="854" y="776" font-size="12.5" fill="#92400E">account, no connection string to leak.</text>
-    <text x="854" y="806" font-size="12.5" fill="#92400E">The index is just a file, so you can commit it, hand</text>
-    <text x="854" y="826" font-size="12.5" fill="#92400E">it to a classmate, or delete it and rebuild it.</text>
-    <text x="854" y="856" font-size="12.5" fill="#92400E">The API shape — add() and search() — is the same</text>
-    <text x="854" y="876" font-size="12.5" fill="#92400E">one pgvector, Qdrant and Pinecone expose, so</text>
-    <text x="854" y="896" font-size="12.5" fill="#92400E">moving later means rewriting one file.</text>
-    <line x1="854" y1="920" x2="1324" y2="920" stroke="#FCD34D" stroke-width="1"/>
-    <text x="854" y="944" font-size="12.5" fill="#92400E">Trade-off: brute-force cosine across every row.</text>
-    <text x="854" y="964" font-size="12.5" fill="#92400E">Fine at a few thousand chunks. Wrong at a million.</text>
-  </g>
-
-  <g id="output-bar">
-    <rect x="60" y="1054" width="1320" height="64" rx="10" fill="#DBEAFE" stroke="#2563EB" stroke-width="1.5"/>
-    <text x="88" y="1081" font-size="11" font-weight="700" letter-spacing="1.2" fill="#2563EB">OUTPUT → STAGE 3</text>
-    <text x="88" y="1104" font-size="13" fill="#1E40AF">The top-k most similar chunks, each still carrying its similarity score plus the file, page and section it belongs to.</text>
-  </g>
-
-  <g id="flow" fill="none" stroke="#D97706" stroke-width="2.5">
-    <path d="M442,204 V310" marker-end="url(#arrow-amber)"/>
-    <path d="M442,460 V500" marker-end="url(#arrow-amber)"/>
-    <path d="M442,800 V840" marker-end="url(#arrow-amber)"/>
-    <path d="M442,990 V1054" marker-end="url(#arrow-blue)" stroke="#2563EB"/>
-  </g>
-
-  <g id="annotations" font-size="11" fill="#B45309">
-    <text x="454" y="286">write path</text>
-    <text x="454" y="490">rows land here</text>
-    <text x="454" y="830">read path</text>
-    <text x="454" y="1030" fill="#2563EB">top-k out</text>
-  </g>
-
-  <g id="footnote">
-    <text x="60" y="1155" font-size="12.5" fill="#64748B">Two functions is the entire public surface of this stage. Everything above and below it can be rewritten without touching the other side.</text>
+  <g id="footer" class="sans">
+    <rect x="64" y="1189" width="1472" height="27" rx="7" fill="#FEF3C7"/>
+    <text x="800" y="1207" text-anchor="middle" font-size="11.5" font-weight="700" fill="#92400E">Current scale assumption: all vectors may be loaded for coverage sampling; no precomputed topic table or re-ranker exists.</text>
   </g>
 </svg>

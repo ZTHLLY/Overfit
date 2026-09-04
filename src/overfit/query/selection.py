@@ -22,7 +22,7 @@ from dataclasses import dataclass
 
 from overfit.models import EmbeddedChunk, Vector
 
-__all__ = ["Topic", "cluster", "allocate", "spread", "mmr", "similarity"]
+__all__ = ["Topic", "allocate", "cluster", "mmr", "similarity", "spread"]
 
 
 @dataclass(frozen=True, slots=True)

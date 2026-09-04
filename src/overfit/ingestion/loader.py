@@ -16,7 +16,7 @@ from pathlib import Path
 
 from overfit.errors import CourseNotFoundError, NoDocumentsError
 
-__all__ = ["SUPPORTED_EXTENSIONS", "find_documents", "file_hash", "count_ignored"]
+__all__ = ["SUPPORTED_EXTENSIONS", "count_ignored", "file_hash", "find_documents"]
 
 
 # Extensions we have a parser for. Kept here rather than in config because
@@ -111,11 +111,12 @@ def _is_hidden_or_skipped(path: Path, root: Path) -> bool:
 def file_hash(path: Path, _chunk: int = 1 << 20) -> str:
     """Content hash of a file, used as the cache key for ingestion.
 
-    Hashing the *content* rather than the name or mtime means renaming a file,
-    touching it, or re-exporting it byte-identically costs nothing, while
-    editing a single sentence rebuilds exactly that one file. Since embedding
-    is the only expensive step in the pipeline, this is where the project's
-    running cost is actually decided.
+    Hashing the *content* rather than mtime means touching or re-exporting the
+    same source byte-identically costs nothing, while editing one sentence
+    rebuilds exactly that source. The cache is keyed by relative source *and*
+    this hash, so a rename is intentionally seen as a new source; the old row
+    is only removed by a full rebuild. Since embedding is the expensive step,
+    this comparison decides most incremental-ingest cost.
 
     Read in blocks so a large PDF never has to sit in memory whole.
     """

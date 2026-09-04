@@ -25,7 +25,7 @@ from typing import Literal
 from pydantic import Field, field_validator, model_validator
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
-__all__ = ["PdfBackend", "LLMSettings", "EmbedSettings", "Settings", "get_settings"]
+__all__ = ["EmbedSettings", "LLMSettings", "PdfBackend", "Settings", "get_settings"]
 
 
 # Which library turns a PDF into text -- see `parser`. Spelled as a Literal

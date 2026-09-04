@@ -20,7 +20,7 @@ from overfit.models import Chunk, RetrievedChunk
 from overfit.query import selection
 from overfit.storage.store import VectorStore
 
-__all__ = ["retrieve", "gather_material", "rank_topics"]
+__all__ = ["gather_material", "rank_topics", "retrieve"]
 
 # Cap on how finely a course is divided. Past this the clusters stop being
 # topics and start being paragraphs, and weight loses its meaning.

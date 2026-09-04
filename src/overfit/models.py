@@ -30,14 +30,14 @@ from pathlib import Path
 from pydantic import BaseModel, Field
 
 __all__ = [
-    "Vector",
-    "Page",
-    "ParsedDocument",
     "Chunk",
     "EmbeddedChunk",
-    "RetrievedChunk",
-    "GeneratedItem",
     "GeneratedExam",
+    "GeneratedItem",
+    "Page",
+    "ParsedDocument",
+    "RetrievedChunk",
+    "Vector",
 ]
 
 
@@ -86,7 +86,8 @@ class Page:
 class ParsedDocument:
     """A single source file after text extraction (layer 2 output)."""
 
-    source: str  # file name only, e.g. "lecture3.pdf" -- this is what gets cited
+    # Course-root-relative POSIX path, e.g. ``week03/lecture.pdf``.
+    source: str
     pages: list[Page]
 
     @property
@@ -202,7 +203,12 @@ class GeneratedItem(BaseModel):
     topic: str = Field(description="Two to five words naming what this tests.")
     question: str = Field(description="The exam question, self-contained.")
     answer: str = Field(description="The answer, grounded in the supplied material.")
-    source: str = Field(description="File name the answer came from, e.g. lecture3.pdf")
+    source: str = Field(
+        description=(
+            "Course-relative POSIX source path shown with the supplied passage, "
+            "e.g. week03/lecture.pdf"
+        )
+    )
     page: int = Field(description="Page number within that file.")
 
 
