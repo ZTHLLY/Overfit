@@ -1,213 +1,284 @@
 # 📚 Overfit
 
-> **Overfit is a CLI tool that transforms course materials into structured, shareable study artifacts — mock exams, summaries, and analyses — all grounded in your source documents.**
+> **A local-first CLI that turns course documents into searchable indexes and
+> grounded practice exams.**
 
 > *Don't underfit your exams.*
 
----
+Overfit is a hand-written, seven-layer RAG pipeline. It recursively reads a
+course directory, preserves file/page provenance while cleaning and chunking
+the text, stores normalized embeddings in a per-course SQLite database, and
+uses selected passages to produce a question paper plus a separate answer key.
 
-## 🧠 概述（Overview）
+The project is a **content-production CLI**, not a chat interface. The files it
+writes are intended to be inspected, saved and shared. A citation makes an
+answer checkable; it does not make the answer automatically correct.
 
-Overfit 是一个本地运行的命令行工具，面向学生的真实复习工作流。它把散落的课程资料（PDF / Markdown / slides）变成**结构化、可复用、可分享**的学习产物。
+## Current status
 
-当前大多数同学的复习链路长这样：
+The table below separates shipped behavior from product direction. Commands in
+the Roadmap column do **not** exist in the current CLI.
 
-1. 打开 ChatGPT / Gemini / NotebookLM 出题
-2. 手动复制生成的内容
-3. 粘贴到 Markdown 文件
-4. 自己整理格式与结构
-5. 再分享给同学
-
-这个流程存在几个痛点：
-
-- ❌ 重复劳动，每门课都要重来一遍
-- ❌ 输出格式不稳定，每次都要人工整理
-- ❌ 资料难以复用，散落在各个聊天记录里
-- ❌ 不同课程之间难以统一风格
-
-Overfit 的答案很简单：
-
-> ✅ **一条命令 → 直接生成结构化的学习资料，可保存、可分享、可复用。**
-
-Overfit 不是一个聊天工具，而是一条**内容生产流水线（content generation pipeline）**。它关心的不是"聊得顺不顺"，而是"产出的文件能不能直接拿去用"。
-
----
-
-## ⚖️ 与 NotebookLM 的差异
-
-| 能力              | NotebookLM | Overfit |
-| ----------------- | :--------: | :-----: |
-| 问答              |     ✅     |   ✅    |
-| 模拟题生成        |     ✅     |   ✅    |
-| 结构化输出        |     ❌     |   ✅    |
-| 批量生成          |     ❌     |   ✅    |
-| 自动化 / 脚本化   |     ❌     |   ✅    |
-| 与本地项目结合    |     ❌     |   ✅    |
-| 可复用 pipeline   |     ❌     |   ✅    |
-
-**核心区别一句话：** NotebookLM 是"对话工具"，Overfit 是"内容生产工具"。
-
----
-
-## 🎯 核心能力
-
-Overfit 围绕四个基本能力构建：
-
-- **Retrieval** — 从课程资料中检索相关片段
-- **Generation** — 基于检索到的内容生成新产物
-- **Structuring** — 输出严格结构化的 Markdown
-- **Traceability** — 每条答案都能追溯到具体的 lecture / page / section
-
----
-
-## 🚀 实现效果（What you get）
-
-### 🟣 1. Mock Exam 生成
-
-```bash
-overfit mock --course IFN636
-```
-
-输出：
-
-```
-/outputs/
-  IFN636_mock_exam.md
-  IFN636_answers.md
-```
-
-**题目文件示例：**
-
-```markdown
-# IFN636 Mock Exam
-
-## Section A: Multiple Choice
-1. What is overfitting?
-
-## Section B: Short Answer
-2. Explain bias-variance tradeoff.
-
-## Section C: Applied Questions
-3. How to avoid overfitting?
-```
-
-**答案文件示例：**
-
-```markdown
-# IFN636 Mock Exam Answers
-
-## Q1
-Answer: ...
-Source: lecture3.pdf (page 12)
-
-## Q2
-Explanation: ...
-Source: lecture5.pdf
-```
-
-亮点：
-
-- ✔️ 题目与答案分离，可以先自测再对答案
-- ✔️ 每一题都带源文件定位，方便回看原文
-- ✔️ 直接是 Markdown，复制粘贴就能分享
-
----
-
-### 🔵 2. 结构化总结
-
-```bash
-overfit summary --course IFN636
-```
-
-输出一份按固定骨架组织的复习笔记：
-
-```markdown
-## Key Topics
-## Important Concepts
-## Common Pitfalls
-## Exam Focus
-```
-
----
-
-### 🟢 3. 跨课程分析
-
-```bash
-overfit compare "overfitting" --course IFN636,CAB432
-```
-
-对比同一个概念在不同课程中的讲法、侧重与考点。
-
----
-
-### 🟡 4. Assignment / Project 关联分析
-
-```bash
-overfit relate --course IFN636 --project ./assignment1
-```
-
-能力：
-
-- 分析作业中用到了哪些课程知识点
-- 指出**缺失**的知识点（Underfit）
-- 判断实现是否覆盖课程重点
-
-这是 Overfit 与其他学习工具最大的差异化能力 —— 把"学"和"做"连起来。
-
----
-
-## 🧭 典型使用场景
-
-**📌 期末冲刺**
-
-```bash
-overfit mock --courses IFN636,CAB432
-```
-
-**📌 平时复习**
-
-```bash
-overfit summary --course IFN636
-```
-
-**📌 作业辅助**
-
-```bash
-overfit relate --course IFN636 --project ./assignment
-```
-
----
-
-## 🌱 项目价值
-
-- **技术上** — RAG 与 AI 工程实践的完整落地
-- **实用上** — 真正解决"复习资料怎么来"的问题
-- **社交上** — 产出即 Markdown，天然可分享
-
----
-
-## 🧠 设计理念
-
-- 不做聊天工具，做内容生成 pipeline
-- 强调结构化输出胜过自由对话
-- 强调可控性与可复用性
-- 所有产物必须可追溯到源文件
-
----
-
-## 📖 文档（Documentation）
-
-README 只讲「这是什么、能干嘛」。技术细节全部在 [`docs/`](./docs/) 下，按你想知道的问题挑一份看：
-
-| 文档 | 回答什么问题 |
+| Implemented now | Roadmap (not implemented) |
 | --- | --- |
-| [ARCHITECTURE.md](./docs/ARCHITECTURE.md) | 整体长什么样？四张图，一张总览 + 三个阶段各一张 |
-| [PIPELINE.md](./docs/PIPELINE.md) | RAG 七层各自做什么、为什么需要、输入输出是什么 |
-| [TECH-STACK.md](./docs/TECH-STACK.md) | 每一层用了什么技术、为什么这么选、刻意不用什么 |
-| [MODELS.md](./docs/MODELS.md) | 两类模型的区别、怎么配、本地和 API 怎么切、开源分发怎么办 |
+| Recursive local document discovery | `summary` study notes |
+| PDF parsing with `pypdf`; optional Docling PDF backends | `compare` across course indexes |
+| Opt-in Markdown and plain-text parsing | `relate` course material to a project/assignment |
+| Cleaning diagnostics and chunk previews | Multi-course generation in one command |
+| OpenAI-compatible embedding and generation endpoints | OCR for scanned PDFs |
+| SQLite + `sqlite-vec` indexes, one file per course | Remote sources such as Drive/Notion/URLs |
+| Direct semantic search, topic clustering and coverage preview | Hybrid search and re-ranking |
+| Grounded mock exams with Markdown question/answer files | More generated artifact types |
 
-**第一次接触这个项目，推荐顺序：** ARCHITECTURE（看图建立整体印象）→ PIPELINE（理解每一层）→ TECH-STACK / MODELS（要动手时再看）。
+## How it works
 
----
+```text
+courses/<course>/
+    │
+    ├─ Loader   ── recursive, deterministic file discovery
+    ├─ Parser   ── page-aware extraction and auditable cleaning
+    ├─ Chunker  ── boundary-aware chunks with source/page metadata
+    ├─ Embedder ── normalized vectors from an OpenAI-compatible API
+    └─ Store    ── index/<course>.db (SQLite + sqlite-vec)
+                           │
+                    Retriever / selection
+                           │
+                    Generator + validation
+                           │
+             outputs/<course>_mock_exam.md
+             outputs/<course>_answers.md
+```
 
-> Overfit = AI-powered study content generator (CLI)
+Important boundaries:
+
+- The index records the embedding model, vector dimension, chunk size,
+  overlap, PDF backend and schema version. A mismatch stops the command and
+  requires `ingest --rebuild` rather than silently mixing incompatible data.
+  For backward compatibility, a meta key that is completely absent from an
+  older index is currently accepted; only a stored value that differs fails.
+- The generation model is not part of the index and can be changed without
+  rebuilding it.
+- Provenance currently means a relative source path and a 1-based page or
+  page range. Although the storage schema has a `section` column, the current
+  parser/chunker does not populate it.
+
+See [PIPELINE.md](./docs/PIPELINE.md) for the exact algorithms and data
+contracts.
+
+## Requirements and installation
+
+- Python **3.12 or newer**
+- [`uv`](https://docs.astral.sh/uv/)
+- An OpenAI-compatible embeddings endpoint
+- An OpenAI-compatible chat-completions endpoint only when running `mock`
+
+The default configuration expects Ollama on `http://localhost:11434/v1` with
+`bge-m3` for embeddings and `qwen3.6:27b` for generation. Model availability is
+managed by the endpoint, not by this Python package.
+
+```bash
+uv sync
+cp .env.example .env
+
+# If the default Ollama configuration is being used:
+ollama pull bge-m3
+ollama pull qwen3.6:27b
+```
+
+The normal install stays lightweight. For layout-aware PDF conversion:
+
+```bash
+uv sync --extra docling
+# Use the broad fallback only if the narrow optional install is insufficient:
+uv sync --extra docling-full
+```
+
+Docling OCR is deliberately disabled in the current parser, including with
+the optional extra.
+
+## Prepare a course
+
+By default, put files below `courses/<course>/`:
+
+```text
+courses/
+└── IFN580/
+    ├── week01/introduction.pdf
+    └── week02/regression.pdf
+```
+
+Discovery is recursive. Hidden paths and known junk directories are skipped.
+The default `EXTENSIONS=.pdf` indexes PDFs only. The code also supports
+`.md`, `.markdown` and `.txt`; opt into them explicitly if the directory does
+not contain duplicate PDF/text versions:
+
+```dotenv
+EXTENSIONS=.pdf,.md,.markdown,.txt
+```
+
+Markdown and text files have no real page structure, so each is represented as
+page 1 and cited that way. A command that reads source files can use
+`--path /some/directory` instead of `COURSES_DIR/<course>`; the generated index
+and output names still come from `--course`.
+
+## Recommended workflow
+
+Inspect each lossy stage before paying for embeddings or generation:
+
+```bash
+# 1. Check endpoint reachability, vector width and rough semantic behavior.
+uv run overfit embed-check
+
+# 2. Read real parser output; optionally audit every removed line.
+uv run overfit inspect --course IFN580 --show-removed
+
+# 3. Preview chunk sizes, boundaries, provenance and page-spanning chunks.
+uv run overfit chunks --course IFN580 --spanning
+
+# 4. Build or incrementally update the per-course index.
+uv run overfit ingest --course IFN580
+
+# 5. Inspect the index and retrieval/selection before generating.
+uv run overfit status --course IFN580
+uv run overfit search "bias variance tradeoff" --course IFN580 --top-k 8
+uv run overfit topics --course IFN580
+uv run overfit coverage --course IFN580 --count 12
+
+# 6. Generate the only currently implemented artifact.
+uv run overfit mock --course IFN580 --questions 10
+```
+
+`ingest` skips a source path only when its current SHA-256 content hash matches
+the stored hash. Use `--force` after changing cleaning behavior that is not
+represented in the index profile. Use `--rebuild` after changing the embedding
+model, chunk settings or PDF backend, and when source files have been renamed
+or removed: incremental ingestion does not prune sources that disappeared from
+disk.
+
+## CLI reference
+
+Run `uv run overfit <command> --help` for every option.
+
+| Command | Current behavior | Model calls |
+| --- | --- | --- |
+| `inspect` | Reports extraction statistics, samples the longest pages, and can show cleaning removals | none |
+| `chunks` | Parses and previews actual chunks before indexing | none |
+| `ingest` | Parses, chunks, embeds and writes/updates one course index | embedding |
+| `search QUERY` | Embeds a query and prints nearest chunks with cosine scores | embedding |
+| `mock` | Selects material, calls the LLM, validates it and writes two Markdown files | generation; index opening probes embedding dimension, and `--topic` also embeds the topic |
+| `topics` | Clusters stored vectors and ranks topics by distinct source-file coverage | embedding dimension probe only; no query embedding or LLM |
+| `coverage` | Shows the passages `mock` would receive; optional topic focus uses vector search + MMR | dimension probe; `--topic` also embeds the query; no LLM |
+| `status` | Shows index profile, counts and sources | embedding dimension probe only; no LLM |
+| `embed-check` | Prints vector dimension and similarity probes, including Chinese-to-English retrieval | embedding |
+
+Current command signatures (defaults in parentheses):
+
+```text
+overfit inspect     --course/-c COURSE [--path/-p PATH] [--samples 2]
+                    [--chars 600] [--show-removed]
+overfit chunks      --course/-c COURSE [--path/-p PATH] [--show 5]
+                    [--spanning]
+overfit ingest      --course/-c COURSE [--path/-p PATH] [--force] [--rebuild]
+overfit search      QUERY --course/-c COURSE [--top-k/-k 5] [--chars 300]
+overfit mock        --course/-c COURSE [--questions/-q 10] [--topic TEXT]
+                    [--material 0]
+overfit topics      --course/-c COURSE [--count/-n 12] [--questions 10]
+overfit coverage    --course/-c COURSE [--count/-n 12] [--topic TEXT]
+                    [--chars 180]
+overfit status      --course/-c COURSE
+overfit embed-check
+```
+
+Running `overfit` without a subcommand currently prints `hello overfit`;
+running it with `--help` lists the commands above.
+
+Current implementation detail: opening any existing index first probes the
+configured embedding model for its dimension. Therefore even `status`,
+`topics`, whole-course `coverage`, and `mock` currently require the embedding
+endpoint to be reachable, despite not embedding a semantic query themselves.
+
+### Mock selection and output
+
+Without `--topic`, `mock` clusters stored vectors into at most 12 topics,
+allocates passages by topic weight, and chooses representative, non-duplicate
+chunks. With `--topic`, it retrieves a candidate pool and applies Maximal
+Marginal Relevance. By default it requests a material budget twice the question
+count; selection may return fewer passages when the index has too little
+usable material. Override the budget with `--material`.
+
+The model may honestly return fewer questions. Each accepted item has this
+validated shape:
+
+```json
+{
+  "topic": "Bias and variance",
+  "question": "...",
+  "answer": "...",
+  "source": "week03/lecture.pdf",
+  "page": 12
+}
+```
+
+Questions are grouped by the model-provided topic in the paper. Answers are
+grouped the same way and carry `Source: <file>, page <n>`. The generator drops
+items whose source/page is not among the supplied passages (and repairs page
+near-misses of at most two pages). This verifies that a citation refers to
+provided material; users should still check whether the cited page truly
+supports the answer. The current schema permits fewer questions but does not
+set a maximum list length, so a model that ignores the requested upper bound is
+not truncated by code.
+
+## Configuration
+
+Configuration comes from field defaults, then `.env`, then process environment
+variables. Per-command flags override only the corresponding behaviors exposed
+by that command.
+
+| Variable | Default | Used for |
+| --- | --- | --- |
+| `COURSES_DIR` | `courses` | Root containing one directory per course |
+| `OUTPUTS_DIR` | `outputs` | Generated Markdown |
+| `INDEX_DIR` | `index` | Per-course SQLite files |
+| `EXTENSIONS` | `.pdf` | Comma-separated discovery filter |
+| `PDF_BACKEND` | `pypdf` | `pypdf`, `docling`, or `docling+formula` |
+| `CHUNK_SIZE` | `250` | Approximate tokens (implemented as 4 characters/token) |
+| `CHUNK_OVERLAP` | `25` | Approximate overlapping tokens |
+| `EMBED_BASE_URL` | `http://localhost:11434/v1` | Embeddings API |
+| `EMBED_API_KEY` | `ollama` | Embeddings API credential |
+| `EMBED_MODEL` | `bge-m3` | Embedding model identifier |
+| `LLM_BASE_URL` | `http://localhost:11434/v1` | Chat-completions API |
+| `LLM_API_KEY` | `ollama` | Generation API credential |
+| `LLM_MODEL` | `qwen3.6:27b` | Generation model identifier |
+| `TEMPERATURE` | `0.3` | Generation sampling temperature |
+| `MAX_RETRIES` | `3` | Validation retries; total attempts are normally 4 |
+| `REQUEST_TIMEOUT` | `900` | Generation request timeout in seconds |
+
+`TOP_K=5` and `NUM_QUESTIONS=10` exist in the settings model, but current CLI
+defaults are hard-coded to the same values; use `search --top-k` and
+`mock --questions` to override them reliably.
+
+## Development and verification
+
+```bash
+uv sync  # the default dev group includes pytest and Ruff
+uv run pytest -q
+uv run ruff check .
+```
+
+Current verified result: `5 passed` and `All checks passed!` from Ruff.
+The automated suite currently contains **five parser-cleaning invariant
+tests**: four use synthetic `Page` objects, while the blank-extraction case
+reads a temporary text file. There are no automated tests yet for
+the loader, chunker, embedding client, store, selection/retrieval, generator,
+CLI, real PDF backends, or an end-to-end run. `inspect`, `chunks`, `search`,
+`coverage`, and `embed-check` are therefore important manual diagnostics, not
+substitutes for a broader test suite.
+
+## Documentation
+
+| Document | Purpose |
+| --- | --- |
+| [ARCHITECTURE.md](./docs/ARCHITECTURE.md) | Current system and stage diagrams |
+| [PIPELINE.md](./docs/PIPELINE.md) | Exact layer behavior, algorithms and data flow |
+| [TECH-STACK.md](./docs/TECH-STACK.md) | Dependencies, optional components and deliberate exclusions |
+| [MODELS.md](./docs/MODELS.md) | Embedding/generation contracts, safeguards and configuration |

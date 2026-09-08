@@ -12,15 +12,15 @@ from __future__ import annotations
 from pathlib import Path
 
 __all__ = [
-    "OverfitError",
     "CourseNotFoundError",
-    "NoDocumentsError",
-    "UnsupportedFormatError",
-    "ExtractionError",
-    "EmptyExtractionError",
     "EmbeddingError",
+    "EmptyExtractionError",
+    "ExtractionError",
     "IndexMismatchError",
     "IndexMissingError",
+    "NoDocumentsError",
+    "OverfitError",
+    "UnsupportedFormatError",
 ]
 
 

@@ -21,10 +21,10 @@ from __future__ import annotations
 
 import re
 from collections import Counter
+from collections.abc import Callable
 from dataclasses import dataclass, field
 from functools import lru_cache
 from pathlib import Path
-from typing import Callable
 
 from overfit.errors import (
     EmptyExtractionError,
@@ -35,12 +35,12 @@ from overfit.errors import (
 from overfit.models import Page, ParsedDocument
 
 __all__ = [
-    "parse",
-    "clean_page",
-    "find_running_lines",
-    "Removal",
     "CleaningReport",
+    "Removal",
+    "clean_page",
     "cleaning_report",
+    "find_running_lines",
+    "parse",
 ]
 
 
@@ -298,7 +298,7 @@ def _parse_pdf(path: Path) -> list[Page]:
             # can open; a real password cannot be guessed and must fail.
             try:
                 reader.decrypt("")
-            except Exception as exc:  # noqa: BLE001 - surfaced as ExtractionError
+            except Exception as exc:
                 raise ExtractionError(path, f"encrypted PDF ({exc})") from exc
         return [
             Page(number=index, text=page.extract_text() or "")
@@ -306,7 +306,7 @@ def _parse_pdf(path: Path) -> list[Page]:
         ]
     except ExtractionError:
         raise
-    except Exception as exc:  # noqa: BLE001 - pypdf raises a wide variety
+    except Exception as exc:
         raise ExtractionError(path, f"{type(exc).__name__}: {exc}") from exc
 
 
@@ -334,7 +334,7 @@ def _parse_docling(path: Path, *, formulas: bool) -> list[Page]:
 
     try:
         document = converter.convert(str(path)).document
-    except Exception as exc:  # noqa: BLE001 - docling raises a wide variety
+    except Exception as exc:
         raise ExtractionError(path, f"{type(exc).__name__}: {exc}") from exc
 
     buckets: dict[int, list[str]] = {}
@@ -542,9 +542,9 @@ def _docling_converter(formulas: bool):
 def _parse_text(path: Path) -> list[Page]:
     """Read Markdown or plain text as a single page.
 
-    Text files have no pages, so citations degrade to the file name alone.
-    That is honest: inventing page boundaries would produce references a
-    reader cannot follow.
+    Text files have no physical pages. They are represented as one logical
+    page, so the current citation renderer prints ``p1``; that is a synthetic
+    location for the whole file, not a claim that the source is paginated.
     """
     try:
         content = path.read_text(encoding="utf-8", errors="replace")
@@ -710,9 +710,8 @@ def _is_fragment(line: str) -> bool:
         return False  # reconstructed structure, not lost structure
     if _BULLET_LINE.match(line):
         return False  # a real bullet, however terse
-    if stripped[-1] in ".!?:":
-        return False  # finished sentences are content
-    return True
+    # Finished sentences are content, not stray labels.
+    return stripped[-1] not in ".!?:"
 
 
 def find_running_lines(pages: list[Page]) -> dict[str, int]:

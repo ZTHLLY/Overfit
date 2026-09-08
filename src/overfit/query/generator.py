@@ -28,7 +28,7 @@ from __future__ import annotations
 import json
 import re
 from dataclasses import dataclass
-from datetime import date
+from datetime import UTC, datetime
 from functools import lru_cache
 
 from jinja2 import Environment, PackageLoader, StrictUndefined
@@ -38,7 +38,7 @@ from overfit.config import LLMSettings, get_settings
 from overfit.errors import OverfitError
 from overfit.models import Chunk, GeneratedExam, GeneratedItem
 
-__all__ = ["Generator", "GenerationResult", "GenerationError"]
+__all__ = ["GenerationError", "GenerationResult", "Generator"]
 
 
 class GenerationError(OverfitError):
@@ -125,10 +125,11 @@ class Generator:
         usable tool and one that looks broken. A large local model spends its
         first minute loading weights and its next two generating; without any
         sign of life a user cannot tell a slow run from a hung one, and will
-        reasonably kill it. Tokens appearing is the only honest evidence that
-        something is happening.
+        reasonably kill it. Stream updates appearing are the only honest
+        evidence that something is happening. The callback counts streamed
+        delta chunks, not tokenizer tokens.
         """
-        chunks: list[str] = []
+        pieces: list[str] = []
         stream = client.chat.completions.create(
             model=self.model,
             messages=messages,
@@ -152,14 +153,14 @@ class Generator:
             if reasoning:
                 thinking += 1
                 if on_token:
-                    on_token(len(chunks), thinking)
+                    on_token(len(pieces), thinking)
 
             piece = delta.content or ""
             if piece:
-                chunks.append(piece)
+                pieces.append(piece)
                 if on_token:
-                    on_token(len(chunks), thinking)
-        return "".join(chunks)
+                    on_token(len(pieces), thinking)
+        return "".join(pieces)
 
     def _complete(self, system: str, user: str, schema, max_attempts: int, on_token=None):
         """Call the model until the reply validates, or give up with detail."""
@@ -228,15 +229,15 @@ class Generator:
 
         if "timeout" in combined or "timed out" in combined:
             return (
-                f"\n\nA timeout on a local model usually means memory, not the "
-                f"network: a 27B model needs roughly 17 GB, and anything else "
-                f"already loaded competes with it.\n"
-                f"  ollama ps                 # see what is resident\n"
-                f"  ollama stop <model>       # free the embedding model\n"
-                f"Or take a smaller step -- the provider is configuration, not "
-                f"code:\n"
-                f"  LLM_MODEL=qwen3:8b overfit mock ...\n"
-                f"  --material 6              # shorter prompt, less context\n"
+                "\n\nA timeout on a local model usually means memory, not the "
+                "network: a 27B model needs roughly 17 GB, and anything else "
+                "already loaded competes with it.\n"
+                "  ollama ps                 # see what is resident\n"
+                "  ollama stop <model>       # free the embedding model\n"
+                "Or take a smaller step -- the provider is configuration, not "
+                "code:\n"
+                "  LLM_MODEL=qwen3:8b overfit mock ...\n"
+                "  --material 6              # shorter prompt, less context\n"
             )
         if "connect" in combined or "refused" in combined:
             return (
@@ -388,8 +389,8 @@ def render_exam(course: str, exam: GeneratedExam) -> tuple[str, str]:
         "items": numbered,
         "grouped": list(grouped.items()),
         "sources": sorted({item["source"] for item in numbered}),
-        "generated_at": date.today().isoformat(),
-        "answers_file": f"{course}_answers.md",
+        "generated_at": datetime.now(UTC).date().isoformat(),
+        "answers_file": get_settings().output_path(course, "answers.md").name,
     }
     env = _templates()
     return (

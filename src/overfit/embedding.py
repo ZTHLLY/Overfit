@@ -16,8 +16,8 @@ from __future__ import annotations
 
 import math
 import time
+from collections.abc import Callable, Sequence
 from functools import lru_cache
-from typing import Callable, Sequence
 
 from overfit.config import EmbedSettings, get_settings
 from overfit.errors import EmbeddingError

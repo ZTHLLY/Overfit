@@ -1,7 +1,7 @@
 [project]
 name = "overfit"
 version = "0.1.0"
-description = "Add your description here"
+description = "Local-first RAG CLI for cited, structured study artifacts"
 readme = "README.md"
 authors = [
     { name = "ZTHLLY", email = "zzz18011940139@gmail.com" }

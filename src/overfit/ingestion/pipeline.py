@@ -7,22 +7,24 @@ pure function of its input and can be tested without a database.
 
 Two behaviours matter more than they look:
 
-**Caching by content hash.** Embedding is the only step that costs real
-time, so an unchanged file must cost nothing. Hashing content rather than
-names or timestamps means renaming, touching or re-exporting a file is free,
-while editing one sentence rebuilds exactly that file.
+**Caching by source and content hash.** Embedding is the only step that costs
+real time, so an unchanged source must cost nothing. Touching or re-exporting
+it byte-identically is free; editing it rebuilds that source. A rename creates
+a new source, and sources removed from disk remain until a full rebuild.
 
-**Per-file failure isolation.** A scanned PDF in a folder of thirty must not
-abort the other twenty-nine. Failures are collected and reported at the end,
-so the user learns everything wrong in one run instead of one per attempt.
+**Parser failure isolation.** A scanned or unreadable PDF in a folder of thirty
+does not abort the other twenty-nine; those failures are collected and
+reported. Hashing, embedding and database errors occur outside that per-file
+catch and still abort the run, because continuing after those failures could
+leave the index state ambiguous.
 """
 
 from __future__ import annotations
 
 import time
+from collections.abc import Callable
 from dataclasses import dataclass, field
 from pathlib import Path
-from typing import Callable
 
 from overfit.embedding import Embedder
 from overfit.errors import OverfitError
@@ -30,7 +32,7 @@ from overfit.ingestion import chunker, loader, parser
 from overfit.models import EmbeddedChunk
 from overfit.storage.store import VectorStore
 
-__all__ = ["ingest", "IngestReport", "FileOutcome"]
+__all__ = ["FileOutcome", "IngestReport", "ingest"]
 
 
 @dataclass(frozen=True, slots=True)

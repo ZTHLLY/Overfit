@@ -31,7 +31,7 @@ from dataclasses import dataclass
 
 from overfit.models import Chunk, Page, ParsedDocument
 
-__all__ = ["chunk_document", "CHARS_PER_TOKEN"]
+__all__ = ["CHARS_PER_TOKEN", "chunk_document"]
 
 
 # Chunk sizes are configured in tokens because that is what limits a model,

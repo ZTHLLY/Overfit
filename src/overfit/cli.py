@@ -73,7 +73,11 @@ def inspect(
     for file in files:
         relative = file.relative_to(directory)
         try:
-            document = parser.parse(file, backend=settings.pdf_backend)
+            document = parser.parse(
+                file,
+                source=file.relative_to(directory).as_posix(),
+                backend=settings.pdf_backend,
+            )
         except OverfitError as exc:
             failures.append(str(relative))
             typer.secho(f"  FAIL  {relative}", fg=typer.colors.RED)
@@ -116,7 +120,11 @@ def inspect(
     # Print real text last, so it is the thing left on screen.
     for file in files[:samples]:
         try:
-            document = parser.parse(file, backend=settings.pdf_backend)
+            document = parser.parse(
+                file,
+                source=file.relative_to(directory).as_posix(),
+                backend=settings.pdf_backend,
+            )
         except OverfitError:
             continue
         page = max(document.pages, key=lambda p: len(p.text))
@@ -160,7 +168,11 @@ def chunks(
     all_chunks: list = []
     for file in files:
         try:
-            document = parser.parse(file, backend=settings.pdf_backend)
+            document = parser.parse(
+                file,
+                source=file.relative_to(directory).as_posix(),
+                backend=settings.pdf_backend,
+            )
         except OverfitError as exc:
             typer.secho(f"  skip  {file.name}: {exc}", fg=typer.colors.RED)
             continue
@@ -169,13 +181,15 @@ def chunks(
             document, settings.chunk_size, settings.chunk_overlap
         )
         crossing = sum(1 for c in produced if c.page_end)
-        sizes = sorted(len(c.text) for c in produced)
         typer.secho(f"  {file.name}", fg=typer.colors.GREEN)
-        typer.echo(
-            f"      {len(document.pages)} pages -> {len(produced)} chunks"
-            f"   |  chars min {sizes[0]} / median {sizes[len(sizes) // 2]} / max {sizes[-1]}"
-            f"   |  {crossing} span a page break"
-        )
+        summary = f"      {len(document.pages)} pages -> {len(produced)} chunks"
+        if produced:
+            sizes = sorted(len(c.text) for c in produced)
+            summary += (
+                f"   |  chars min {sizes[0]} / median {sizes[len(sizes) // 2]}"
+                f" / max {sizes[-1]}"
+            )
+        typer.echo(f"{summary}   |  {crossing} span a page break")
         all_chunks.extend(produced)
 
     if not all_chunks:
@@ -325,7 +339,7 @@ def search(
     from overfit.query import retriever
 
     try:
-        store, embedder, settings = _open_store(course)
+        store, embedder, _ = _open_store(course)
         with store:
             hits = retriever.retrieve(query, store, embedder, top_k=top_k)
     except OverfitError as exc:
@@ -333,7 +347,7 @@ def search(
         raise typer.Exit(1) from exc
 
     typer.secho(f'\n"{query}"', fg=typer.colors.CYAN)
-    typer.echo(f"{len(hits)} of {settings.top_k} requested\n")
+    typer.echo(f"{len(hits)} of {top_k} requested\n")
 
     for rank, hit in enumerate(hits, start=1):
         typer.secho(
@@ -380,42 +394,39 @@ def mock(
         f"{len(chunks)} passages -> up to {questions} questions"
         f"{f'   (topic: {topic})' if topic else ''}"
     )
-    # typer.echo(
-    #     "A large local model loads ~17 GB before it writes a single token, so"
-    #     " the first run is slow. Progress appears below once it starts.\n"
-    # )
-
     import time as _time
 
     started = _time.monotonic()
 
-    # The callback below only fires once tokens arrive, and nothing arrives
-    # while the request is queued or the model is reasoning. Without this
-    # line the terminal sits blank for that whole period, which is
-    # indistinguishable from a hang -- and the reasonable response to a hang
-    # is to kill it, throwing away work that was going fine.
-    typer.echo("  request sent, waiting for the first token...", nl=False)
+    # The callback only fires once the endpoint sends a stream update. While
+    # the request is queued or the model is loading, the terminal would
+    # otherwise sit blank and look indistinguishable from a hang.
+    typer.echo("  request sent, waiting for the first stream update...", nl=False)
     first = True
 
-    def tick(received: int, thinking: int = 0) -> None:
+    def tick(answer_chunks: int, thinking_updates: int = 0) -> None:
         nonlocal first
         if first:
-            typer.echo("\r" + " " * 48 + "\r", nl=False)
+            typer.echo("\r" + " " * 56 + "\r", nl=False)
             first = False
         elapsed = _time.monotonic() - started
-        total = received + thinking
+        total = answer_chunks + thinking_updates
         rate = total / elapsed if elapsed else 0
         # Show reasoning separately: a model deep in its own monologue is
         # working, but it has not started answering, and those are different
         # states to be waiting in.
-        stage = f"thinking {thinking}" if thinking and not received else f"{received} tokens"
-        typer.echo(f"\r  {stage}   {elapsed:>5.0f}s   {rate:4.1f} tok/s ", nl=False)
+        stage = (
+            f"thinking {thinking_updates} updates"
+            if thinking_updates and not answer_chunks
+            else f"{answer_chunks} chunks"
+        )
+        typer.echo(f"\r  {stage}   {elapsed:>5.0f}s   {rate:4.1f} updates/s ", nl=False)
 
     try:
         result = writer.mock_exam(
             course, chunks, count=questions, topic=topic, on_token=tick
         )
-        typer.echo("\r" + " " * 48 + "\r", nl=False)
+        typer.echo("\r" + " " * 56 + "\r", nl=False)
     except OverfitError as exc:
         typer.secho(str(exc), fg=typer.colors.RED, err=True)
         raise typer.Exit(1) from exc
@@ -487,8 +498,9 @@ def topics(
     returned to three times; one long handout repeating itself was not. The
     difference matters, and chunk counts cannot see it.
 
-    Computed entirely from the stored vectors -- no model call, nothing to
-    hallucinate, every figure checkable against the files.
+    Ranking uses only the stored vectors; opening the index first probes the
+    configured embedding model's dimension for compatibility. The generation
+    model is not called, and every figure is checkable against the files.
     """
     from overfit.query import retriever, selection
 
@@ -501,9 +513,9 @@ def topics(
         typer.secho(str(exc), fg=typer.colors.RED, err=True)
         raise typer.Exit(1) from exc
 
-    shares = dict(
-        (id(topic), share) for topic, share in selection.allocate(found, questions)
-    )
+    shares = {
+        id(topic): share for topic, share in selection.allocate(found, questions)
+    }
 
     typer.secho(f"\n{len(found)} topics over {total} chunks\n", fg=typer.colors.CYAN)
     typer.echo(f"  {'files':>5} {'chunks':>6} {'qs':>4}   topic")

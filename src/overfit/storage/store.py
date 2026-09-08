@@ -8,10 +8,10 @@ either side be rewritten without disturbing the other, and it is the same
 shape pgvector, Qdrant and Pinecone expose, so moving off SQLite later means
 rewriting this file and nothing else.
 
-Three tables:
+Four database objects:
 
 * ``chunks``    text and provenance, one row per chunk
-* ``vec_chunks``the vectors, in a sqlite-vec virtual table, joined by rowid
+* ``vec_chunks`` the vectors, in a sqlite-vec virtual table, joined by rowid
 * ``documents`` a content hash per source file, so unchanged files are
                 skipped on re-ingest
 * ``meta``      the settings this index was built with
@@ -26,14 +26,14 @@ from __future__ import annotations
 
 import sqlite3
 from dataclasses import dataclass
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 from pathlib import Path
-from types import TracebackType
+from typing import Self
 
 from overfit.errors import IndexMismatchError, IndexMissingError
 from overfit.models import Chunk, EmbeddedChunk, RetrievedChunk, Vector
 
-__all__ = ["VectorStore", "IndexProfile", "SCHEMA_VERSION"]
+__all__ = ["SCHEMA_VERSION", "IndexProfile", "VectorStore"]
 
 
 # Bumped whenever the table layout changes in a way that old files cannot
@@ -116,7 +116,7 @@ class VectorStore:
     def close(self) -> None:
         self._db.close()
 
-    def __enter__(self) -> VectorStore:
+    def __enter__(self) -> Self:
         return self
 
     def __exit__(self, *exc: object) -> None:
@@ -261,7 +261,7 @@ class VectorStore:
                 candidate pool to reorder -- does not change this signature
                 or any caller.
 
-        Scores are cosine similarity in [0, 1]. Because vectors are stored
+        Scores are cosine similarity in [-1, 1]. Because vectors are stored
         normalised, squared L2 distance and cosine carry the same ordering,
         and the conversion below is exact rather than an approximation.
         """
@@ -314,7 +314,7 @@ class VectorStore:
                     source,
                     content_hash,
                     chunk_count,
-                    datetime.now(timezone.utc).isoformat(timespec="seconds"),
+                    datetime.now(UTC).isoformat(timespec="seconds"),
                 ),
             )
 
