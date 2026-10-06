@@ -109,6 +109,44 @@ def eval_judge_replay(
     _judge_summary(result, replay=True)
 
 
+@eval_app.command("judge-challenge")
+def eval_judge_challenge(
+    suite_dir: Annotated[Path, typer.Argument(help="Independent challenge inputs/annotations directory.")],
+    execute: Annotated[bool, typer.Option("--execute", help="Explicitly call the JUDGE service.")] = False,
+    max_calls: Annotated[int, typer.Option("--max-calls", min=0, help="Global call budget including retries; required for execute.")] = 0,
+    max_items: Annotated[int | None, typer.Option("--max-items", min=1, help="Select the first N cases; retain all others as unreviewed.")] = None,
+    output_dir: Annotated[Path | None, typer.Option("--output-dir", help="Output parent; a fresh UUID child is always created.")] = None,
+) -> None:
+    """Prepare a standalone challenge, or explicitly execute it without creating a fake trace."""
+    from overfit.evaluation.challenge import ChallengeError, run_challenge
+
+    try:
+        result = run_challenge(suite_dir, execute=execute, max_calls=max_calls,
+                               max_items=max_items, output_dir=output_dir)
+    except ChallengeError as exc:
+        typer.secho(str(exc), fg=typer.colors.RED, err=True)
+        raise typer.Exit(1) from None
+    except (OverfitError, OSError, ValueError):
+        typer.secho("Invalid challenge input, configuration or recording; this experiment was not completed.", fg=typer.colors.RED, err=True)
+        raise typer.Exit(1) from None
+    metrics = result["metrics"]
+    typer.echo(f"Judge challenge status: {result['status']} (not a formal generation evaluation)")
+    if metrics["mode"] == "prepare":
+        typer.echo("Offline preparation only: no model calls; all semantics remain unevaluated.")
+    typer.echo(f"Cases: {metrics['case_count']}; Selected reviews completed: "
+               f"{metrics['selected_evaluated_phase_count']}/{metrics['selected_phase_count']}; "
+               f"Overall coverage: {metrics['evaluated_phase_count']}/{metrics['planned_phase_count']}")
+    typer.echo(f"Model positive on all three dimensions: {metrics['model_all_positive_case_count']} (not final approval); "
+               f"Technical errors: {metrics['technical_error_phase_count']} phases; "
+               f"Pending human review: {metrics['human_review_pending_case_count']} cases")
+    typer.echo(f"Model call attempts: {metrics['call_starts']}; Responses received: {metrics['response_count']}; Retries: {metrics['retry_count']}")
+    typer.echo("Human-designed targets are not model results; no automatic target-matching score is calculated.")
+    typer.echo("Preliminary automated review; not yet human-calibrated.")
+    typer.echo(f"Report: {Path(result['report_path']).resolve()}")
+    if result["exit_code"]:
+        raise typer.Exit(result["exit_code"])
+
+
 @app.callback(invoke_without_command=True)
 def _root(ctx: typer.Context) -> None:
     if ctx.invoked_subcommand is None:

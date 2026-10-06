@@ -180,7 +180,7 @@ def test_selected_success_prints_both_selected_and_full_coverage(tmp_path, monke
     assert "Automatically approved" not in result.output and len(calls) == 2
 
 
-@pytest.mark.parametrize("function", ["_judge_summary", "eval_judge", "eval_judge_replay"])
+@pytest.mark.parametrize("function", ["_judge_summary", "eval_judge", "eval_judge_replay", "eval_judge_challenge"])
 def test_fixed_judge_terminal_text_is_english_without_restricting_user_data(function):
     import ast
     import inspect
