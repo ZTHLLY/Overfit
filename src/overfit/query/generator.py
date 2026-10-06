@@ -27,15 +27,20 @@ from __future__ import annotations
 
 import json
 import re
-from dataclasses import dataclass
+from copy import deepcopy
+from dataclasses import asdict, dataclass
 from datetime import UTC, datetime
 from functools import lru_cache
+from time import monotonic
 
 from jinja2 import Environment, PackageLoader, StrictUndefined
 from pydantic import ValidationError
 
 from overfit.config import LLMSettings, get_settings
 from overfit.errors import OverfitError
+from overfit.evaluation.citations import check_citation
+from overfit.evaluation.contracts import TraceWriteError
+from overfit.evaluation.trace import safe_error
 from overfit.models import Chunk, GeneratedExam, GeneratedItem
 
 __all__ = ["GenerationError", "GenerationResult", "Generator"]
@@ -95,6 +100,7 @@ class Generator:
         topic: str | None = None,
         max_attempts: int | None = None,
         on_token=None,
+        recorder=None,
     ) -> GenerationResult:
         """Write practice questions from `chunks`."""
         system = _templates().get_template("system.j2").render()
@@ -110,15 +116,19 @@ class Generator:
             GeneratedExam,
             max_attempts or get_settings().max_retries + 1,
             on_token=on_token,
+            **({"recorder": recorder} if recorder is not None else {}),
         )
-        exam, dropped = _drop_invented_citations(exam, chunks)
+        exam, dropped = _drop_invented_citations(exam, chunks, recorder=recorder)
         return GenerationResult(
             exam=exam, attempts=attempts, dropped=dropped, raw=raw
         )
 
     # -- internals ---------------------------------------------------------
 
-    def _stream(self, client, response_format, messages, on_token) -> str:
+    def _stream(
+        self, client, response_format, messages, on_token, *, recorder=None,
+        attempt_index=1, format_index=1,
+    ) -> str:
         """Collect a streamed reply, reporting progress as it arrives.
 
         Streaming is not an optimisation here, it is the difference between a
@@ -129,6 +139,11 @@ class Generator:
         evidence that something is happening. The callback counts streamed
         delta chunks, not tokenizer tokens.
         """
+        if recorder is not None:
+            return self._traced_stream(
+                client, response_format, messages, on_token, recorder,
+                attempt_index, format_index,
+            )
         pieces: list[str] = []
         stream = client.chat.completions.create(
             model=self.model,
@@ -162,7 +177,70 @@ class Generator:
                     on_token(len(pieces), thinking)
         return "".join(pieces)
 
-    def _complete(self, system: str, user: str, schema, max_attempts: int, on_token=None):
+    def _traced_stream(
+        self, client, response_format, messages, on_token, recorder,
+        attempt_index, format_index,
+    ) -> str:
+        """Observe a real request without exposing private reasoning or errors."""
+        settings = get_settings()
+        request = deepcopy({
+            "model": self.model,
+            "messages": messages,
+            "temperature": settings.temperature,
+            "response_format": response_format,
+            "stream": True,
+            "timeout": settings.request_timeout,
+        })
+        # Persist before calling the provider. Send this same frozen snapshot,
+        # not the mutable conversation used to assemble the next retry.
+        call_id = recorder.start_call(attempt_index, format_index, request)
+        started = monotonic()
+        pieces: list[str] = []
+        thinking = 0
+        usage = None
+        try:
+            stream = client.chat.completions.create(**request)
+            for part in stream:
+                observed_usage = _visible_usage(getattr(part, "usage", None))
+                if observed_usage is not None:
+                    usage = observed_usage
+                if not part.choices:
+                    continue
+                delta = part.choices[0].delta
+                reasoning = getattr(delta, "reasoning_content", None) or getattr(
+                    delta, "reasoning", None
+                )
+                if reasoning:
+                    thinking += 1
+                    if on_token:
+                        on_token(len(pieces), thinking)
+                piece = delta.content or ""
+                if piece:
+                    pieces.append(piece)
+                    if on_token:
+                        on_token(len(pieces), thinking)
+        except TraceWriteError:
+            raise
+        except (Exception, KeyboardInterrupt) as exc:
+            recorder.emit("call_finished", {
+                "call_id": call_id, "status": "error",
+                "content": "".join(pieces), "response_complete": False,
+                "elapsed_seconds": monotonic() - started,
+                "error": safe_error(exc), "usage": usage,
+            })
+            raise
+        content = "".join(pieces)
+        recorder.emit("call_finished", {
+            "call_id": call_id, "status": "completed", "content": content,
+            "response_complete": True, "elapsed_seconds": monotonic() - started,
+            "error": None, "usage": usage,
+        })
+        return content
+
+    def _complete(
+        self, system: str, user: str, schema, max_attempts: int, on_token=None,
+        recorder=None,
+    ):
         """Call the model until the reply validates, or give up with detail."""
         client = self._ensure_client()
         messages = [
@@ -176,12 +254,23 @@ class Generator:
             # Strongest constraint the endpoint will accept, weakening as we
             # learn what it rejects.
             raw = None
-            for response_format in _response_formats(json_schema, attempt):
+            for format_index, response_format in enumerate(
+                _response_formats(json_schema, attempt), start=1
+            ):
                 try:
-                    raw = self._stream(client, response_format, messages, on_token)
+                    trace_args = {} if recorder is None else {
+                        "recorder": recorder, "attempt_index": attempt,
+                        "format_index": format_index,
+                    }
+                    raw = self._stream(
+                        client, response_format, messages, on_token, **trace_args
+                    )
                     break
+                except TraceWriteError:
+                    raise
                 except Exception as exc:  # noqa: BLE001 - endpoint capability probe
-                    problems.append(f"attempt {attempt}: {type(exc).__name__}: {exc}")
+                    detail = str(exc) if recorder is None else "provider call failed"
+                    problems.append(f"attempt {attempt}: {type(exc).__name__}: {detail}")
             if raw is None:
                 continue
 
@@ -191,10 +280,20 @@ class Generator:
                 # nothing to say. Retrying without the schema often shakes it
                 # loose; failing silently would look like "no questions".
                 problems.append(f"attempt {attempt}: empty response body")
+                if recorder is not None:
+                    recorder.emit("validation_finished", {
+                        "call_id": recorder.last_call_id, "status": "empty_body",
+                        "item_count": None, "error": None,
+                    })
                 continue
             try:
-                return schema.model_validate(_coerce(_extract_json(raw))), attempt, raw
+                exam = schema.model_validate(_coerce(_extract_json(raw)))
             except (ValidationError, ValueError, json.JSONDecodeError) as exc:
+                if recorder is not None:
+                    recorder.emit("validation_finished", {
+                        "call_id": recorder.last_call_id, "status": "invalid",
+                        "item_count": None, "error": safe_error(exc),
+                    })
                 problems.append(f"attempt {attempt}: {_summarise(exc)}")
                 # Show the model its own mistake. Local models correct a named
                 # missing field far more reliably than a repeated instruction.
@@ -209,7 +308,18 @@ class Generator:
                         ),
                     },
                 ]
+            else:
+                if recorder is not None:
+                    recorder.emit("validation_finished", {
+                        "call_id": recorder.last_call_id, "status": "valid",
+                        "item_count": len(exam.items), "error": None,
+                    })
+                return exam, attempt, raw
 
+        if recorder is not None:
+            raise GenerationError(
+                f"{self.model} did not return valid output after {max_attempts} attempts."
+            )
         raise GenerationError(
             f"{self.model} did not return valid output after {max_attempts} "
             f"attempts.\n  "
@@ -326,8 +436,20 @@ def _coerce(data: object) -> object:
     return data
 
 
+def _visible_usage(usage) -> dict | None:
+    """Keep only known numeric counters, never arbitrary provider metadata."""
+    if usage is None:
+        return None
+    result = {}
+    for field in ("prompt_tokens", "completion_tokens", "total_tokens"):
+        value = usage.get(field) if isinstance(usage, dict) else getattr(usage, field, None)
+        if type(value) is int and value >= 0:
+            result[field] = value
+    return result or None
+
+
 def _drop_invented_citations(
-    exam: GeneratedExam, chunks: list[Chunk]
+    exam: GeneratedExam, chunks: list[Chunk], *, recorder=None,
 ) -> tuple[GeneratedExam, list[str]]:
     """Remove any item citing material that was not supplied.
 
@@ -349,9 +471,29 @@ def _drop_invented_citations(
 
     kept: list[GeneratedItem] = []
     dropped: list[str] = []
-    for item in exam.items:
+    materials = [asdict(chunk) for chunk in chunks] if recorder is not None else []
+
+    def record(original_index, before, after, action, reason):
+        if recorder is None:
+            return
+        post = after.model_dump() if after is not None else None
+        recorder.emit("citation_processed", {
+            "call_id": recorder.last_call_id,
+            "item_id": f"{recorder.last_call_id}-item-{original_index}",
+            "original_index": original_index,
+            "final_index": len(kept) if post is not None else None,
+            "pre_policy": before, "post_policy": post,
+            "action": action, "reason": reason,
+            "pre_check": check_citation(before, materials),
+            "post_check": check_citation(post, materials) if post is not None else None,
+        })
+
+    for original_index, item in enumerate(exam.items, start=1):
+        before = item.model_dump() if recorder is not None else None
+        action, reason = "keep", "citation_supplied"
         if item.source not in allowed:
             dropped.append(f"{item.source} p{item.page} — no such file in the material")
+            record(original_index, before, None, "drop", "unknown_source")
             continue
         if item.page not in allowed[item.source]:
             nearest = min(allowed[item.source], key=lambda p: abs(p - item.page))
@@ -359,9 +501,12 @@ def _drop_invented_citations(
                 dropped.append(
                     f"{item.source} p{item.page} — page not among those supplied"
                 )
+                record(original_index, before, None, "drop", "page_not_supplied")
                 continue
             item = item.model_copy(update={"page": nearest})
+            action, reason = "repair", "nearby_page"
         kept.append(item)
+        record(original_index, before, item, action, reason)
 
     return GeneratedExam(items=kept), dropped
 

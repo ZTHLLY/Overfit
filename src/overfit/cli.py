@@ -21,6 +21,26 @@ app = typer.Typer(
     help="Turn course materials into structured, shareable study artifacts.",
     no_args_is_help=False,
 )
+eval_app = typer.Typer(help="Inspect traces offline or explicitly run an independent judge.")
+app.add_typer(eval_app, name="eval")
+
+
+@eval_app.command("replay")
+def eval_replay(run_dir: Annotated[Path, typer.Argument(help="Recorded run directory.")]) -> None:
+    """Validate a local trace and write a new offline replay report."""
+    from overfit.evaluation.contracts import TraceReadError, TraceWriteError
+    from overfit.evaluation.replay import replay_run
+    from overfit.evaluation.trace import safe_error
+
+    try:
+        result = replay_run(run_dir)
+    except (TraceReadError, TraceWriteError) as exc:
+        typer.secho(safe_error(exc)["message"], fg=typer.colors.RED, err=True)
+        raise typer.Exit(1) from None
+    typer.echo(f"{result['run_status']} / {result['trace_integrity']}")
+    typer.echo(str(result["replay_dir"]))
+    if result["trace_integrity"] != "complete":
+        raise typer.Exit(1)
 
 
 @app.callback(invoke_without_command=True)
@@ -364,6 +384,7 @@ def mock(
     questions: Annotated[int, typer.Option("--questions", "-q", help="How many.")] = 10,
     topic: Annotated[str | None, typer.Option(help="Restrict to one subject.")] = None,
     material: Annotated[int, typer.Option(help="Passages to draw from.")] = 0,
+    trace: Annotated[bool, typer.Option("--trace", help="Record an auditable generation run.")] = False,
 ) -> None:
     """Write a practice exam from the course material.
 
@@ -372,6 +393,20 @@ def mock(
     support a question, and the model needs room to skip them rather than
     being forced to pad.
     """
+    if trace:
+        from overfit.evaluation.live import run_mock_trace
+
+        result = run_mock_trace(
+            get_settings(), _open_store, course=course, questions=questions,
+            topic=topic, material=material,
+        )
+        if result["error"] is not None:
+            typer.secho(result["error"]["message"], fg=typer.colors.RED, err=True)
+        typer.echo(f"Trace status: {result['status']}")
+        if result["run_dir"] is not None:
+            typer.echo(result["run_dir"])
+        raise typer.Exit(result["exit_code"])
+
     from overfit.query import generator, retriever
 
     settings = get_settings()
