@@ -29,6 +29,7 @@ the Roadmap column do **not** exist in the current CLI.
 | SQLite + `sqlite-vec` indexes, one file per course | Remote sources such as Drive/Notion/URLs |
 | Direct semantic search, topic clustering and coverage preview | Hybrid search and re-ranking |
 | Grounded mock exams with Markdown question/answer files | More generated artifact types |
+| Opt-in traces, strict citations, independent judge runner and offline replay | Judge calibration and quality baseline |
 
 ## How it works
 
@@ -165,7 +166,8 @@ Run `uv run overfit <command> --help` for every option.
 | `chunks` | Parses and previews actual chunks before indexing | none |
 | `ingest` | Parses, chunks, embeds and writes/updates one course index | embedding |
 | `search QUERY` | Embeds a query and prints nearest chunks with cosine scores | embedding |
-| `mock` | Selects material, calls the LLM, validates it and writes two Markdown files | generation; index opening probes embedding dimension, and `--topic` also embeds the topic |
+| `mock` | Selects material, calls the LLM, validates it and writes two Markdown files; opt-in `--trace` records a run-specific audit bundle | generation; index opening probes embedding dimension, and `--topic` also embeds the topic |
+| `eval replay RUN_DIR` | Revalidates a local trace and writes a separate replay report; no settings, index or provider access | none |
 | `topics` | Clusters stored vectors and ranks topics by distinct source-file coverage | embedding dimension probe only; no query embedding or LLM |
 | `coverage` | Shows the passages `mock` would receive; optional topic focus uses vector search + MMR | dimension probe; `--topic` also embeds the query; no LLM |
 | `status` | Shows index profile, counts and sources | embedding dimension probe only; no LLM |
@@ -181,7 +183,8 @@ overfit chunks      --course/-c COURSE [--path/-p PATH] [--show 5]
 overfit ingest      --course/-c COURSE [--path/-p PATH] [--force] [--rebuild]
 overfit search      QUERY --course/-c COURSE [--top-k/-k 5] [--chars 300]
 overfit mock        --course/-c COURSE [--questions/-q 10] [--topic TEXT]
-                    [--material 0]
+                    [--material 0] [--trace]
+overfit eval replay RUN_DIR
 overfit topics      --course/-c COURSE [--count/-n 12] [--questions 10]
 overfit coverage    --course/-c COURSE [--count/-n 12] [--topic TEXT]
                     [--chars 180]
@@ -257,6 +260,99 @@ by that command.
 defaults are hard-coded to the same values; use `search --top-k` and
 `mock --questions` to override them reliably.
 
+## Generation trace and offline replay
+
+`mock --trace` is opt-in. It retains actual materials, visible requests/responses,
+validation and citation changes under the configured `outputs_dir/eval/<run_id>/`.
+Default `mock` output remains unchanged; traced exams do not overwrite it.
+
+```bash
+# Online: still calls embedding/generation services; run only when intended.
+uv run overfit mock --course COURSE --questions 5 --trace
+# Offline: use an existing recorded run; no original index or model required.
+uv run overfit eval replay /absolute/path/to/outputs/eval/RUN_ID
+```
+
+The trace contains local copies of course content and must not be committed or
+uploaded automatically. Replay writes into a new `replays/<replay_id>/` directory.
+A report or exam file alone does not prove completion: replay validates the
+terminal event and artifact hashes. A complete failed/interrupted run may replay
+successfully while retaining its original failure status. PR 1 reports retain
+`not_evaluated` semantic fields. PR 2 independently judges final retained items;
+its default command only prepares tasks without loading model configuration or
+making network calls. The existing 47-item golden set is unchanged.
+
+```bash
+# Offline preparation: writes a readable report, all semantic tasks unreviewed.
+uv run overfit eval judge /absolute/path/to/outputs/eval/RUN_ID
+# Explicit online execution only after choosing a judge and call budget.
+# Requires independent JUDGE_MODEL, JUDGE_BASE_URL and JUDGE_API_KEY.
+uv run overfit eval judge /absolute/path/to/outputs/eval/RUN_ID --execute --max-calls 6
+# Offline recomputation from saved judge responses.
+uv run overfit eval judge-replay /absolute/path/to/outputs/eval/RUN_ID/judgments/JUDGMENT_ID
+```
+
+Judge runs write separate `judgments/<UUID>/` directories, never replace the
+generation trace, and print the report path. Each retained item has two separate
+requests: answerability sees no generated-answer field, while support checks the
+answer and cited page. Unknown, unreviewed and errored items remain in the metric
+denominator. Optional `--max-items N` selects the first N retained items without
+hiding unselected items. SDK retries are disabled; the global `--max-calls` cap
+includes configured runner retries. A valid negative verdict is not retried.
+
+The user completed a real three-question trace, offline replay, local-model pilots,
+and an OpenRouter pilot. Raising the output budget to 4096 resolved truncation;
+v2 still withheld complete model verdicts because two quotations used ellipses.
+The **judge-v3 responsibility revision passed independent offline verification**: the model owns semantic
+verdicts; code records technical completion and source diagnostics; substantive
+ambiguity is routed to humans. Quotations are optional explanatory excerpts:
+exact/whitespace matches may add source spans, but unmatched/ambiguous quotations
+alone are informational, not reasons to erase verdicts or require manual review.
+
+Reports separate **model verdicts**, **technical status**, and **human review**.
+Unknown/partial verdicts, contradictions and substantive source problems create
+pending review entries without changing model verdicts or completed-task counts.
+A clear negative verdict does not automatically require human review. Model-wide
+positive counts are not final approval. `--max-items 1` can finish **2/2 selected
+tasks, 2/6 overall** with a completed technical run; unselected items stay visible.
+`review_queue.jsonl` exports pending phases; adjudication entry is not implemented.
+V3 replay rejects incompatible v1/v2 records and does not rewrite them. No model
+is started as part of this offline revision; calibration remains incomplete.
+
+
+### Independent judge challenges
+
+Artificial control/mutant suites are **not generation traces or calibrated gold**.
+The dedicated `eval judge-challenge` entry point is implemented and independently
+verified under the
+[challenge spec](/Users/silver/Documents/github/Overfit/docs/specs/EVAL-CHALLENGE-SPEC.md)
+and [plan](/Users/silver/Documents/github/Overfit/docs/plans/EVAL-CHALLENGE-PLAN.md).
+The [IFN580 suite](/Users/silver/Documents/github/Overfit/eval/judge_challenges/ifn580_v1/README.md)
+contains three unchanged controls and four single-factor mutants. Usage:
+
+```bash
+# Offline preparation only: no model configuration/client/network.
+uv run overfit eval judge-challenge eval/judge_challenges/ifn580_v1
+# Explicit execution only after model and budget confirmation.
+JUDGE_MAX_ATTEMPTS=1 uv run overfit eval judge-challenge \
+  eval/judge_challenges/ifn580_v1 --execute --max-calls 14
+```
+
+`--max-items N` selects the first N cases; unselected cases remain visible and
+paired controls are not automatically added. Each case requires two independent
+requests. Output defaults to `outputs/eval/challenges/<UUID>/` relative to the
+working directory; `--output-dir PATH` changes the parent. Annotations, IDs,
+control/mutant identity and expected targets never enter model requests. Reports
+compare raw model verdicts with separately labeled design intentions; they do not
+automatically score detection success or accuracy. This record type is separate
+from formal trace judges. Challenge replay/resume is not implemented, and formal
+`judge-replay` rejects it. Independent verification passed **519 offline tests**,
+Ruff and diff checks, eight additional blocked-network checks, and preservation
+of 90 baseline files. The [offline prepare report](/Users/silver/Documents/github/Overfit/outputs/eval/challenges/47c16ac8-faed-450b-ae21-6acf7365272e/report.md)
+contains seven cases, 0/14 evaluated phases and zero calls. No real challenge
+model run or semantic calibration was performed; formal v3 replay compatibility
+was independently checked without changing old records.
+
 ## Development and verification
 
 ```bash
@@ -265,14 +361,29 @@ uv run pytest -q
 uv run ruff check .
 ```
 
-Current verified result: `5 passed` and `All checks passed!` from Ruff.
-The automated suite currently contains **five parser-cleaning invariant
-tests**: four use synthetic `Page` objects, while the blank-extraction case
-reads a temporary text file. There are no automated tests yet for
-the loader, chunker, embedding client, store, selection/retrieval, generator,
-CLI, real PDF backends, or an end-to-end run. `inspect`, `chunks`, `search`,
-`coverage`, and `embed-check` are therefore important manual diagnostics, not
-substitutes for a broader test suite.
+The offline suite now covers parser invariants, generation tracing and fallback,
+strict citation checks, writer failures, replay integrity, and fake-provider CLI
+flows, plus judge schema/evidence validation, isolated inputs, global budgets,
+fixed denominators and offline judgment replay. Tests do not establish real-model
+generation quality or semantic support.
+Real PDF backends, retrieval quality, and live provider behavior still require
+separate verification. `inspect`, `chunks`, `search`, `coverage`, and `embed-check`
+remain useful manual diagnostics.
+
+Historical PR 1 verification used `/private/tmp/overfit-eval-trace-venv` with
+Python 3.12.14 while the project environment was broken. The user subsequently
+ran `uv run`, which rebuilt `.venv` with Python 3.12.13. Historical judge-v1 verification used this repaired
+project environment: **371 offline tests passed**, Ruff and independent review
+passed. The 2026-10-06 judge-v2 revision passed **404 offline tests**, Ruff,
+independent review, and input-artifact preservation checks. These are historical
+evidence. V3 independently passed **439 offline tests**, Ruff and diff checks,
+plus 17 additional boundary checks and preservation of 65 baseline files. A
+read-only diagnostic of saved responses yielded 2/2 selected tasks complete
+(2/6 overall), one model-all-positive item and zero pending human reviews; two
+ellipsis quotations remained informational. This is not a new online pilot or
+semantic calibration, and old reports were not rewritten. No new model calls
+were made; calibration remains incomplete. Evidence is maintained in [EVAL-JUDGE-PLAN.md](/Users/silver/Documents/github/Overfit/docs/plans/EVAL-JUDGE-PLAN.md);
+the earlier [PR 1 record](/Users/silver/Documents/github/Overfit/docs/plans/EVAL-TRACE-PLAN.md) remains historical evidence.
 
 ## Documentation
 
@@ -282,3 +393,10 @@ substitutes for a broader test suite.
 | [PIPELINE.md](./docs/PIPELINE.md) | Exact layer behavior, algorithms and data flow |
 | [TECH-STACK.md](./docs/TECH-STACK.md) | Dependencies, optional components and deliberate exclusions |
 | [MODELS.md](./docs/MODELS.md) | Embedding/generation contracts, safeguards and configuration |
+| [EVALUATION.md](/Users/silver/Documents/github/Overfit/docs/EVALUATION.md) | Trace and judge workflows; pilot findings, judge-v3 responsibility revision and pending calibration; existing 47-item gold and later diagnostics |
+| [EVAL-TRACE-SPEC.md](/Users/silver/Documents/github/Overfit/docs/specs/EVAL-TRACE-SPEC.md) | PR 1 contract: opt-in generation traces, strict citation checks, offline replay and acceptance criteria |
+| [EVAL-TRACE-PLAN.md](/Users/silver/Documents/github/Overfit/docs/plans/EVAL-TRACE-PLAN.md) | PR 1 implementation milestones, offline test matrix and verification evidence |
+| [EVAL-JUDGE-SPEC.md](/Users/silver/Documents/github/Overfit/docs/specs/EVAL-JUDGE-SPEC.md) | PR 2 contract: separate judge configuration, evidence, budgets and fixed-denominator metrics |
+| [EVAL-CHALLENGE-SPEC.md](/Users/silver/Documents/github/Overfit/docs/specs/EVAL-CHALLENGE-SPEC.md) | Separate control/mutant execution contract and information isolation |
+| [EVAL-CHALLENGE-PLAN.md](/Users/silver/Documents/github/Overfit/docs/plans/EVAL-CHALLENGE-PLAN.md) | Challenge implementation, offline acceptance and preservation evidence |
+| [EVAL-JUDGE-PLAN.md](/Users/silver/Documents/github/Overfit/docs/plans/EVAL-JUDGE-PLAN.md) | PR 2 milestones, offline test evidence and real-pilot boundary |

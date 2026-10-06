@@ -1,6 +1,7 @@
 # 🏗️ Overfit Architecture
 
-> 本文描述的是当前 `ai-dev` 分支已经实现的架构。逐层行为见
+> 本文描述的是当前 `ai-dev` 分支已经实现的架构；明确标注“规划”的评估流程尚未实现。
+> 评估方向更新：2026-10-06。逐层行为见
 > [PIPELINE.md](./PIPELINE.md)，选型与依赖见
 > [TECH-STACK.md](./TECH-STACK.md)，模型边界见
 > [MODELS.md](./MODELS.md)。
@@ -9,7 +10,7 @@ Overfit 是一条本地优先、手写且可检查的 RAG 内容生产流水线�
 每门课程使用一个 SQLite 索引文件；没有 LangChain、LlamaIndex，也没有独立的向量
 数据库服务。CLI 负责把各层编排为诊断、建库、检索、选材和试卷生成命令。
 
-本文中的五张图均对应当前实现，SVG 源文件位于
+本文中的五张图展示当前实现、诊断能力及明确标注的未实现边界，SVG 源文件位于
 [`docs/diagrams/`](./diagrams/)，可直接导入 Figma。
 
 | 图 | 回答的问题 |
@@ -220,8 +221,15 @@ topic 分组；当前没有 multiple-choice / short-answer / applied section 分
 
 ![Diagnostics and verification](./diagrams/04-eval.svg)
 
-当前项目没有 Ragas、离线 golden set 或自动 retrieval benchmark。现有“评估”是一组
-分层、可执行的诊断面：
+当前工作区已有 47 题的英文离线 golden set，保存在
+[/Users/silver/Documents/github/Overfit/eval/ifn580_eval.json](/Users/silver/Documents/github/Overfit/eval/ifn580_eval.json)，
+本轮未修改。现已实现 opt-in `mock --trace`、严格引用检查、基础报告及离线
+`eval replay RUN_DIR`。PR 2 的独立 judge、逐题语义报告与离线判定回放也已实现；
+用户已完成真实三题生成、PR1 回放、本地和 OpenRouter judge 试跑，尚无校准基线。judge-v2 历史验收为 404 tests；judge-v3 职责修订已通过独立离线验收（439 tests），语义由模型判断、技术由程序记录、实质疑点交人工。Ragas 集成
+和自动 retrieval benchmark 仍为后续范围。上方 SVG 是 PR1 阶段示意，judge 状态以
+本节当前文字和 PR2 spec 为准。生成质量路线、数据审计与后续诊断方案见
+[EVALUATION.md](/Users/silver/Documents/github/Overfit/docs/EVALUATION.md)。
+下方描述的是已有诊断能力，不代表 golden set 已经完成跑分：
 
 1. `inspect --show-removed`：检查 extraction 与不可逆清理；
 2. `chunks`：人工阅读真实 chunk，检查断句和混题；
@@ -234,10 +242,39 @@ topic 分组；当前没有 multiple-choice / short-answer / applied section 分
 8. 人工打开引用页：确认答案真的被该页支持。代码只能证明“引用指向提供过的页”，
    不能证明答案语义完全正确。
 
-自动化测试目前只有 `tests/test_parser.py` 中的五个 Layer 2 不变量。它们覆盖页码保持、
-Docling 结构保护、标注 furniture、断词重连和空文档拒绝；尚未覆盖 Loader、Chunker、
-Embedder、Store、Selection、Generator 或 CLI 端到端行为。因此“命令曾经成功运行”
-不能替代未来为这些层补充测试。
+自动化测试保留 Parser 的五个不变量，并新增生成 trace/fallback、严格引用、持久化
+故障、回放完整性和假客户端 CLI 流程覆盖。测试使用合成数据和临时目录，不调用真实
+模型；历史 judge-v1 新增输入隔离、schema／证据校验、预算、指标与离线回放覆盖，共 371
+项测试通过；历史 v2 修订另有 404 项测试、Ruff 与独立复核通过证据；v3 本轮 439 项测试、Ruff、独立复核通过，未进行新在线 pilot 或语义校准。测试不证明检索质量、PDF 解析保真度或答案语义正确。PR1 历史验证使用
+隔离 Python 3.12.14；用户随后通过 `uv run` 修复项目 `.venv` 为 Python 3.12.13，
+PR2 使用该环境验收。当前证据见 [EVAL-JUDGE-PLAN.md](/Users/silver/Documents/github/Overfit/docs/plans/EVAL-JUDGE-PLAN.md)，
+历史证据保留在 [EVAL-TRACE-PLAN.md](/Users/silver/Documents/github/Overfit/docs/plans/EVAL-TRACE-PLAN.md)。
+
+### 生成质量 MVP 的已实现基础与后续边界
+
+首期评价对象是 `mock` 实际生成的题目及答案，范围仅为**实际提供的材料是否支持题目和
+答案，以及题目是否可由这些材料作答**，不扩展为完整教学质量评分。当前进度：
+
+1. **已实现：保存实际输入与生成 trace**：记录真正送入生成器的材料、prompt、配置、生成尝试和
+   原始/校验后的输出；不能用事后重新检索的材料替代实际输入。
+2. **已实现：代码引用校验与离线回放**：基于 trace 检查 source/page 是否来自实际输入，保留引用被修正或
+   丢弃的记录。严格检查不使用产品的 ±2 页修复容错；回放不读取 `.env`、原索引或模型。
+3. **已实现：独立 LLM judge runner**：`eval judge RUN_DIR` 默认离线 prepare；显式
+   `--execute --max-calls N` 才读取独立 `JUDGE_*` 配置并调用服务。每道保留题分别审
+   answerability（不含答案字段）和 support（含答案），完整材料来自源 trace，不能补检索。
+   v3 修订分开保存模型原判、技术完成与人工状态；quote 可选，exact/whitespace 定位只是注释，未定位不能归零。未知/部分支持、结论矛盾、错来源页或正向引用结论的跨页疑点进入人工，不改模型 verdict、不扣完整评审数。
+4. **已实现：独立语义报告与判定回放**：`judge.py` 管协议与单次调用，`runner.py` 管
+   任务、全局预算和独立持久化，`metrics.py` 用全部保留题作分母并生成中文逐题报告。
+   `eval judge-replay JUDGE_DIR` 从可见响应离线重验，不信任旧派生分数。PR1 原报告仍
+   保留 not_evaluated，不被 PR2 改写；prepare 本身没有语义评判。
+
+judge-v1/v2 为历史已验收实现；当前 v3 修订已实现并独立离线验收，不再设置程序最终批准。完整结构即 evaluated，选中任务均完成即 completed，人工 pending 与运行技术状态独立。报告显示选中/全量覆盖、三维模型原判与模型全正向数（不是最终批准）。新协议 replay 明确拒绝旧 v1/v2，不改旧报告。带 trace 的
+真实 `mock` 及显式 judge execute 会调用服务；fixture、PR1 replay、judge prepare
+和 judge-replay 均离线。PR2 产物在源 run 的 `judgments/<UUID>/`；v3 增加阶段级 `review_queue.jsonl`，不实现人工裁决录入。以 `complete.json`
+最终提交标记和文件摘要校验；准备报告不是质量通过。PR1 运行产物位于配置输出根的 `eval/<run_id>/`，
+只有终态和必需产物校验通过才算记录自洽，不能把单个报告存在当成功。
+47 题 golden 保留为现有资产；以它开展的检索命中率与固定 MCQ 答题诊断属于**后续独立
+路径**，不作为首期生成质量 MVP 的前置阻塞，也不拿固定题正确率代替生成质量。
 
 ### 推荐调试顺序
 
@@ -256,7 +293,7 @@ Embedder、Store、Selection、Generator 或 CLI 端到端行为。因此“命�
 
 ## Implemented boundaries and roadmap
 
-当前实现的产品输出只有 mock exam 与答案。README 中曾出现的 `summary`、`compare`、
+当前学习内容输出仍是 mock exam 与答案，新增 trace/replay 仅提供审计记录和基础报告。README 中曾出现的 `summary`、`compare`、
 `relate`、多课程 `--courses` 和生成式问答不是现有 CLI 命令，属于 Roadmap。其他未
 实现能力包括 OCR、hybrid search、re-ranking、自动 retrieval evaluation 和 section
 级引用。新增能力应复用七层边界，而不是绕过 provenance 与 index profile 护栏。

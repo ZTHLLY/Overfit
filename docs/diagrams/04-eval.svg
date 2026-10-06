@@ -1,7 +1,7 @@
 <?xml version="1.0" encoding="UTF-8"?>
 <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1600 1320" width="1600" height="1320">
   <title>Overfit verification and diagnostics</title>
-  <desc>The actual current automated test scope, lint status, runtime diagnostic commands, manual checks, and explicitly unimplemented evaluation capabilities.</desc>
+  <desc>Updated 2026-10-05: implemented trace and offline replay, expanded fixture tests, unchanged 47-item golden set, and the planned independent judge.</desc>
   <defs>
     <filter id="shadow" x="-10%" y="-10%" width="120%" height="125%"><feDropShadow dx="0" dy="3" stdDeviation="5" flood-color="#0F172A" flood-opacity="0.08"/></filter>
     <style>
@@ -13,29 +13,29 @@
 
   <g id="header" class="sans">
     <text x="64" y="62" class="h1">Verification &amp; Diagnostics · Current Reality</text>
-    <text x="64" y="92" class="sub">Overfit exposes useful seam-by-seam probes, but it does not yet implement a retrieval benchmark or automated answer-quality evaluator.</text>
+    <text x="64" y="92" class="sub">47-item gold unchanged. Trace, strict citations and offline replay are implemented; judge and semantic scoring remain planned.</text>
     <rect x="1370" y="43" width="166" height="31" rx="15.5" fill="#ECFDF5" stroke="#A7F3D0"/>
     <circle cx="1390" cy="58.5" r="5" fill="#10B981"/>
-    <text x="1404" y="63" font-size="12" font-weight="700" fill="#047857">EVIDENCE, NOT CLAIMS</text>
+    <text x="1404" y="63" font-size="12" font-weight="700" fill="#047857">LOCAL EVIDENCE</text>
     <line x1="64" y1="116" x2="1536" y2="116" stroke="#CBD5E1"/>
   </g>
 
   <g id="snapshot" class="sans">
     <rect x="64" y="142" width="1472" height="118" rx="16" fill="#FFFFFF" stroke="#CBD5E1"/>
-    <text x="88" y="173" class="eyebrow" fill="#475569">REPOSITORY SNAPSHOT · DOCUMENTATION SYNC</text>
+    <text x="88" y="173" class="eyebrow" fill="#475569">REPOSITORY SNAPSHOT · PR 1 IMPLEMENTED</text>
     <g>
       <rect x="88" y="191" width="312" height="46" rx="10" fill="#ECFDF5" stroke="#A7F3D0"/>
-      <text x="106" y="210" class="status" fill="#047857">PYTEST · PASS</text>
-      <text x="106" y="228" class="small mono">5 passed · tests/test_parser.py</text>
+      <text x="106" y="210" class="status" fill="#047857">PYTEST · OFFLINE FIXTURES</text>
+      <text x="106" y="228" class="small mono">Passed · evidence in PR 1 plan</text>
       <rect x="416" y="191" width="312" height="46" rx="10" fill="#ECFDF5" stroke="#A7F3D0"/>
-      <text x="434" y="210" class="status" fill="#047857">RUFF · PASS</text>
-      <text x="434" y="228" class="small mono">0 findings · local check clean</text>
+      <text x="434" y="210" class="status" fill="#047857">RUFF · IMPLEMENTATION CHECK</text>
+      <text x="434" y="228" class="small mono">Passed · evidence in PR 1 plan</text>
       <rect x="744" y="191" width="352" height="46" rx="10" fill="#F8FAFC" stroke="#E2E8F0"/>
       <text x="762" y="210" class="status" fill="#475569">CI WORKFLOW · ABSENT</text>
       <text x="762" y="228" class="small">No repository-hosted automated gate.</text>
       <rect x="1112" y="191" width="396" height="46" rx="10" fill="#F8FAFC" stroke="#E2E8F0"/>
-      <text x="1130" y="210" class="status" fill="#475569">EVALUATION DATASET · ABSENT</text>
-      <text x="1130" y="228" class="small">No labelled queries, gold passages, or judged answers.</text>
+      <text x="1130" y="210" class="status" fill="#475569">GOLDEN SET · 47 ITEMS EXIST</text>
+      <text x="1130" y="228" class="small">English MCQs + source/page labels; runner pending.</text>
     </g>
   </g>
 
@@ -43,34 +43,34 @@
     <rect x="64" y="296" width="712" height="422" rx="18" fill="#FFFFFF" stroke="#A7F3D0"/>
     <rect x="64" y="296" width="712" height="7" rx="3.5" fill="#10B981"/>
     <text x="88" y="335" class="eyebrow" fill="#047857">AUTOMATED TEST SUITE · ACTUAL SCOPE</text>
-    <text x="88" y="367" class="title" fill="#065F46">Five silent-failure invariants in Parser</text>
-    <text x="88" y="392" class="body">All tests use synthetic Page objects except the blank text-file case.</text>
+    <text x="88" y="367" class="title" fill="#065F46">Parser + trace + offline replay contracts</text>
+    <text x="88" y="392" class="body">Synthetic data, fake providers and temporary files; no real model calls.</text>
 
     <g>
       <circle cx="105" cy="435" r="15" fill="#D1FAE5"/><text x="105" y="440" text-anchor="middle" font-size="12" font-weight="750" fill="#047857">1</text>
-      <text x="132" y="431" font-size="12.8" font-weight="700" fill="#0F172A">Page numbers survive cleaning</text>
-      <text x="132" y="449" class="small">Even a page cleaned to empty keeps its original slot.</text>
+      <text x="132" y="431" font-size="12.8" font-weight="700" fill="#0F172A">Parser invariants retained</text>
+      <text x="132" y="449" class="small">Page identity, structure, furniture, hyphenation and blank-file rejection.</text>
       <circle cx="105" cy="488" r="15" fill="#D1FAE5"/><text x="105" y="493" text-anchor="middle" font-size="12" font-weight="750" fill="#047857">2</text>
-      <text x="132" y="484" font-size="12.8" font-weight="700" fill="#0F172A">Labelled structure is not figure debris</text>
-      <text x="132" y="502" class="small">Docling-recognised cells survive while identical unlabelled debris is removed.</text>
+      <text x="132" y="484" font-size="12.8" font-weight="700" fill="#0F172A">Generation request and response trace</text>
+      <text x="132" y="502" class="small">Frozen messages, fallback, retries, partial streams and interruptions.</text>
       <circle cx="105" cy="541" r="15" fill="#D1FAE5"/><text x="105" y="546" text-anchor="middle" font-size="12" font-weight="750" fill="#047857">3</text>
-      <text x="132" y="537" font-size="12.8" font-weight="700" fill="#0F172A">Labelled furniture outranks frequency heuristics</text>
-      <text x="132" y="555" class="small">Backend labels work on short documents and away from page edges.</text>
+      <text x="132" y="537" font-size="12.8" font-weight="700" fill="#0F172A">Strict citations and stable item mapping</text>
+      <text x="132" y="555" class="small">Exact source/page ranges; original vs repaired; unique IDs per item.</text>
       <circle cx="105" cy="594" r="15" fill="#D1FAE5"/><text x="105" y="599" text-anchor="middle" font-size="12" font-weight="750" fill="#047857">4</text>
-      <text x="132" y="590" font-size="12.8" font-weight="700" fill="#0F172A">Hyphenated line breaks are rejoined</text>
-      <text x="132" y="608" class="small">A split keyword remains searchable after normalisation.</text>
+      <text x="132" y="590" font-size="12.8" font-weight="700" fill="#0F172A">Durability and fail-closed lifecycle</text>
+      <text x="132" y="608" class="small">Write faults stop calls; writable logs retain failed terminal events.</text>
       <circle cx="105" cy="647" r="15" fill="#D1FAE5"/><text x="105" y="652" text-anchor="middle" font-size="12" font-weight="750" fill="#047857">5</text>
-      <text x="132" y="643" font-size="12.8" font-weight="700" fill="#0F172A">Blank extraction fails loudly</text>
-      <text x="132" y="661" class="small">A blank text document raises EmptyExtractionError.</text>
+      <text x="132" y="643" font-size="12.8" font-weight="700" fill="#0F172A">Offline replay and fake-provider CLI</text>
+      <text x="132" y="661" class="small">Artifact hashes, malformed logs, no settings/index/network access.</text>
     </g>
     <rect x="88" y="681" width="664" height="19" rx="6" fill="#ECFDF5"/>
-    <text x="420" y="695" text-anchor="middle" class="small mono">uv run pytest -q</text>
+    <text x="420" y="695" text-anchor="middle" class="small mono">Isolated Python 3.12.14 · see EVAL-TRACE-PLAN.md</text>
   </g>
 
   <g id="coverage-gaps" class="sans">
     <rect x="812" y="296" width="724" height="422" rx="18" fill="#FFFFFF" stroke="#FDA4AF"/>
     <rect x="812" y="296" width="724" height="7" rx="3.5" fill="#F43F5E"/>
-    <text x="836" y="335" class="eyebrow" fill="#E11D48">NOT COVERED BY AUTOMATED TESTS</text>
+    <text x="836" y="335" class="eyebrow" fill="#E11D48">REMAINING GAPS · NOT QUALITY EVIDENCE</text>
     <text x="836" y="367" class="title" fill="#881337">Passing pytest does not validate the full pipeline</text>
     <g>
       <rect x="836" y="397" width="322" height="64" rx="10" fill="#FFF1F2" stroke="#FECDD3"/>
@@ -86,15 +86,15 @@
       <text x="1190" y="501" font-size="12.5" font-weight="700" fill="#9F1239">Retriever + selection</text>
       <text x="1190" y="522" class="small">top-k, clustering, allocation, MMR</text>
       <rect x="836" y="557" width="322" height="64" rx="10" fill="#FFF1F2" stroke="#FECDD3"/>
-      <text x="854" y="581" font-size="12.5" font-weight="700" fill="#9F1239">Generator</text>
-      <text x="854" y="602" class="small">format fallback, coercion, retries, citations</text>
+      <text x="854" y="581" font-size="12.5" font-weight="700" fill="#9F1239">Real provider generation</text>
+      <text x="854" y="602" class="small">live endpoints, real model output quality</text>
       <rect x="1172" y="557" width="340" height="64" rx="10" fill="#FFF1F2" stroke="#FECDD3"/>
-      <text x="1190" y="581" font-size="12.5" font-weight="700" fill="#9F1239">CLI + end-to-end flow</text>
-      <text x="1190" y="602" class="small">commands, files, model endpoints, DB lifecycle</text>
+      <text x="1190" y="581" font-size="12.5" font-weight="700" fill="#9F1239">Semantic evaluation</text>
+      <text x="1190" y="602" class="small">independent judge, calibration, real pilot</text>
     </g>
     <rect x="836" y="646" width="676" height="48" rx="9" fill="#ECFDF5" stroke="#A7F3D0"/>
-    <text x="854" y="666" font-size="11.5" font-weight="700" fill="#047857">Ruff passes locally, but no repository-hosted CI gate enforces it.</text>
-    <text x="854" y="684" class="small mono">uv run ruff check .   # 0 findings</text>
+    <text x="854" y="666" font-size="11.5" font-weight="700" fill="#047857">Fixture success is not a real-model or semantic benchmark.</text>
+    <text x="854" y="684" class="small mono">Existing .venv still broken; isolated test env used.</text>
   </g>
 
   <g id="runtime-diagnostics" class="sans">
@@ -143,7 +143,7 @@
 
   <g id="missing-evaluation" class="sans">
     <rect x="64" y="1228" width="1472" height="58" rx="13" fill="#0F172A"/>
-    <text x="88" y="1252" class="eyebrow" fill="#FDA4AF">NOT IMPLEMENTED · DO NOT INFER FROM THE DIAGNOSTICS ABOVE</text>
-    <text x="88" y="1274" font-size="12" fill="#E2E8F0">gold query/passage set · recall@k / MRR · automated redundancy or coverage score · factual-support judge · answer-quality benchmark · RAGAS · model comparison harness</text>
+    <text x="88" y="1252" class="eyebrow" fill="#FDA4AF">IMPLEMENTED FOUNDATION · SEMANTIC JUDGE STILL PLANNED</text>
+    <text x="88" y="1274" font-size="12" fill="#E2E8F0">mock --trace → actual inputs + citation history → eval replay RUN_DIR. Semantic status: not_evaluated. Judge / real pilot are next.</text>
   </g>
 </svg>
