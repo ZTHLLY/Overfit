@@ -43,6 +43,72 @@ def eval_replay(run_dir: Annotated[Path, typer.Argument(help="Recorded run direc
         raise typer.Exit(1)
 
 
+def _judge_summary(result: dict, *, replay: bool = False) -> None:
+    """Display the report itself, not just an opaque output directory."""
+    metrics = result["metrics"]
+    typer.echo(f"{'Judge replay' if replay else 'Judge review'} status: {result['status']}")
+    if metrics["mode"] == "prepare":
+        typer.echo("Prepare only: no judge calls; semantics not evaluated. Missing results do not mean incorrect questions.")
+    typer.echo(
+        f"Retained questions: {metrics['retained_count']}; "
+        f"Selected reviews completed: {metrics['selected_evaluated_phase_count']}/{metrics['selected_phase_count']}; "
+        f"Overall coverage: {metrics['evaluated_phase_count']}/{metrics['planned_phase_count']}"
+    )
+    typer.echo(f"Model positive on all three dimensions: {metrics['model_all_positive_count']} (not final approval); "
+               f"Pending human review: {metrics['human_review_pending_item_count']} questions; "
+               f"Technical errors: {metrics['technical_error_phase_count']} phases")
+    typer.echo(f"{'Recorded model call attempts' if replay else 'Model call attempts'}: {metrics['call_starts']}; "
+               f"Responses received: {metrics['response_count']}; Retries: {metrics['retry_count']}")
+    if replay:
+        typer.echo("Offline replay only; no new model calls.")
+    typer.echo("Preliminary automated review; not yet human-calibrated.")
+    typer.echo(f"Report: {Path(result['report_path']).expanduser().resolve()}")
+    if result["exit_code"]:
+        raise typer.Exit(result["exit_code"])
+
+
+@eval_app.command("judge")
+def eval_judge(
+    run_dir: Annotated[Path, typer.Argument(help="Complete generation trace directory.")],
+    execute: Annotated[bool, typer.Option("--execute", help="Explicitly call configured JUDGE service.")] = False,
+    max_calls: Annotated[int, typer.Option("--max-calls", min=0, help="Hard call budget, including retries; required for execute.")] = 0,
+    max_items: Annotated[int | None, typer.Option("--max-items", min=1, help="Review at most this many retained items; others remain in metrics.")] = None,
+) -> None:
+    """Prepare an offline report; use --execute to opt into independent model review."""
+    from pydantic import ValidationError
+
+    from overfit.evaluation.runner import JudgeRunError, run_judge
+
+    try:
+        result = run_judge(run_dir, execute=execute, max_calls=max_calls, max_items=max_items)
+    except JudgeRunError as exc:
+        typer.secho(str(exc), fg=typer.colors.RED, err=True)
+        raise typer.Exit(1) from None
+    except (OverfitError, ValidationError, OSError):
+        typer.secho("Invalid judge configuration, input or recording; check the complete trace and independent JUDGE settings.",
+                    fg=typer.colors.RED, err=True)
+        raise typer.Exit(1) from None
+    _judge_summary(result)
+
+
+@eval_app.command("judge-replay")
+def eval_judge_replay(
+    judgment_dir: Annotated[Path, typer.Argument(help="Existing judge recording directory.")],
+) -> None:
+    """Revalidate recorded judge responses and write a new report without model calls."""
+    from overfit.evaluation.runner import JudgeRunError, replay_judgment
+
+    try:
+        result = replay_judgment(judgment_dir)
+    except JudgeRunError as exc:
+        typer.secho(str(exc), fg=typer.colors.RED, err=True)
+        raise typer.Exit(1) from None
+    except (OverfitError, OSError):
+        typer.secho("Invalid or unreadable judge recording; offline replay was not completed.", fg=typer.colors.RED, err=True)
+        raise typer.Exit(1) from None
+    _judge_summary(result, replay=True)
+
+
 @app.callback(invoke_without_command=True)
 def _root(ctx: typer.Context) -> None:
     if ctx.invoked_subcommand is None:
