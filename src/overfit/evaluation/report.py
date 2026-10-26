@@ -54,7 +54,7 @@ def summarize(manifest: dict, events: list[dict]) -> dict:
     post_valid = sum(i["post_check"] is not None and i["post_check"]["status"] == "valid"
                      for i in items)
     return {
-        "schema_version": 1, "checker_version": CHECKER_VERSION,
+        "schema_version": manifest["schema_version"], "checker_version": CHECKER_VERSION,
         "run_id": manifest["run_id"], "semantic_status": "not_evaluated",
         "requested_questions": manifest["task"]["questions"],
         "material_count": len(chunks) if materials else None,

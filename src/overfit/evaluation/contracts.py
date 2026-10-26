@@ -19,12 +19,12 @@ class TraceReadError(OverfitError):
 class _Versioned(BaseModel):
     model_config = ConfigDict(extra="forbid", strict=True)
 
-    schema_version: Literal[1] = 1
+    schema_version: Literal[1, 2] = 2
 
     @field_validator("schema_version", mode="before")
     @classmethod
     def _exact_version(cls, value):
-        if type(value) is not int or value != 1:
+        if type(value) is not int or value not in {1, 2}:
             raise ValueError("Unsupported trace schema version")
         return value
 

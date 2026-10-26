@@ -243,7 +243,7 @@ def test_request_projection_blocks_design_siblings_and_previous_responses(setup)
         ]
         assert data["question"] == item["question"]
         if index % 2:
-            assert set(data) == {"question", "answer", "citation", "materials"}
+            assert set(data) == {"question", "answer", "citation", "materials", "citation_location_policy"}
             assert data["answer"] == item["answer"]
             assert data["citation"] == {"source": item["source"], "page": item["page"]}
         else:

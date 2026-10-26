@@ -264,6 +264,13 @@ class TraceWriter:
             )
         )
         try:
+            payload = _snapshot(payload)
+            if event_type == "materials_selected":
+                from overfit.evaluation.elastic import validate_materials
+                validate_materials(payload["chunks"])
+                payload.setdefault("materials_schema_version", 2)
+                if type(payload["materials_schema_version"]) is not int or payload["materials_schema_version"] != 2:
+                    raise ValueError("Unsupported material schema")
             event = Event(
                 run_id=self.run_id,
                 seq=len(self.events) + 1,

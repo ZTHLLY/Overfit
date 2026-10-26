@@ -7,9 +7,9 @@ pure function of its input and can be tested without a database.
 
 Two behaviours matter more than they look:
 
-**Caching by source and content hash.** Embedding is the only step that costs
-real time, so an unchanged source must cost nothing. Touching or re-exporting
-it byte-identically is free; editing it rebuilds that source. A rename creates
+**Caching by source, content hash and processing identity.** Embedding is the only step that costs
+real time, so unchanged content under the same processing strategy is skipped.
+Dependency/code/parameter changes invalidate that cache. A rename creates
 a new source, and sources removed from disk remain until a full rebuild.
 
 **Parser failure isolation.** A scanned or unreadable PDF in a folder of thirty
@@ -21,11 +21,15 @@ leave the index state ambiguous.
 
 from __future__ import annotations
 
+import hashlib
+import json
 import time
 from collections.abc import Callable
 from dataclasses import dataclass, field
+from importlib import metadata
 from pathlib import Path
 
+from overfit import models, provenance
 from overfit.embedding import Embedder
 from overfit.errors import OverfitError
 from overfit.ingestion import chunker, loader, parser
@@ -77,10 +81,12 @@ def ingest(
     """Index every document under `directory`.
 
     Args:
-        force: re-embed even files whose content is unchanged. Needed after
-            changing anything that alters chunk text but is not covered by
-            the index profile -- a cleaning rule, say.
+        force: re-embed even when both content and processing identity match.
+            Parser/cleaner/chunker code and dependency changes already invalidate
+            the cache automatically.
     """
+    store.require_writable()
+    identity = processing_identity(pdf_backend, chunk_size, chunk_overlap)
     started = time.monotonic()
     report = IngestReport()
     files = loader.find_documents(directory, extensions or loader.SUPPORTED_EXTENSIONS)
@@ -107,7 +113,11 @@ def ingest(
         source = path.relative_to(directory).as_posix()
         content_hash = loader.file_hash(path)
 
-        if not force and store.document_hash(source) == content_hash:
+        if (
+            not force
+            and store.document_hash(source) == content_hash
+            and store.document_processing_identity(source) == identity
+        ):
             finish(FileOutcome(source, "cached"))
             continue
 
@@ -115,6 +125,17 @@ def ingest(
             document = parser.parse(path, source=source, backend=pdf_backend)
         except OverfitError as exc:
             finish(FileOutcome(source, "failed", detail=str(exc)))
+            continue
+
+        parsed_hash = (document.provenance or {}).get("document_sha256")
+        if parsed_hash is not None and parsed_hash != content_hash:
+            finish(
+                FileOutcome(
+                    source,
+                    "failed",
+                    detail="Source changed before parsing; retry ingestion",
+                )
+            )
             continue
 
         chunks = chunker.chunk_document(document, chunk_size, chunk_overlap)
@@ -133,7 +154,9 @@ def ingest(
                 for chunk, vector in zip(chunks, vectors)
             ]
         )
-        store.record_document(source, content_hash, len(chunks))
+        store.record_document(
+            source, content_hash, len(chunks), processing_identity=identity
+        )
 
         report.chunks_added += len(chunks)
         report.embeddings_computed += len(vectors)
@@ -141,3 +164,42 @@ def ingest(
 
     report.seconds = time.monotonic() - started
     return report
+
+
+def processing_identity(backend: str, chunk_size: int, chunk_overlap: int) -> str:
+    """Deterministic local-only cache key; no converter or model is loaded.
+
+    Content identity remains separate in documents.hash. Hashing installed
+    source also catches cleaner/provenance edits during editable development;
+    this avoids a stale cache when a version string was not manually bumped.
+    """
+    packages = ["pypdf"]
+    if backend in {"docling", "docling+formula"}:
+        packages += [
+            "docling-slim",
+            "docling-core",
+            "docling-parse",
+            "docling-ibm-models",
+            "pypdfium2",
+            "torch",
+            "transformers",
+        ]
+    versions = {}
+    for package in packages:
+        try:
+            versions[package] = metadata.version(package)
+        except metadata.PackageNotFoundError:
+            versions[package] = None
+    implementations = {
+        module.__name__: hashlib.sha256(Path(module.__file__).read_bytes()).hexdigest()
+        for module in (parser, chunker, provenance, models)
+    }
+    payload = {
+        "schema_version": 1,
+        "backend": backend,
+        "packages": versions,
+        "implementation": implementations,
+        "chunk_size": chunk_size,
+        "chunk_overlap": chunk_overlap,
+    }
+    return hashlib.sha256(json.dumps(payload, sort_keys=True).encode()).hexdigest()

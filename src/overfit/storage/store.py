@@ -24,21 +24,26 @@ answers weeks later.
 
 from __future__ import annotations
 
+import hashlib
+import json
+import shutil
 import sqlite3
+import tempfile
 from dataclasses import dataclass
 from datetime import UTC, datetime
 from pathlib import Path
 from typing import Self
 
-from overfit.errors import IndexMismatchError, IndexMissingError
+from overfit.errors import IndexMismatchError, IndexMissingError, OverfitError
 from overfit.models import Chunk, EmbeddedChunk, RetrievedChunk, Vector
+from overfit.provenance import validate_provenance
 
 __all__ = ["SCHEMA_VERSION", "IndexProfile", "VectorStore"]
 
 
 # Bumped whenever the table layout changes in a way that old files cannot
 # satisfy. Checked alongside the model settings on open.
-SCHEMA_VERSION = "1"
+SCHEMA_VERSION = "2"
 
 
 @dataclass(frozen=True, slots=True)
@@ -56,8 +61,8 @@ class IndexProfile:
     so the content-hash cache reports all of them unchanged and a re-ingest
     does nothing at all. Without this field the user gets the old index and
     no indication of it. With it, the store refuses to open and says to
-    rebuild. Only the backend name is recorded, not a version: which method
-    was used is the question worth answering here.
+    rebuild. The profile keeps the backend name; per-document processing identities
+    additionally invalidate the ingest cache when dependencies or code change.
     """
 
     embed_model: str
@@ -83,6 +88,8 @@ class VectorStore:
     def __init__(self, connection: sqlite3.Connection, profile: IndexProfile) -> None:
         self._db = connection
         self._profile = profile
+        self._legacy = False
+        self._snapshot: tempfile.TemporaryDirectory | None = None
 
     # -- lifecycle ---------------------------------------------------------
 
@@ -102,19 +109,74 @@ class VectorStore:
                 read path passes False so that querying a course nobody has
                 ingested says so plainly.
         """
-        if not path.exists():
+        exists = path.exists()
+        if not exists:
             if not create:
                 raise IndexMissingError(course or path.stem, path)
             path.parent.mkdir(parents=True, exist_ok=True)
 
-        connection = _connect(path)
+        # Inspect before any DDL or WAL pragma. Opening a historical index
+        # must not migrate it, even when called from an ingestion path.
+        snapshot = None
+        if exists:
+            snapshot = _read_snapshot(path)
+            snapshot_path = Path(snapshot.name) / "index.db"
+            probe = sqlite3.connect(
+                snapshot_path.as_uri() + "?mode=ro&immutable=1", uri=True
+            )
+            try:
+                stored = dict(probe.execute("SELECT key, value FROM meta"))
+            except Exception:
+                snapshot.cleanup()
+                raise
+            finally:
+                probe.close()
+            version = stored.get("schema_version", "unknown")
+            if version not in {"1", SCHEMA_VERSION}:
+                snapshot.cleanup()
+                raise IndexMismatchError(
+                    "schema_version", version, SCHEMA_VERSION, course or path.stem
+                )
+            legacy = version == "1"
+            if legacy and create:
+                snapshot.cleanup()
+                raise OverfitError(_LEGACY_WRITE_ERROR)
+        else:
+            legacy = False
+
+        try:
+            connection = _connect(snapshot_path if legacy else path, readonly=legacy)
+        except Exception:
+            if snapshot is not None:
+                snapshot.cleanup()
+            raise
+        if snapshot is not None and not legacy:
+            snapshot.cleanup()
+            snapshot = None
         store = cls(connection, profile)
-        store._create_schema()
-        store._verify(course or path.stem)
+        store._legacy = legacy
+        store._snapshot = snapshot
+        try:
+            if not exists:
+                store._create_schema()
+            store._verify(course or path.stem)
+        except Exception:
+            store.close()
+            raise
         return store
 
+    def require_writable(self) -> None:
+        """Fail before parsing/embedding if this is a historical index."""
+        if self._legacy:
+            raise OverfitError(_LEGACY_WRITE_ERROR)
+
     def close(self) -> None:
-        self._db.close()
+        try:
+            self._db.close()
+        finally:
+            if self._snapshot is not None:
+                self._snapshot.cleanup()
+                self._snapshot = None
 
     def __enter__(self) -> Self:
         return self
@@ -141,7 +203,8 @@ class VectorStore:
                     source   TEXT NOT NULL,
                     page     INTEGER NOT NULL,
                     page_end INTEGER,
-                    section  TEXT
+                    section  TEXT,
+                    provenance TEXT
                 );
                 CREATE INDEX IF NOT EXISTS chunks_source ON chunks(source);
 
@@ -149,7 +212,8 @@ class VectorStore:
                     source      TEXT PRIMARY KEY,
                     hash        TEXT NOT NULL,
                     chunk_count INTEGER NOT NULL,
-                    indexed_at  TEXT NOT NULL
+                    indexed_at  TEXT NOT NULL,
+                    processing_identity TEXT
                 );
                 """
             )
@@ -176,6 +240,8 @@ class VectorStore:
         """Refuse to use an index built with incompatible settings."""
         stored = dict(self._db.execute("SELECT key, value FROM meta").fetchall())
         for key, current in self._profile.as_meta().items():
+            if key == "schema_version" and self._legacy:
+                continue
             if stored.get(key, current) != current:
                 raise IndexMismatchError(key, stored[key], current, course)
 
@@ -189,6 +255,7 @@ class VectorStore:
         because chunk ids are deterministic, which is why `Chunk.make_id`
         derives them from the source and page instead of a counter or a uuid.
         """
+        self.require_writable()
         if not items:
             return
 
@@ -212,11 +279,13 @@ class VectorStore:
                     self._db.execute(
                         "DELETE FROM vec_chunks WHERE rowid = ?", (previous[0],)
                     )
-                    self._db.execute("DELETE FROM chunks WHERE rowid = ?", (previous[0],))
+                    self._db.execute(
+                        "DELETE FROM chunks WHERE rowid = ?", (previous[0],)
+                    )
 
                 cursor = self._db.execute(
-                    "INSERT INTO chunks(id, text, source, page, page_end, section) "
-                    "VALUES (?, ?, ?, ?, ?, ?)",
+                    "INSERT INTO chunks(id, text, source, page, page_end, section, provenance) "
+                    "VALUES (?, ?, ?, ?, ?, ?, ?)",
                     (
                         chunk.id,
                         chunk.text,
@@ -224,6 +293,7 @@ class VectorStore:
                         chunk.page,
                         chunk.page_end,
                         chunk.section,
+                        _encode_provenance(chunk),
                     ),
                 )
                 self._db.execute(
@@ -233,6 +303,7 @@ class VectorStore:
 
     def remove_document(self, source: str) -> int:
         """Drop every chunk from one file. Used before re-indexing a change."""
+        self.require_writable()
         with self._db:
             rows = self._db.execute(
                 "SELECT rowid FROM chunks WHERE source = ?", (source,)
@@ -268,9 +339,10 @@ class VectorStore:
         import sqlite_vec
 
         candidates = max(fetch_k or top_k, top_k)
+        provenance = "NULL" if self._legacy else "c.provenance"
         rows = self._db.execute(
-            """
-            SELECT c.id, c.text, c.source, c.page, c.page_end, c.section, v.distance
+            f"""
+            SELECT c.id, c.text, c.source, c.page, c.page_end, c.section, v.distance, {provenance}
             FROM vec_chunks v
             JOIN chunks c ON c.rowid = v.rowid
             WHERE v.embedding MATCH ? AND k = ?
@@ -288,6 +360,7 @@ class VectorStore:
                     page=row[3],
                     page_end=row[4],
                     section=row[5],
+                    provenance=_decode_provenance(row[7], row[1]),
                 ),
                 # ||a-b||^2 = 2 - 2cos for unit vectors.
                 score=1.0 - (row[6] ** 2) / 2.0,
@@ -305,16 +378,34 @@ class VectorStore:
         ).fetchone()
         return row[0] if row else None
 
-    def record_document(self, source: str, content_hash: str, chunk_count: int) -> None:
+    def document_processing_identity(self, source: str) -> str | None:
+        if self._legacy:
+            return None
+        row = self._db.execute(
+            "SELECT processing_identity FROM documents WHERE source = ?", (source,)
+        ).fetchone()
+        return row[0] if row else None
+
+    def record_document(
+        self,
+        source: str,
+        content_hash: str,
+        chunk_count: int,
+        *,
+        processing_identity: str | None = None,
+    ) -> None:
+        self.require_writable()
         with self._db:
             self._db.execute(
-                "INSERT OR REPLACE INTO documents(source, hash, chunk_count, indexed_at)"
-                " VALUES (?, ?, ?, ?)",
+                "INSERT OR REPLACE INTO documents"
+                "(source, hash, chunk_count, indexed_at, processing_identity)"
+                " VALUES (?, ?, ?, ?, ?)",
                 (
                     source,
                     content_hash,
                     chunk_count,
                     datetime.now(UTC).isoformat(timespec="seconds"),
+                    processing_identity,
                 ),
             )
 
@@ -344,9 +435,10 @@ class VectorStore:
         """
         import struct
 
+        provenance = "NULL" if self._legacy else "c.provenance"
         rows = self._db.execute(
-            """
-            SELECT c.id, c.text, c.source, c.page, c.page_end, c.section, v.embedding
+            f"""
+            SELECT c.id, c.text, c.source, c.page, c.page_end, c.section, v.embedding, {provenance}
             FROM chunks c
             JOIN vec_chunks v ON v.rowid = c.rowid
             ORDER BY c.rowid
@@ -363,6 +455,7 @@ class VectorStore:
                     page=row[3],
                     page_end=row[4],
                     section=row[5],
+                    provenance=_decode_provenance(row[7], row[1]),
                 ),
                 embedding=list(struct.unpack(f"{dim}f", row[6])),
             )
@@ -377,15 +470,79 @@ class VectorStore:
         )
 
 
-def _connect(path: Path) -> sqlite3.Connection:
+_LEGACY_WRITE_ERROR = (
+    "Index schema 1 is read-only under this implementation. "
+    "Use a separate new index path for schema 2; the existing index was not migrated."
+)
+
+
+def _encode_provenance(chunk: Chunk) -> str | None:
+    value = validate_provenance(chunk.provenance, text=chunk.text)
+    return (
+        json.dumps(value, ensure_ascii=False, allow_nan=False)
+        if value is not None
+        else None
+    )
+
+
+def _decode_provenance(value: str | None, text: str) -> dict | None:
+    return (
+        validate_provenance(json.loads(value), text=text) if value is not None else None
+    )
+
+
+def _read_snapshot(path: Path) -> tempfile.TemporaryDirectory:
+    """Copy a stable checkpointed DB without SQLite touching its directory.
+
+    SQLite mode=ro can still create WAL/SHM sidecars. Immutable mode avoids
+    that, but cannot be used against a source with uncheckpointed commits.
+    Explicitly reject those instead of silently reading a stale main file.
+    The temporary copy is immutable and retained for the legacy store lifetime.
+    """
+    wal = Path(str(path) + "-wal")
+
+    def fingerprint() -> tuple[str, bool]:
+        if wal.exists() and wal.stat().st_size:
+            raise OverfitError(
+                "Index has a non-empty WAL. Close its writers and explicitly "
+                "checkpoint it before opening with this implementation; "
+                "no index files were changed."
+            )
+        with path.open("rb") as stream:
+            digest = hashlib.file_digest(stream, "sha256").hexdigest()
+        return digest, wal.exists()
+
+    before = fingerprint()
+    snapshot = tempfile.TemporaryDirectory(prefix="overfit-index-read-")
+    try:
+        destination = Path(snapshot.name) / "index.db"
+        shutil.copyfile(path, destination)
+        with destination.open("rb") as stream:
+            copied = hashlib.file_digest(stream, "sha256").hexdigest()
+        if fingerprint() != before or copied != before[0]:
+            raise OverfitError(
+                "Index changed during snapshot; close writers and retry."
+            )
+    except Exception:
+        snapshot.cleanup()
+        raise
+    return snapshot
+
+
+def _connect(path: Path, *, readonly: bool = False) -> sqlite3.Connection:
     """Open SQLite with the vector extension loaded."""
     import sqlite_vec
 
-    connection = sqlite3.connect(path)
+    connection = (
+        sqlite3.connect(path.resolve().as_uri() + "?mode=ro&immutable=1", uri=True)
+        if readonly
+        else sqlite3.connect(path)
+    )
     connection.enable_load_extension(True)
     sqlite_vec.load(connection)
     connection.enable_load_extension(False)
     # Write-ahead logging keeps a long ingest from blocking a concurrent read,
     # and survives an interrupted run more gracefully than the default.
-    connection.execute("PRAGMA journal_mode = WAL")
+    if not readonly:
+        connection.execute("PRAGMA journal_mode = WAL")
     return connection

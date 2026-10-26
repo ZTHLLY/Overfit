@@ -1,5 +1,8 @@
 # Eval 生成记录与引用检查 Spec
 
+> **2026-10-06 版本更新：** 新写 trace envelope 为 2、materials schema 为 2，严格引用诊断含义保持；兼容读取历史 trace 1，缺来源为 unknown，不补读 PDF。完整新契约与验收见 [文档结构 spec](/Users/silver/Documents/github/Overfit/docs/specs/DOCUMENT-STRUCTURE-SPEC.md) 第 9 节和 [实施计划](/Users/silver/Documents/github/Overfit/docs/plans/DOCUMENT-STRUCTURE-PLAN.md)。下文保留旧阶段契约与证据；版本差异以本说明和新契约为准，历史产物不改写。
+
+
 > 版本：0.2 · 日期：2026-10-05 · 状态：已实现并通过离线验收。
 > 范围：总体 Eval 方案中的 PR 1。实现、fixture 测试与独立复核已完成；未进行真实模型 pilot，不代表语义质量已验证。
 

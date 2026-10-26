@@ -1,9 +1,29 @@
 # Eval 独立 Judge Spec
 
-> 版本：0.3 · 日期：2026-10-06 · 状态：judge-v3 职责修订已实现并通过独立离线验收（439 tests）；未执行新模型调用或在线 v3 pilot，真实 judge 校准未完成。
-> 范围：PR 2 独立语义审查。用户已授权写代码；本轮不调用真实模型，不执行 commit/push。
+> 文档版本：0.5 · 日期：2026-10-06 · 新运行协议：**judge-v4 / schema 4 / citation-window-v1**；核心已通过独立离线工程验收，证据与未完成项见 [DOCUMENT-STRUCTURE-PLAN.md](/Users/silver/Documents/github/Overfit/docs/plans/DOCUMENT-STRUCTURE-PLAN.md)。
+> 本轮不调用真实模型、不改 .env、golden 或已有索引、不 commit/push。下文第 1～8 节保留 judge-v3 的历史设计；如有差异，以第 0 节和新结构 spec 第 9 节为准，不把历史测试或报告称为 v4 证据。
 
-总体目标见 [EVALUATION.md](/Users/silver/Documents/github/Overfit/docs/EVALUATION.md)，实施与证据见 [EVAL-JUDGE-PLAN.md](/Users/silver/Documents/github/Overfit/docs/plans/EVAL-JUDGE-PLAN.md)。PR 1 的 trace 协议不变；本规范描述新增的旁路审查，不重新生成题目、不修改 golden 或索引。
+总体目标见 [EVALUATION.md](/Users/silver/Documents/github/Overfit/docs/EVALUATION.md)，旧阶段证据见 [EVAL-JUDGE-PLAN.md](/Users/silver/Documents/github/Overfit/docs/plans/EVAL-JUDGE-PLAN.md)。
+
+## 0 当前 v4 契约与历史差异
+
+完整契约见 [DOCUMENT-STRUCTURE-SPEC.md](/Users/silver/Documents/github/Overfit/docs/specs/DOCUMENT-STRUCTURE-SPEC.md) 第 9 节。
+
+- 正式评审固定 `post_policy` 引用锚点，challenge 固定 `challenge_input`；同文档版本窗口只计算一次 `±1`，用可信物理总页数裁剪。不改变 generator 的独立 ±2 修复，也不宣称相对原生成页码的累计偏差只有 ±1。
+- 仅跨页、同文档窗口内的位置偏差和不能逐字匹配 quote，不单独触发人工。模型 unknown/partial/矛盾、错文件/未知 chunk/已知超窗/身份冲突仍留下实质复核原因。定位符合不等于语义 supported，程序不修改模型原判。
+- 旧材料缺文档 SHA、真实页数或映射，记录 `unverified`，不补读原 PDF、不伪造 verified。巨大 chunk 部分相交也不能直接认定整段在窗口内。
+- 只评原实际 chunk.text。provenance 中原块正文可能含清洗/未选中内容，仅供审计，不作为模型额外证据；answerability 仍不含答案和引用。**没有实现自动邻页补充**，P5 citation-only 补充需另行授权。
+- 新 trace envelope 2 / materials schema 2 保留来源元数据；旧 trace 1 可读取为来源未知。新 judge 记录 schema 4；旧 judge-v3 replay 明确拒绝，不用新政策改算旧记录。输入/任务/checker hash 与离线完整性核验仍保留。
+- 新 challenge 运行采用 challenge-v2 / schema 2；旧输入 suite v1 原 bytes 和 annotations 隔离不变；显式输入/annotations v2 可携带 provenance。
+- CLI 用法不变，prepare/replay 不调用模型；新结果只写新目录。报告并列严格页诊断与弹性定位诊断，区分模型语义、技术完成和人工状态，不输出代码认定的“最终通过”。
+
+| 项目 | judge-v3 历史行为 | 当前新运行 |
+| --- | --- | --- |
+| 跨页来源 | 某些正向跨页结论单独进入人工 | 跨页本身不单独人工；实质来源/语义疑点仍待审 |
+| 定位 | 具体页规则 | 独立 citation-window-v1，保留严格诊断原含义 |
+| 输入 | 原生成材料 | 仍是原生成材料；新增来源映射不增加审计原文 |
+| 记录 | schema 3 / judge-v3 | schema 4 / judge-v4；旧运行拒绝用新 checker 回放 |
+| 验收 | 当时 439 tests 等历史证据 | 本轮离线工程证据另列；真实异质 PDF 与语义校准未完成 |
 
 ## 1 目标与边界
 
@@ -91,7 +111,7 @@ Judge 使用单独的 `JUDGE_` 配置，不继承生成器的模型、端点或�
 
 `not_answerable` 是内容判断；服务超时／无效 JSON 为执行或结构错误，已解析但无法定位摘录仅附定位注释，模型 unknown 另进入人工队列；这些状态均不能混为不可作答。
 
-### 3.3 引用支持与跨页限制
+### 3.3 历史 judge-v3 的引用支持与跨页限制
 
 其他页存在充分证据，不能掩盖最终引用页不支持结论。引用支持与材料支持分别输出；PR 1 的 source/page 合法性仍由代码复算。
 

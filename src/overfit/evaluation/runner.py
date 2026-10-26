@@ -49,8 +49,10 @@ def _check(value, message="Invalid judge recording."):
 
 def _checker_identity():
     base = Path(__file__).parent
-    return {name: digest((base / name).read_bytes())
-            for name in ("judge.py", "runner.py", "metrics.py")}
+    result = {name: digest((base / name).read_bytes())
+              for name in ("judge.py", "runner.py", "metrics.py", "elastic.py")}
+    result["provenance.py"] = digest((base.parent / "provenance.py").read_bytes())
+    return result
 
 
 def _positive(value):
@@ -113,7 +115,7 @@ class Recording:
     def emit(self, kind, **payload):
         try:
             _check(not self.failed)
-            row = {"schema_version": 3, "judgment_id": self.root.name,
+            row = {"schema_version": 4, "judgment_id": self.root.name,
                    "seq": len(self.events) + 1, "time": datetime.now(UTC).isoformat(),
                    "type": kind, **payload}
             data = canonical(row) + "\n"
@@ -141,8 +143,9 @@ def _source(run_dir):
            and result["trace_sha256"] == digest(trace_raw), "Source changed during inspection.")
     events = [json.loads(line) for line in trace_raw.splitlines()]
     materials = next(e["payload"]["chunks"] for e in events if e["event_type"] == "materials_selected")
+    judge.validate_materials(materials)
     manifest = json.loads(manifest_raw)
-    return root, result, {"schema_version": 3, "source": result, "chunks": materials,
+    return root, result, {"schema_version": 4, "source": result, "chunks": materials,
                           "items": result["items"], "generation_model": manifest["config"].get("generation_model")}
 
 
@@ -156,7 +159,7 @@ def _phase(status, reason=None, raw_response=None):
             "human_review": {"status": "not_evaluated", "reasons": []}}
 
 
-def _classify(phase, finish, item, chunks):
+def _classify(phase, finish, item, chunks, *, anchor_origin="post_policy"):
     if finish["status"] != "response":
         return _phase("error", finish["error_kind"])
     response = finish["response"]
@@ -164,7 +167,7 @@ def _classify(phase, finish, item, chunks):
     if response["finish_reason"] != "stop":
         return _phase("error", "refusal" if response["finish_reason"] == "refusal" else "truncated_response", content)
     try:
-        value = judge.validate_review(phase, content, item, chunks)
+        value = judge.validate_review(phase, content, item, chunks, anchor_origin=anchor_origin)
     except judge.JudgeOutputError as exc:
         result = _phase("error", exc.kind, content)
         result["verification"]["diagnostics"] = exc.diagnostics
@@ -217,7 +220,7 @@ def run_judge(run_dir, *, execute=False, max_calls=0, max_items=None, settings=N
     target = _unique(root / "judgments")
     record = Recording(target)
     mode = "execute" if execute else "prepare"
-    manifest = {"schema_version": 3, "judgment_id": target.name, "mode": mode,
+    manifest = {"schema_version": 4, "judgment_id": target.name, "mode": mode,
                 "created_at": datetime.now(UTC).isoformat(),
                 "protocol_version": judge.PROTOCOL_VERSION, "protocol_digest": judge.protocol_digest(),
                 "source_identity": {"run_id": source["run_id"], "manifest_sha256": source["manifest_sha256"],
@@ -225,6 +228,8 @@ def run_judge(run_dir, *, execute=False, max_calls=0, max_items=None, settings=N
                 "judge_config": judge.safe_identity(settings) if execute else None,
                 "max_calls": max_calls, "max_items": max_items,
                 "calibration": "not_calibrated", "cache_policy": "no_reuse",
+                "citation_policy": judge.POLICY_VERSION, "anchor_origin": "post_policy",
+                "context_scope": "original_generation_context", "supplemental_review_context": None,
                 "checker_identity": _checker_identity(),
                 "same_model_as_generator": (settings.model == tasks["generation_model"] if execute else None)}
     record.write("manifest.json", canonical(manifest) + "\n")
@@ -298,7 +303,7 @@ def run_judge(run_dir, *, execute=False, max_calls=0, max_items=None, settings=N
     record.write("metrics.json", canonical(metrics) + "\n")
     record.write("report.md", render_judge_report(metrics, rows))
     hashes = {name: digest(_read(target, name)) for name in sorted(ARTIFACTS)}
-    record.write("complete.json", canonical({"schema_version": 3, "judgment_id": target.name,
+    record.write("complete.json", canonical({"schema_version": 4, "judgment_id": target.name,
                                              "status": status, "artifacts": hashes}) + "\n")
     return {"judgment_dir": str(target), "report_path": str(target / "report.md"),
             "status": status, "metrics": metrics, "exit_code": 130 if interrupted else
@@ -320,19 +325,24 @@ def _json(data):
 def _reconstruct(root):
     """Require an intact snapshot, then rederive task results from visible content."""
     complete = _json(_read(root, "complete.json"))
-    _check(type(complete["schema_version"]) is int and complete["schema_version"] == 3,
+    _check(type(complete["schema_version"]) is int and complete["schema_version"] == 4,
            "Unsupported judge recording version; use its recorded implementation.")
     _check(set(complete["artifacts"]) == ARTIFACTS)
     raw = {name: _read(root, name) for name in ARTIFACTS}
     _check(all(digest(data) == complete["artifacts"][name] for name, data in raw.items()),
            "Judge artifact digest mismatch.")
     manifest, tasks = _json(raw["manifest.json"]), _json(raw["tasks.json"])
-    _check(all(type(v["schema_version"]) is int and v["schema_version"] == 3 for v in (manifest, tasks)))
+    _check(all(type(v["schema_version"]) is int and v["schema_version"] == 4 for v in (manifest, tasks)))
     _check(manifest["judgment_id"] == complete["judgment_id"] == root.name)
     _check(manifest["protocol_version"] == judge.PROTOCOL_VERSION
            and manifest["protocol_digest"] == judge.protocol_digest()
            and manifest["checker_identity"] == _checker_identity(),
            "Unsupported judge protocol implementation; use its recorded version.")
+    _check(manifest.get("citation_policy") == judge.POLICY_VERSION
+           and manifest.get("anchor_origin") == "post_policy"
+           and manifest.get("context_scope") == "original_generation_context"
+           and manifest.get("supplemental_review_context") is None,
+           "Invalid judge location policy or context scope.")
     _check(manifest["mode"] in {"prepare", "execute"})
     _, source, actual_tasks = _source(root.parent.parent)
     _check(tasks == actual_tasks, "Source trace no longer matches the judge input snapshot.")
@@ -365,7 +375,7 @@ def _reconstruct(root):
     for line in raw["calls.jsonl"].splitlines(keepends=True):
         _check(line.endswith(b"\n"), "Truncated judge event log.")
         event = _json(line)
-        _check(type(event["schema_version"]) is int and event["schema_version"] == 3)
+        _check(type(event["schema_version"]) is int and event["schema_version"] == 4)
         _check(event["judgment_id"] == root.name and type(event["seq"]) is int
                and event["seq"] == len(events) + 1)
         stamp = datetime.fromisoformat(event["time"])

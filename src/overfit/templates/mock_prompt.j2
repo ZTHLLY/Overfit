@@ -12,7 +12,12 @@ Write {{ count }} practice exam questions from the material below.
 MATERIAL
 {% for chunk in chunks %}
 [{{ chunk.citation }}]
-{{ chunk.text }}
+{% set source_context = chunk.source_context %}
+{% if source_context %}SOURCE STRUCTURE (metadata, not additional evidence):
+{{ source_context | tojson }}
+A figure context identifies extracted picture text. Spatial relationships are not reconstructed;
+isolated axis labels or figure fragments are not standalone prose and do not establish missing relationships.
+{% endif %}{{ chunk.text }}
 
 {% endfor %}
 END OF MATERIAL

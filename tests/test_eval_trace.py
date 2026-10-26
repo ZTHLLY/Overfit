@@ -360,7 +360,7 @@ def test_safe_endpoint_rejects_non_string_without_attribute_error(value):
 def test_unknown_schema_is_rejected():
     with pytest.raises(ValidationError):
         Event(
-            schema_version=2,
+            schema_version=3,
             run_id="run",
             seq=1,
             event_type="run_started",
@@ -369,7 +369,7 @@ def test_unknown_schema_is_rejected():
         )
 
 
-@pytest.mark.parametrize("version", [True, 1.0, "1", 0, 2])
+@pytest.mark.parametrize("version", [True, 1.0, "1", 0, 3])
 def test_schema_version_does_not_coerce_boolean_or_numeric_types(version):
     with pytest.raises(ValidationError):
         Event(

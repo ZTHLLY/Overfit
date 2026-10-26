@@ -1,6 +1,6 @@
 # Overfit 生成质量评测与 Golden Set 使用方案
 
-> 更新：2026-10-06 · 状态：PR1／judge-v1/v2 历史实现已离线验收；用户已试跑本地及 OpenRouter judge，尚无已校准质量基线。judge-v3 职责修订历史验收为 439 项测试；新增 challenge 入口已独立离线验收，当前全量 519 项测试通过。仅执行零调用 challenge prepare，未做真实 challenge 模型调用，校准未完成。
+> 以下为既有阶段历史快照（不代表后续试跑未发生）：2026-10-06 · 状态：PR1／judge-v1/v2 历史实现已离线验收；用户已试跑本地及 OpenRouter judge，尚无已校准质量基线。judge-v3 职责修订历史验收为 439 项测试；新增 challenge 入口已独立离线验收，当前全量 519 项测试通过。仅执行零调用 challenge prepare，未做真实 challenge 模型调用，校准未完成。
 >
 > 初次数据审计：2026-09-16；2026-10-05 复核题库哈希、代码状态及索引关键统计，HEAD 仍为 `9e68aa9`。
 > PR1 历史实现未调用模型；随后用户运行了真实三题 trace 与回放，并授权删除冗余旧索引。历史 PR2 开发未调用真实 judge；随后用户手动试跑本地 27B（中断）、8B 与 OpenRouter；4096 输出预算解决截断，但 v2 将带省略号的摘录当成不可采纳。本次只离线修订 judge，不自动启动模型，不修改 golden、生成 prompt 或索引；不执行 commit/push。
@@ -14,6 +14,8 @@
 | 文档 | 维护内容 |
 | --- | --- |
 | 本文 | 整体目标、技术概念、评测范围与后续路线 |
+| [DOCUMENT-STRUCTURE-SPEC.md](/Users/silver/Documents/github/Overfit/docs/specs/DOCUMENT-STRUCTURE-SPEC.md) | 核心实现契约：跨页来源保全、同 PDF 固定 ±1 定位容差；补充上下文为后续范围 |
+| [DOCUMENT-STRUCTURE-PLAN.md](/Users/silver/Documents/github/Overfit/docs/plans/DOCUMENT-STRUCTURE-PLAN.md) | 实施与验证：来源保全和已记录材料内定位 MVP，后续可选补充引用复核 |
 | [EVAL-TRACE-SPEC.md](/Users/silver/Documents/github/Overfit/docs/specs/EVAL-TRACE-SPEC.md) | PR 1 的行为与数据契约、兼容性、失败规则、AC-01 至 AC-12 验收标准 |
 | [EVAL-TRACE-PLAN.md](/Users/silver/Documents/github/Overfit/docs/plans/EVAL-TRACE-PLAN.md) | PR1 历史里程碑、测试矩阵与执行证据 |
 | [EVAL-JUDGE-SPEC.md](/Users/silver/Documents/github/Overfit/docs/specs/EVAL-JUDGE-SPEC.md) | PR2 独立 judge、证据校验、预算与评分契约 |
@@ -21,7 +23,18 @@
 | [EVAL-CHALLENGE-SPEC.md](/Users/silver/Documents/github/Overfit/docs/specs/EVAL-CHALLENGE-SPEC.md) | 人工 control/mutant 独立执行入口、信息隔离、记录与非目标 |
 | [EVAL-CHALLENGE-PLAN.md](/Users/silver/Documents/github/Overfit/docs/plans/EVAL-CHALLENGE-PLAN.md) | Challenge 入口实施与离线验收进度 |
 
-先维护 spec，再按 plan 编码；实现时改变行为或字段，同步更新 spec、测试和 plan。PR1／judge-v1/v2 已实现；当前 judge-v3 职责修订已独立离线验收，以 PR2 spec/plan 的 v3 执行证据为准。真实生成已由用户跑通，但没有真实 judge 质量基线。
+先维护 spec，再按 plan 编码；行为或字段变化同步更新 spec、测试和 plan。PR1／judge-v1/v2/v3 的验收与试跑作为历史保留；当前 v4 与来源结构变更及限制见下节。真实生成已由用户跑通，但仍没有经人工校准的 judge 质量基线。
+
+
+### 当前代码：来源保全与弹性定位核心
+
+新运行使用 **judge-v4 / citation-window-v1**：chunk 可以跨页，引用围绕固定最终锚点允许同 PDF 版本 ±1 个物理页，但这不豁免语义关系。程序保存来源与技术诊断，judge 负责语义；仅跨页或窗口内偏差不单独转人工。完整边界见 [spec](/Users/silver/Documents/github/Overfit/docs/specs/DOCUMENT-STRUCTURE-SPEC.md)，实际实施/测试/独立复核证据见 [plan](/Users/silver/Documents/github/Overfit/docs/plans/DOCUMENT-STRUCTURE-PLAN.md)。
+
+**旧 trace 可以新建一次 v4 审查，不需要重新生成题目。** 旧材料没有来源元数据时显示定位 `unverified`，不会补读 PDF 或凭空恢复精度。旧 judge-v3 报告保持原样；当前实现明确拒绝将它作为 v4 replay。PR1 严格 diagnostics、golden 严格页指标、generator ±2 修复均不改含义。本页其余旧阶段测试数和试跑记录为历史，不是本轮质量校准证据。
+
+新解析/切块路径保留已知多来源并保存到 schema2 新索引；**现有 schema1 索引只读，不自动迁移或重建**。打开已有索引若有非空 WAL，须先关闭写入者并显式 checkpoint；当前不支持其活跃 WAL 并发打开。模型输入仍仅实际 chunk.text，不引入 provenance 的审计原文。CLI 用法不变，未修改环境配置。
+
+尚未完成：真实异质 PDF 留出验证、在线语义校准和可选 P5 邻页补充。工程测试通过不等于已证明任意课件能正确切块；没有自动补页，也不要求重标整套 golden。
 
 ## 1. 先回答最重要的三个问题
 

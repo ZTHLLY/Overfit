@@ -24,7 +24,12 @@ _DIAGNOSTICS = {
     "ambiguous_quote": "摘录存在多个候选位置，未唯一定位，仅作诊断提示。",
     "citation_source_mismatch": "引用证据来源与最终引用不一致，交由人工检查。",
     "citation_page_mismatch": "引用证据页码与最终引用不一致，交由人工检查。",
-    "citation_page_unresolved_in_multipage_chunk": "跨页 chunk 无法确定具体引用页，交由人工检查。",
+    "citation_metadata_unknown": "历史来源身份或可信总页数未知；未验证窗口，不据此否定模型结论。",
+    "citation_mapping_unverified": "当前文字与页的映射不足或部分跨出窗口，定位尚未证实。",
+    "citation_within_window": "已知相关来源页均在固定窗口内；这不是语义支持证明。",
+    "citation_outside_window": "已知相关来源页全在固定窗口之外，交人工复核。",
+    "citation_identity_conflict": "同来源的已知版本或页数冲突，不能挑选有利材料。",
+    "citation_invalid_anchor": "声明锚点不是该文档的合法物理页；未自动修正。",
     "positive_evidence_missing": "正向结论缺少必要来源证据，交由人工检查。",
     "material_aggregate_inconsistent": "材料总判定与所列论断不一致，保留原判并交由人工检查。",
     "model_uncertainty": "模型表示未知或部分支持，交由人工判断。",
@@ -80,7 +85,7 @@ def build_review_queue(rows: list[dict]) -> list[dict]:
             state = _phase(row, phase)
             human = state.get("human_review") or {}
             if human.get("status") == "pending":
-                result.append({"schema_version": 3, "item_id": row["item_id"], "phase": phase,
+                result.append({"schema_version": 4, "item_id": row["item_id"], "phase": phase,
                                "status": "pending", "reasons": deepcopy(human.get("reasons", [])),
                                "model_review": deepcopy(state.get("model_review")),
                                "evidence_records": deepcopy((state.get("verification") or {}).get(
@@ -137,7 +142,7 @@ def summarize_judgments(source: dict, rows: list[dict], calls: list[dict], mode:
     finish_ids = {call["call_id"] for call in finishes}
     unresolved = [call["call_id"] for call in starts if call["call_id"] not in finish_ids]
     return {
-        "schema_version": 3, "source_run_id": source["run_id"], "mode": mode,
+        "schema_version": 4, "source_run_id": source["run_id"], "mode": mode,
         "calibration_status": "not_calibrated", "automatic_review": True,
         "semantic_status": "not_evaluated" if mode == "prepare" else "model_review",
         "requested_questions": requested, "raw_item_count": source.get("raw_item_count"),
@@ -192,6 +197,11 @@ def _evidence(lines: list[str], evidence: list[dict]) -> None:
         if record.get("source") is not None:
             lines.extend(_block(f"来源：{record['source']} · 页范围 {record.get('page', '?')}"
                                 f"–{record.get('page_end', record.get('page', '?'))}"))
+        if record.get("elastic_location") is not None:
+            location = record["elastic_location"]
+            lines.extend(_block(f"弹性定位（非语义裁决）：{location['status']} / {location['code']}"
+                                f"；锚点来源={location['anchor_origin']}；固定窗口={location['window']}"
+                                f"；已知相关页={location.get('evidence_pages', [])}"))
         if record.get("model_quote") is not None:
             lines += ["模型解释性摘录：", *_block(record["model_quote"])]
         lines += ["已定位原文摘录：", *_block(record.get("quote")), ""]
@@ -207,6 +217,8 @@ def _diagnostics(lines: list[str], diagnostics: list[dict]) -> None:
 def render_judge_report(metrics: dict, rows: list[dict]) -> str:
     """Expose the three independent layers without turning code into a semantic judge."""
     lines = ["# 题目语义审查报告", "", "**初步模型审查，尚未人工校准。**",
+             "定位政策 citation-window-v1；仅原实际材料，未提供补充邻页。",
+             "锚点固定为 post_policy 最终引用；此前 ±2 修复独立记录，不表示原引用总误差也在 ±1。",
              "模型原判、技术完成状态、人工复核状态分开记录；程序不作最终语义裁决。",
              "摘录逐字定位只是辅助诊断，不证明逻辑支持，也不单独否决模型结论。", ""]
     if metrics.get("run_status") or metrics.get("record_integrity"):
@@ -249,7 +261,7 @@ def render_judge_report(metrics: dict, rows: list[dict]) -> str:
               "## 模型原判分布", "", "| 维度 | 支持 / 可作答 | 部分支持 | 不支持 / 不可作答 | 未知 | 技术错误 | 未评 |",
               "| --- | ---: | ---: | ---: | ---: | ---: | ---: |"]
     for dimension, title in (("answerability", "可作答性"), ("material_support", "材料支持"),
-                             ("citation_support", "具体引用页支持")):
+                             ("citation_support", "引用支持（固定 ±1 定位容差）")):
         counts = metrics["dimension_counts"][dimension]
         positive = "answerable" if dimension == "answerability" else "supported"
         negative = "not_answerable" if dimension == "answerability" else "unsupported"
@@ -269,7 +281,7 @@ def render_judge_report(metrics: dict, rows: list[dict]) -> str:
                   "PR1 严格引用检查（独立元数据，不覆盖模型原判）：", "",
                   *_block((row.get("post_check") or {}).get("status")), ""]
         for dimension, title in (("answerability", "可作答性"), ("material_support", "材料支持"),
-                                 ("citation_support", "具体引用页支持")):
+                                 ("citation_support", "引用支持（固定 ±1 定位容差）")):
             lines += [f"**模型{title}**：{_LABELS[_verdict(row, dimension)]}", ""]
         for phase, title in (("answerability", "可作答性评审"), ("support", "材料和引用评审")):
             state = _phase(row, phase)

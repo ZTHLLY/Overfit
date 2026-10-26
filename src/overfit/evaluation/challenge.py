@@ -21,7 +21,7 @@ from overfit.evaluation.citations import check_citation
 from overfit.evaluation.metrics import _block, _diagnostics, _evidence, _usage
 from overfit.evaluation.trace import safe_error
 
-PROTOCOL_VERSION = "challenge-v1"
+PROTOCOL_VERSION = "challenge-v2"
 RECORD_KIND = "judge_challenge"
 ARTIFACTS = {
     "inputs.json",
@@ -81,6 +81,10 @@ class _Chunk(_Strict):
     text: str
 
 
+class _ChunkV2(_Chunk):
+    provenance: dict | None
+
+
 class _Input(_Strict):
     question: str
     answer: str
@@ -100,6 +104,11 @@ class _Inputs(_Strict):
     provenance: _Provenance
     chunks: list[_Chunk] = Field(min_length=1)
     cases: list[_Case] = Field(min_length=1)
+
+
+class _InputsV2(_Inputs):
+    schema_id: Literal["overfit.judge_challenge_inputs.v2"] = Field(alias="schema")
+    chunks: list[_ChunkV2] = Field(min_length=1)
 
 
 class _Change(_Strict):
@@ -134,6 +143,10 @@ class _Annotations(_Strict):
     cases: list[_Annotation] = Field(min_length=1)
 
 
+class _AnnotationsV2(_Annotations):
+    schema_id: Literal["overfit.judge_challenge_annotations.v2"] = Field(alias="schema")
+
+
 def _parse(raw):
     def unique(pairs):
         result = {}
@@ -163,8 +176,15 @@ def load_suite(suite_dir):
         inputs, annotations = (
             _parse(snapshots[name]) for name in ("inputs.json", "annotations.json")
         )
-        _Inputs.model_validate(inputs)
-        _Annotations.model_validate(annotations)
+        _require(isinstance(inputs, dict) and isinstance(annotations, dict))
+        version = inputs.get("schema")
+        if version == "overfit.judge_challenge_inputs.v2":
+            _InputsV2.model_validate(inputs)
+            _AnnotationsV2.model_validate(annotations)
+        else:
+            _Inputs.model_validate(inputs)
+            _Annotations.model_validate(annotations)
+        judge.validate_materials(inputs["chunks"], legacy=version == "overfit.judge_challenge_inputs.v1")
         _require(inputs["suite_id"] == annotations["suite_id"])
         chunks = inputs["chunks"]
         _require(len({c["id"] for c in chunks}) == len(chunks))
@@ -177,7 +197,10 @@ def load_suite(suite_dir):
         )
         _require(set(cases) == set(notes))
         for case_id, item in cases.items():
-            _require(check_citation(item, chunks)["status"] == "valid")
+            if version == "overfit.judge_challenge_inputs.v2":
+                _require(any(chunk["source"] == item["source"] for chunk in chunks))
+            else:
+                _require(check_citation(item, chunks)["status"] == "valid")
             note = notes[case_id]
             if note["case_type"] == "control":
                 _require(note["control_case_id"] == case_id and note["changes"] == [])
@@ -214,7 +237,7 @@ def load_suite(suite_dir):
 
 
 def _identity(run_id):
-    return {"schema_version": 1, "record_kind": RECORD_KIND, "challenge_run_id": run_id}
+    return {"schema_version": 2, "record_kind": RECORD_KIND, "challenge_run_id": run_id}
 
 
 def _new_directory(parent):
@@ -391,6 +414,7 @@ def _state_text(row):
 
 def render_report(metrics, rows, notes):
     lines = [
+        "定位政策 citation-window-v1；锚点为 challenge_input；仅实际输入材料，未提供补充邻页。",
         "# Judge 人工挑战试验",
         "",
         "**人工设计 challenge；尚未校准；不是正式生成评测或 golden 结果。**",
@@ -456,6 +480,8 @@ def render_report(metrics, rows, notes):
             "最终引用：",
             *_block(f"{row['input']['source']} / {row['input']['page']}"),
             "",
+            "严格引用诊断（不是语义裁决）：",
+            *_block(row.get("strict_citation")),
             "真实模型原判及状态：",
             *_block(_state_text(row)),
             "",
@@ -590,6 +616,9 @@ def run_challenge(
         **_identity(target.name),
         "protocol_version": PROTOCOL_VERSION,
         "judge_protocol_version": judge.PROTOCOL_VERSION,
+        "citation_policy": judge.POLICY_VERSION, "anchor_origin": "challenge_input",
+        "context_scope": "original_generation_context", "supplemental_review_context": None,
+        "input_metadata": "legacy_unknown" if inputs["schema"].endswith(".v1") else "explicit",
         "judge_protocol_digest": judge.protocol_digest(),
         "checker_identity": {
             **runner._checker_identity(),
@@ -618,6 +647,7 @@ def run_challenge(
             **_identity(target.name),
             "case_id": case["case_id"],
             "input": deepcopy(case["input"]),
+            "strict_citation": check_citation(case["input"], inputs["chunks"]),
         }
         item = case["input"]
         for phase in PHASES:
@@ -641,7 +671,7 @@ def run_challenge(
                     phase,
                     {key: item[key] for key in allowed},
                     inputs["chunks"],
-                    settings,
+                    settings, anchor_origin="challenge_input",
                 )
                 if runner._request_size(request) > settings.max_input_chars:
                     reason = "input_limit"
@@ -705,7 +735,7 @@ def run_challenge(
                         elapsed_seconds=monotonic() - started,
                         **finish,
                     )
-                    decision = runner._classify(phase, finish, item, inputs["chunks"])
+                    decision = runner._classify(phase, finish, item, inputs["chunks"], anchor_origin="challenge_input")
                     if (
                         not (retry or decision["reason"] == "schema_error")
                         or interrupted

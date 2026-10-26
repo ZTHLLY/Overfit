@@ -16,7 +16,6 @@ from uuid import uuid4
 
 from pydantic import ValidationError
 
-from overfit.evaluation.citations import check_citation
 from overfit.evaluation.contracts import (
     Event,
     Manifest,
@@ -69,6 +68,7 @@ def _validate_event(event: dict, accepted: list[dict], manifest: dict) -> None:
     """Validate stage-dependent relationships, not just an envelope shape."""
     kind, p = event["event_type"], event["payload"]
     _require(event["run_id"] == manifest["run_id"], "Event run ID mismatch.")
+    _require(event["schema_version"] == manifest["schema_version"], "Trace envelope version mismatch.")
     _require(event["seq"] == len(accepted) + 1, "Event sequence mismatch.")
     stamp = datetime.fromisoformat(event["time"])
     _require(stamp.utcoffset() is not None and stamp.utcoffset().total_seconds() == 0,
@@ -90,9 +90,15 @@ def _validate_event(event: dict, accepted: list[dict], manifest: dict) -> None:
     pending = [s for s in starts if not any(f["call_id"] == s["call_id"] for f in finishes)]
     if kind == "materials_selected":
         _require(not materials and not starts, "Invalid material event order.")
+        from overfit.evaluation.elastic import validate_materials
+        if manifest["schema_version"] == 2:
+            _require(type(p.get("materials_schema_version")) is int
+                     and p["materials_schema_version"] == 2, "Invalid material schema.")
+        else:
+            _require("materials_schema_version" not in p, "Legacy materials must not claim a new schema.")
         chunks = p["chunks"]
         _require(isinstance(chunks, list), "Invalid materials.")
-        check_citation({"source": "", "page": 1}, chunks)  # validates all ranges
+        validate_materials(chunks, legacy=manifest["schema_version"] == 1)
         _require(all(isinstance(c.get("text"), str) for c in chunks), "Missing material text.")
         _require(len({c["id"] for c in chunks}) == len(chunks), "Duplicate chunk IDs.")
         _require(p["materials_sha256"] == _json_digest(chunks), "Material digest mismatch.")
@@ -224,11 +230,25 @@ def _validate_event(event: dict, accepted: list[dict], manifest: dict) -> None:
                      for d in artifacts.values()), "Invalid artifact digest.")
 
 
+def _require_declared_version(raw) -> None:
+    """Readers never apply a writer's default version to an undeclared artifact."""
+    def unique(pairs):
+        value = {}
+        for key, item in pairs:
+            _require(key not in value, "Duplicate recording key.")
+            value[key] = item
+        return value
+    value = json.loads(raw, object_pairs_hook=unique)
+    _require(isinstance(value, dict) and type(value.get("schema_version")) is int
+             and value["schema_version"] in {1, 2}, "Missing or unsupported declared version.")
+
+
 def inspect_run(run_dir: Path) -> dict:
     """Return validated-prefix diagnostics; unreadable/unknown manifests raise."""
     root = Path(run_dir).expanduser().resolve()
     raw_manifest = _read(root, "manifest.json")
     try:
+        _require_declared_version(raw_manifest)
         manifest = Manifest.model_validate_json(raw_manifest).model_dump(mode="json")
         _require(_integer(manifest["task"]["questions"], 1), "Invalid requested count.")
     except (ValueError, KeyError, TypeError, ValidationError):
@@ -244,6 +264,7 @@ def inspect_run(run_dir: Path) -> dict:
         for number, line in enumerate(raw_log.splitlines(keepends=True), 1):
             try:
                 _require(line.endswith(b"\n"), "Truncated event line.")
+                _require_declared_version(line)
                 event = Event.model_validate_json(line).model_dump(mode="json")
                 _validate_event(event, events, manifest)
             except (ValueError, KeyError, TypeError, ValidationError):

@@ -19,11 +19,15 @@ other layer is a requirement, not a nicety.
 
 from __future__ import annotations
 
+import hashlib
 import re
 from collections import Counter
 from collections.abc import Callable
-from dataclasses import dataclass, field
+from copy import deepcopy
+from dataclasses import dataclass, field, replace
+from difflib import SequenceMatcher
 from functools import lru_cache
+from importlib.metadata import PackageNotFoundError, version
 from pathlib import Path
 
 from overfit.errors import (
@@ -187,9 +191,33 @@ def parse(
         EmptyExtractionError: extraction produced essentially nothing,
             which almost always means a scanned PDF.
     """
-    pages = _clean(_read(path, backend))
-
-    document = ParsedDocument(source=source or path.name, pages=pages)
+    if path.suffix.lower() not in _TEXT_BACKENDS and path.suffix.lower() != ".pdf":
+        raise UnsupportedFormatError(path)
+    digest = _source_digest(path)
+    raw = _read(path, backend)
+    if _source_digest(path) != digest:
+        raise ExtractionError(
+            path, "source changed during extraction; retry with a stable file"
+        )
+    raw = [
+        replace(p, provenance={**p.provenance, "document_sha256": digest})
+        if p.provenance
+        else p
+        for p in raw
+    ]
+    pages = _clean(raw)
+    metadata = deepcopy(raw[0].provenance) if raw else None
+    if metadata is not None:
+        metadata["blocks"] = []
+        for page in raw:
+            for block in (page.provenance or {}).get("blocks", []):
+                block = deepcopy(block)
+                block["text_span"] = None
+                block["mapping"] = "coarse"
+                metadata["blocks"].append(block)
+    document = ParsedDocument(
+        source=source or path.name, pages=pages, provenance=metadata
+    )
 
     # Fail loudly rather than letting a blank document into the index. A
     # capability may be missing; it must not be faked.
@@ -197,6 +225,14 @@ def parse(
         raise EmptyExtractionError(path)
 
     return document
+
+
+def _source_digest(path: Path) -> str:
+    try:
+        with path.open("rb") as stream:
+            return hashlib.file_digest(stream, "sha256").hexdigest()
+    except OSError as exc:
+        raise ExtractionError(path, str(exc)) from exc
 
 
 def _clean(pages: list[Page], record: list[Removal] | None = None) -> list[Page]:
@@ -262,7 +298,80 @@ def _replacing(page: Page, text: str) -> Page:
         text=text,
         furniture=page.furniture,
         structured=page.structured,
+        provenance=_remap(page, text),
     )
+
+
+def _remap(page: Page, text: str) -> dict | None:
+    """Carry only demonstrable surviving ranges; original blocks stay auditable."""
+    metadata = deepcopy(page.provenance)
+    if metadata is None or page.text == text:
+        return metadata
+    opcodes = SequenceMatcher(None, page.text, text, autojunk=False).get_opcodes()
+    for block in metadata["blocks"]:
+        span = block["text_span"]
+        if span is None:
+            continue
+        a, b = span
+        old = page.text[a:b]
+        # Repeated fragments cannot be attributed by a textual diff alone.
+        ambiguous = bool(old) and page.text.count(old) > 1
+        ranges = []
+        for kind, i, j, x, y in opcodes:
+            if kind == "equal" and max(a, i) < min(b, j):
+                ranges.append((x + max(a, i) - i, x + min(b, j) - i))
+            elif kind == "replace" and max(a, i) < min(b, j) and x < y:
+                # A replacement crossing block boundaries has no safe owner.
+                if a <= i and j <= b:
+                    ranges.append((x, y))
+            elif kind == "insert" and a < i < b and x < y:
+                ranges.append((x, y))
+        if not ranges or ambiguous:
+            block["text_span"] = None
+            block["mapping"] = "coarse"
+            continue
+        start, end = min(r[0] for r in ranges), max(r[1] for r in ranges)
+        block["text_span"] = [start, end]
+        bs = block["block_span"]
+        if not (
+            block["mapping"] == "exact"
+            and bs is not None
+            and text[start:end] == block["text"][bs[0] : bs[1]]
+        ):
+            block["mapping"] = "coarse"
+    return metadata
+
+
+def _metadata(extractor: str, count: int | None, blocks: list[dict]) -> dict:
+    return {
+        "schema_version": 1,
+        "document_sha256": None,
+        "page_count": count,
+        "extractor": extractor,
+        "blocks": blocks,
+    }
+
+
+def _extractor(package: str) -> str:
+    try:
+        return f"{package}/{version(package)}"
+    except PackageNotFoundError:
+        return package
+
+
+def _plain_page(number: int, text: str, count: int | None, extractor: str) -> Page:
+    block = {
+        "block_id": f"page:{number}",
+        "label": "page_text",
+        "parent_id": None,
+        "context_id": None,
+        "text": text,
+        "locations": [{"page": number, "charspan": [0, len(text)], "bbox": None}],
+        "text_span": [0, len(text)],
+        "block_span": [0, len(text)],
+        "mapping": "exact",
+    }
+    return Page(number, text, provenance=_metadata(extractor, count, [block]))
 
 
 def _note(record: list[Removal] | None, page: int, stage: str, line: str) -> None:
@@ -301,7 +410,9 @@ def _parse_pdf(path: Path) -> list[Page]:
             except Exception as exc:
                 raise ExtractionError(path, f"encrypted PDF ({exc})") from exc
         return [
-            Page(number=index, text=page.extract_text() or "")
+            _plain_page(
+                index, page.extract_text() or "", len(reader.pages), _extractor("pypdf")
+            )
             for index, page in enumerate(reader.pages, start=1)
         ]
     except ExtractionError:
@@ -321,63 +432,163 @@ def _parse_docling(path: Path, *, formulas: bool) -> list[Page]:
     debris, because a markdown table row is long and punctuated where a
     stray cell was short and bare.
 
-    The output contract is deliberately identical to `_parse_pdf`: a page
-    per page, 1-based, no gaps. Anything richer would have to be carried by
-    `Page`, and widening that type is a separate decision from swapping the
-    reader.
-
-    Empty pages are preserved rather than skipped. Page numbers are the one
-    thing this layer cannot regenerate, so the list index must keep matching
-    what a human sees in a reader even when a page yields nothing.
+    Every known block location is retained even when its rendered text is
+    placed in the first page's bucket. A trusted physical count preserves
+    empty pages; partial extractor page maps never invent a document total.
+    Picture children are isolated as figure text, not promoted to prose.
     """
     converter = _docling_converter(formulas)
-
     try:
-        document = converter.convert(str(path)).document
+        result = converter.convert(str(path))
+        document = result.document
+        count = getattr(getattr(result, "input", None), "page_count", None)
+        count = count if type(count) is int and count > 0 else None
+        items = list(_docling_items(document))
+        by_id = {str(getattr(item, "self_ref", "")): item for item, _ in items}
+        caption_contexts: dict[str, list[str]] = {}
+        for ref, item in by_id.items():
+            if ref and _docling_label_of(item) == "picture":
+                for caption in getattr(item, "captions", []) or []:
+                    if caption_ref := _docling_ref(caption):
+                        caption_contexts.setdefault(caption_ref, []).append(ref)
+        buckets: dict[int, list[str]] = {}
+        blocks: dict[int, list[dict]] = {}
+        furniture: dict[int, list[str]] = {}
+        structured: dict[int, list[str]] = {}
+        offsets: dict[int, int] = {}
+        last_context: dict[int, str | None] = {}
+        for index, (item, _level) in enumerate(items):
+            locations = _docling_locations(item)
+            if not locations:
+                continue
+            number = locations[0]["page"]
+            label = _docling_label_of(item) or "unknown"
+            raw_text = _docling_text_of(item, document)
+            parent = _docling_ref(getattr(item, "parent", None))
+            contexts = list(
+                dict.fromkeys(
+                    caption_contexts.get(str(getattr(item, "self_ref", "")), [])
+                )
+            )
+            if (ancestor := _picture_context(parent, by_id)) and ancestor not in contexts:
+                contexts.insert(0, ancestor)
+            context = contexts[0] if contexts else None
+            parts = buckets.setdefault(number, [])
+            offset = offsets.get(number, 0)
+            # Isolate extracted figure labels; do not present them as prose.
+            if last_context.get(number) and last_context[number] != context:
+                marker = "[End figure text]"
+                offset += (2 if parts else 0) + len(marker)
+                parts.append(marker)
+                structured.setdefault(number, []).append(marker)
+            if context and last_context.get(number) != context:
+                marker = "[Figure text; spatial relationships not reconstructed]"
+                offset += (2 if parts else 0) + len(marker)
+                parts.append(marker)
+                structured.setdefault(number, []).append(marker)
+            last_context[number] = context
+            start = offset + (2 if parts and raw_text else 0)
+            if raw_text:
+                parts.append(raw_text)
+                offset = start + len(raw_text)
+            offsets[number] = offset
+            is_table = hasattr(getattr(item, "data", None), "grid")
+            original = str(getattr(item, "text", raw_text) or raw_text)
+            # Markdown and glyph coordinates are different domains.
+            exact = not is_table and original == raw_text
+            block = {
+                "block_id": str(getattr(item, "self_ref", None) or f"item:{index}"),
+                "label": label,
+                "parent_id": parent,
+                "context_id": context,
+                "text": original,
+                "locations": locations,
+                "text_span": [start, start + len(raw_text)] if raw_text else None,
+                "block_span": [0, len(original)],
+                "mapping": "exact" if exact and raw_text else "coarse",
+            }
+            # A caption may be explicitly shared by multiple pictures. Keep
+            # each known relation over the same carrier, without duplicating
+            # its actual text or guessing relations from proximity.
+            for related in contexts or [None]:
+                blocks.setdefault(number, []).append({**block, "context_id": related})
+            if _docling_layer_of(item) != "body":
+                furniture.setdefault(number, []).extend(_lines(raw_text))
+            elif label not in _PROSE_LABELS or context:
+                structured.setdefault(number, []).extend(_lines(raw_text))
+        for number, context in last_context.items():
+            if context:
+                buckets[number].append("[End figure text]")
+                structured.setdefault(number, []).append("[End figure text]")
+        known = {
+            loc["page"]
+            for group in blocks.values()
+            for block in group
+            for loc in block["locations"]
+        }
+        known.update(
+            k
+            for k in (getattr(document, "pages", {}) or {})
+            if type(k) is int and k > 0
+        )
+        if count is not None and any(number > count for number in known):
+            raise ValueError("Extractor location exceeds physical page count")
+        numbers = range(1, count + 1) if count is not None else sorted(known)
+        return [
+            Page(
+                number,
+                "\n\n".join(buckets.get(number, [])),
+                tuple(furniture.get(number, [])),
+                tuple(structured.get(number, [])),
+                _metadata(_extractor("docling-slim"), count, blocks.get(number, [])),
+            )
+            for number in numbers
+        ]
+    except ExtractionError:
+        raise
     except Exception as exc:
         raise ExtractionError(path, f"{type(exc).__name__}: {exc}") from exc
 
-    buckets: dict[int, list[str]] = {}
-    furniture: dict[int, list[str]] = {}
-    structured: dict[int, list[str]] = {}
-    highest = 0
 
-    for item, _level in _docling_items(document):
-        number = _docling_page_of(item)
-        if number is None:
-            continue
-        highest = max(highest, number)
-        text = _docling_text_of(item, document)
-        if not text:
-            continue
-        buckets.setdefault(number, []).append(text)
+def _docling_ref(value) -> str | None:
+    ref = getattr(value, "cref", None)
+    return str(ref) if ref else None
 
-        # Record the verdict rather than acting on it. Deleting a footer here
-        # would be simpler and worse: it happens before the cleaning stage, so
-        # it would never appear in the report, and a header wrongly classified
-        # by the layout model would vanish with no way to notice.
-        # Classify by *layer* first, not by label. Docling sorts every block
-        # into a content layer before it labels it, and the layer is the
-        # stronger statement: a block filed outside the body is one the model
-        # decided is not part of the document's content at all. Reading the
-        # label instead let anything in the furniture layer carrying an
-        # unexpected label -- a caption, a stray "text" -- slip through as
-        # prose, which is how a page footer ends up embedded as a chunk.
-        if _docling_layer_of(item) != "body":
-            furniture.setdefault(number, []).extend(_lines(text))
-        elif (label := _docling_label_of(item)) and label not in _PROSE_LABELS:
-            structured.setdefault(number, []).extend(_lines(text))
 
-    total = _docling_page_count(document) or highest
-    return [
-        Page(
-            number=number,
-            text="\n\n".join(buckets.get(number, [])),
-            furniture=tuple(furniture.get(number, ())),
-            structured=tuple(structured.get(number, ())),
+def _picture_context(parent: str | None, items: dict) -> str | None:
+    seen = set()
+    while parent and parent not in seen:
+        seen.add(parent)
+        item = items.get(parent)
+        if item is None:
+            return None
+        if _docling_label_of(item) == "picture":
+            return parent
+        parent = _docling_ref(getattr(item, "parent", None))
+    return None
+
+
+def _docling_locations(item) -> list[dict]:
+    locations = []
+    for entry in getattr(item, "prov", []) or []:
+        page = getattr(entry, "page_no", None)
+        if type(page) is not int or page < 1:
+            raise ValueError("Invalid extractor page")
+        bbox = getattr(entry, "bbox", None)
+        box = None
+        if bbox is not None:
+            origin = getattr(bbox, "coord_origin", None)
+            box = {key: getattr(bbox, key) for key in ("l", "t", "r", "b")}
+            box["coord_origin"] = str(getattr(origin, "value", origin) or "unknown")
+        span = getattr(entry, "charspan", None)
+        locations.append(
+            {
+                "page": page,
+                "charspan": list(span) if span is not None else None,
+                "bbox": box,
+            }
         )
-        for number in range(1, total + 1)
-    ]
+    return locations
 
 
 # From docling's DocItemLabel. Only `text` is prose; everything else is a
@@ -417,16 +628,24 @@ def _docling_items(document: object):
     Asking for both layers puts every decision back in front of the cleaning
     stage, which removes furniture too, but records it while doing so.
     """
+    kwargs = {}
+    method = document.iterate_items
+    function = getattr(method, "__func__", method)
+    if _accepts_parameter(function, "traverse_pictures"):
+        kwargs["traverse_pictures"] = True
+    if _accepts_parameter(function, "with_groups"):
+        kwargs["with_groups"] = True
     try:
         from docling_core.types.doc import ContentLayer
-    except ImportError:  # pragma: no cover - older docling-core
-        return document.iterate_items()
-
-    if not _accepts_layers(document.iterate_items):
-        return document.iterate_items()
-    return document.iterate_items(
-        included_content_layers={ContentLayer.BODY, ContentLayer.FURNITURE}
-    )
+    except ImportError:  # optional SDK; synthetic adapters need no dependency
+        pass
+    else:
+        if _accepts_layers(method):
+            kwargs["included_content_layers"] = {
+                ContentLayer.BODY,
+                ContentLayer.FURNITURE,
+            }
+    return method(**kwargs)
 
 
 def _accepts_layers(method: object) -> bool:
@@ -461,7 +680,7 @@ def _docling_page_of(item: object) -> int | None:
     provenance = getattr(item, "prov", None) or []
     for entry in provenance:
         number = getattr(entry, "page_no", None)
-        if isinstance(number, int):
+        if type(number) is int and number > 0:
             return number
     return None
 
@@ -492,14 +711,6 @@ def _docling_text_of(item: object, document: object) -> str:
 def _accepts_doc(method: object) -> bool:
     """Whether a bound method takes a `doc` argument, cached per function."""
     return _accepts_parameter(getattr(method, "__func__", method), "doc")
-
-
-def _docling_page_count(document: object) -> int:
-    pages = getattr(document, "pages", None)
-    try:
-        return len(pages) if pages is not None else 0
-    except TypeError:
-        return 0
 
 
 @lru_cache(maxsize=2)
@@ -550,7 +761,7 @@ def _parse_text(path: Path) -> list[Page]:
         content = path.read_text(encoding="utf-8", errors="replace")
     except OSError as exc:
         raise ExtractionError(path, str(exc)) from exc
-    return [Page(number=1, text=content)]
+    return [_plain_page(1, content, None, "text/utf-8")]
 
 
 # Dispatch happens on two axes, and they are not the same question.
@@ -682,9 +893,7 @@ def _debris_mask(
     was *lost*; a line that arrived with its structure named is outside its
     jurisdiction, whatever it looks like.
     """
-    flags = [
-        _is_fragment(line) and line.strip() not in protected for line in lines
-    ]
+    flags = [_is_fragment(line) and line.strip() not in protected for line in lines]
 
     keep = [True] * len(lines)
     run_start = 0

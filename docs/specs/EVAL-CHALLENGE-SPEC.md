@@ -1,5 +1,8 @@
 # Judge Challenge 执行入口 Spec
 
+> **2026-10-06 版本更新：** 新运行是 challenge-v2 / schema 2 + judge-v4；仍读取原 suite v1，新增来源使用显式 inputs/annotations v2。v2 输入要求正整数页和同源材料，不以旧严格页 membership 阻断邻页案例；严格与弹性结果并列。完整新契约与验收见 [文档结构 spec](/Users/silver/Documents/github/Overfit/docs/specs/DOCUMENT-STRUCTURE-SPEC.md) 第 9 节和 [实施计划](/Users/silver/Documents/github/Overfit/docs/plans/DOCUMENT-STRUCTURE-PLAN.md)。下文保留旧阶段契约与证据；版本差异以本说明和新契约为准，历史产物不改写。
+
+
 > 版本：0.1 · 日期：2026-10-06 · 状态：已实现并通过独立离线验收（519 tests）；仅执行离线 prepare，未调用真实 challenge 模型或完成语义校准。
 > 用户已授权文档后实现；本轮不调用模型、不改数据集或历史结果、不 commit/push。
 

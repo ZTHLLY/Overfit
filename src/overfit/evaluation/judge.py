@@ -24,8 +24,15 @@ from pydantic import (
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
 from overfit.evaluation.citations import check_citation
+from overfit.evaluation.elastic import (
+    POLICY_VERSION,
+    citation_window,
+    locate_citation,
+    source_labels,
+    validate_materials,
+)
 
-PROTOCOL_VERSION = "judge-v3"
+PROTOCOL_VERSION = "judge-v4"
 Phase = Literal["answerability", "support"]
 SupportVerdict = Literal["supported", "partially_supported", "unsupported", "unknown"]
 
@@ -147,6 +154,10 @@ Evidence must identify a supplied chunk_id. An optional quote is an explanatory 
 not a requirement to transcribe verbatim; ellipses or omitted quotes do not negate your
 judgment. Prefer the shortest sufficient excerpt; do not copy entire paragraphs unnecessarily.
 Do not invent source IDs or misrepresent material. A matching keyword alone is not support.
+Source labels may identify figure-related blocks via label, parent_id or context_id.
+Their chart/axis labels are figure-internal text, not independent prose facts. Spatial
+relationships have not necessarily been reconstructed; do not infer a relation merely
+from the order of flattened figure text. Retain substantive uncertainty where needed.
 Set human_review_required=true when substantive doubt, ambiguity or suspicious evidence
 requires a human decision, and explain the issue in reason. Otherwise it may be false.
 Use unknown when extraction, missing figures/formulas, or ambiguity prevents a reliable
@@ -170,11 +181,18 @@ supported part and a gap. unsupported cannot coexist with positive supported cla
 A claim labeled supported or partially_supported must have evidence. unknown is allowed.
 For example, supported plus unknown claims cannot yield material_support=supported;
 report the actual gap or uncertainty instead, without inventing evidence.
-Separately judge citation_support at the final cited source and specific page, not other
-pages. citation_evidence must cover the assertions claimed supported at that citation.
-Positive citation verdicts require nonempty citation_evidence. Evidence in a multi-page
-chunk does not establish which page contains the quote: use unknown for that limitation.
-Other-page evidence can support material_support, but cannot support citation_support.
+Separately judge citation_support under citation-window-v1: a fixed one-physical-page
+window on each side of the declared anchor within the same document version. The anchor
+is frozen; never move it to expand the window. Location tolerance does not excuse incorrect
+semantic attribution, negation, table relationships or conclusions. A multi-page chunk or
+an adjacent-page location alone is not a reason for unknown or human review. A large chunk
+merely intersecting the window does not put all its text inside it. Use supplied source
+labels honestly; missing exact provenance or verbatim quotes alone do not erase semantic
+judgments. Distinguish substantive uncertainty from metadata limitations. Review only the
+actual materials supplied, not audit-only original blocks. No supplemental pages are given.
+citation_evidence must cover the assertions claimed supported at that citation. Positive
+citation verdicts require source evidence. Material support and answerability remain bound
+to the original actual materials; location tolerance never turns unsupported claims positive.
 """
 
 
@@ -191,16 +209,20 @@ def _review_type(phase: Phase):
     raise ValueError("Unknown judge phase")
 
 
-def build_request(phase: Phase, item: dict, chunks: list[dict], settings: JudgeSettings) -> dict:
+def build_request(phase: Phase, item: dict, chunks: list[dict], settings: JudgeSettings,
+                  *, anchor_origin="post_policy") -> dict:
     """Build a fresh, isolated request; answerability never serializes the answer."""
+    validate_materials(chunks)
     schema = _review_type(phase).model_json_schema()
     data = {"question": item["question"], "materials": [
-        {key: chunk.get(key) for key in ("id", "source", "page", "page_end", "text")}
+        {**{key: chunk.get(key) for key in ("id", "source", "page", "page_end", "text")},
+         **({"source_labels": source_labels(chunk)} if chunk.get("provenance") is not None else {})}
         for chunk in chunks
     ]}
     if phase == "support":
         data["answer"] = item["answer"]
         data["citation"] = {"source": item["source"], "page": item["page"]}
+        data["citation_location_policy"] = citation_window(item, chunks, anchor_origin=anchor_origin)
     rubric = _ANSWERABILITY if phase == "answerability" else _SUPPORT
     return {
         "model": settings.model, "temperature": settings.temperature,
@@ -215,7 +237,7 @@ def build_request(phase: Phase, item: dict, chunks: list[dict], settings: JudgeS
 
 
 def _material_map(chunks: list[dict]) -> dict:
-    check_citation({}, chunks)  # Validates ranges without repairing anything.
+    validate_materials(chunks)  # Validates metadata without repairing or adding context.
     mapping = {}
     for chunk in chunks:
         if not isinstance(chunk.get("text"), str) or not chunk["id"] or chunk["id"] in mapping:
@@ -252,7 +274,8 @@ def _occurrences(text: str, quote: str) -> list[int]:
     return positions
 
 
-def _locate(row: dict, materials: dict, path: str, citation: dict | None = None) -> dict:
+def _locate(row: dict, materials: dict, path: str, citation: dict | None = None,
+            *, anchor_origin="post_policy") -> dict:
     """Check source identity independently from optional excerpt localization."""
     result = {"path": path, "chunk_id": row["chunk_id"], "model_quote": row.get("quote"),
               "status": "unknown_chunk", "source_status": "unknown_chunk",
@@ -263,12 +286,6 @@ def _locate(row: dict, materials: dict, path: str, citation: dict | None = None)
         return result
     end_page = chunk.get("page_end") or chunk["page"]
     result.update(source=chunk["source"], page=chunk["page"], page_end=end_page, source_status="valid")
-    if citation is not None:
-        if citation.get("source") != chunk["source"]:
-            result["source_status"] = "citation_source_mismatch"
-        elif (type(citation.get("page")) is not int
-              or not chunk["page"] <= citation["page"] <= end_page):
-            result["source_status"] = "citation_page_mismatch"
     text, quote = chunk["text"], row.get("quote")
     if quote is None or not quote.strip():
         result["quote_status"] = "quote_not_provided"
@@ -293,6 +310,11 @@ def _locate(row: dict, materials: dict, path: str, citation: dict | None = None)
                 start = spans[start][0]
             result.update(quote_status="matched", match_method=method,
                           start=start, end=end, quote=text[start:end])
+    if citation is not None:
+        location = locate_citation(citation, list(materials.values()), chunk,
+                                   start=result["start"], end=result["end"], anchor_origin=anchor_origin)
+        result["elastic_location"] = location
+        result["source_status"] = location["code"] if location["severity"] == "review" else "valid"
     result["status"] = (result["source_status"] if result["source_status"] != "valid"
                         else result["quote_status"])
     return result
@@ -326,7 +348,8 @@ def _consistency(phase: Phase, review: dict) -> list[dict]:
     return diagnostics
 
 
-def validate_review(phase: Phase, content: str, item: dict, chunks: list[dict]) -> dict:
+def validate_review(phase: Phase, content: str, item: dict, chunks: list[dict],
+                    *, anchor_origin="post_policy") -> dict:
     """Parse model semantics, record diagnostics and route uncertainty to people."""
     review_type = _review_type(phase)
     try:
@@ -359,7 +382,7 @@ def validate_review(phase: Phase, content: str, item: dict, chunks: list[dict]) 
     ]
     for path, evidence, citation in groups:
         for index, row in enumerate(evidence):
-            records.append(_locate(row, materials, f"{path}[{index}]", citation))
+            records.append(_locate(row, materials, f"{path}[{index}]", citation, anchor_origin=anchor_origin))
     evidence_diagnostics, review_reasons = [], []
     for row in records:
         if row["source_status"] != "valid":
@@ -368,13 +391,17 @@ def validate_review(phase: Phase, content: str, item: dict, chunks: list[dict]) 
             review_reasons.append(diagnostic)
         if row["quote_status"] not in {"matched", "not_checked"}:
             evidence_diagnostics.append({"code": row["quote_status"], "path": row["path"], "severity": "info"})
-    if phase == "support" and model_review["citation_support"] in {"supported", "partially_supported"}:
-        for row in records:
-            if (row["path"].startswith("citation_evidence[") and row["source_status"] == "valid"
-                    and row["page"] != row["page_end"]):
-                diagnostic = {"code": "citation_page_unresolved_in_multipage_chunk", "path": row["path"]}
-                evidence_diagnostics.append({**diagnostic, "severity": "review"})
-                review_reasons.append(diagnostic)
+    for row in records:
+        location = row.get("elastic_location")
+        if location is not None and location["severity"] == "info":
+            evidence_diagnostics.append({"code": location["code"], "path": row["path"], "severity": "info"})
+    if phase == "support":
+        location_policy = citation_window(item, chunks, anchor_origin=anchor_origin)
+        if (location_policy["severity"] == "review"
+                and not any(d["code"] == location_policy["code"] for d in review_reasons)):
+            diagnostic = {"code": location_policy["code"], "path": "citation"}
+            evidence_diagnostics.append({**diagnostic, "severity": "review"})
+            review_reasons.append(diagnostic)
     consistency = _consistency(phase, model_review)
     review_reasons.extend({"code": row["code"], "path": row["path"]} for row in consistency)
     values = [("verdict", model_review["verdict"])] if phase == "answerability" else [
@@ -391,7 +418,13 @@ def validate_review(phase: Phase, content: str, item: dict, chunks: list[dict]) 
                              "evidence": "diagnostics" if evidence_diagnostics else "valid",
                              "consistency": "diagnostics" if consistency else "valid",
                              "diagnostics": evidence_diagnostics + consistency,
-                             "evidence_records": records},
+                             "evidence_records": records,
+                             "citation_policy": POLICY_VERSION,
+                             "context_scope": "original_generation_context",
+                             "supplemental_review_context": None,
+                             "strict_citation": check_citation(item, chunks) if phase == "support" else None,
+                             "elastic_citation": citation_window(item, chunks, anchor_origin=anchor_origin)
+                             if phase == "support" else None},
             "human_review": {"status": "pending" if review_reasons else "not_required",
                              "reasons": review_reasons}}
 

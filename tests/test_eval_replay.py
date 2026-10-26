@@ -166,7 +166,7 @@ def test_damage_in_middle_does_not_skip_forward_to_success(tmp_path):
     assert result["run_status"] == "unknown"
 
 
-@pytest.mark.parametrize("version", [2, True, 1.0, "1"])
+@pytest.mark.parametrize("version", [3, True, 1.0, "1"])
 def test_unknown_manifest_version_is_rejected_without_output(tmp_path, version):
     writer = fixture_run(tmp_path)
     path = writer.run_dir / "manifest.json"

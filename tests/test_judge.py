@@ -8,6 +8,7 @@ import pytest
 from pydantic import ValidationError
 
 from overfit.evaluation import judge
+from tests.provenance_samples import provenance_for
 
 
 @pytest.fixture
@@ -190,8 +191,8 @@ def test_invalid_evidence_needs_review_not_content_failure(row, code, item, chun
     result = validate(value, item, chunks)
     assert result["model_review"] == value
     assert "review" not in result
-    assert result["verification"]["diagnostics"] == [{"code": code, "path": "claims[0].evidence[0]",
-                                                               "severity": "review" if code == "unknown_chunk" else "info"}]
+    assert {"code": code, "path": "claims[0].evidence[0]",
+            "severity": "review" if code == "unknown_chunk" else "info"} in result["verification"]["diagnostics"]
 
 
 @pytest.mark.parametrize("verdict", ["not_answerable", "unknown"])
@@ -228,30 +229,32 @@ def test_negative_support_can_have_no_evidence(verdict, item, chunks):
     assert validate(value, item, chunks)["model_review"]["material_support"] == verdict
 
 
-def test_multipage_citation_preserves_model_verdict_and_blocks_admission(item, chunks):
+def test_legacy_multipage_preserves_model_verdict_and_records_unverified(item, chunks):
     chunks[0]["page"] = 2
     chunks[0]["page_end"] = 4
     result = validate(support(), item, chunks)
     assert result["model_review"]["material_support"] == "supported"
     assert result["model_review"]["citation_support"] == "supported"
     assert "review" not in result
-    assert result["verification"]["diagnostics"][0]["code"] == "citation_page_unresolved_in_multipage_chunk"
+    assert result["verification"]["diagnostics"][0]["code"] == "citation_metadata_unknown"
+    assert result["human_review"]["status"] == "not_required"
     assert validate(answerability(), item, chunks, "answerability")["model_review"]["verdict"] == "answerable"
 
 
-def test_mixed_page_evidence_cannot_hide_ambiguous_quote(item, chunks):
+def test_legacy_mixed_page_evidence_is_unverified_not_a_content_failure(item, chunks):
     chunks.append({**chunks[0], "id": "c2", "page": 2, "page_end": 4})
     value = support()
     value["citation_evidence"].append(evidence("c2"))
-    assert validate(value, item, chunks)["human_review"]["status"] == "pending"
+    assert validate(value, item, chunks)["human_review"]["status"] == "not_required"
     value["citation_evidence"] = [evidence()]
     assert validate(value, item, chunks)["model_review"]["citation_support"] == "supported"
 
 
 @pytest.mark.parametrize("citation,code", [({"source": "other.pdf", "page": 3}, "citation_source_mismatch"),
-    ({"source": "week1.pdf", "page": 4}, "citation_page_mismatch"),
-    ({"source": "week1.pdf", "page": True}, "citation_page_mismatch")])
+    ({"source": "week1.pdf", "page": 6}, "citation_outside_window"),
+    ({"source": "week1.pdf", "page": True}, "citation_invalid_anchor")])
 def test_wrong_page_or_source_needs_review(citation, code, item, chunks):
+    chunks[0]["provenance"] = provenance_for(chunks[0]["text"])
     item.update(citation)
     result = validate(support(), item, chunks)
     assert "review" not in result
@@ -378,10 +381,12 @@ def test_real_local_pilot_whitespace_and_consistency_regressions():
     assert support_result["model_review"] == fixture["responses"]["support"]
     assert support_result["model_review"]["material_support"] == "supported"
     assert support_result["model_review"]["claims"][1]["verdict"] == "unknown"
-    assert support_result["verification"]["evidence"] == "valid"
+    assert support_result["verification"]["evidence"] == "diagnostics"
+    assert all(d["severity"] == "info" for d in support_result["verification"]["diagnostics"]
+               if d["path"].startswith("citation_evidence"))
     assert support_result["verification"]["structure"] == "valid"
     assert support_result["verification"]["consistency"] == "diagnostics"
-    assert support_result["verification"]["diagnostics"] == [
+    assert [d for d in support_result["verification"]["diagnostics"] if d["severity"] == "review"] == [
         {"code": "material_aggregate_inconsistent", "path": "material_support", "severity": "review"}]
     assert support_result["human_review"]["status"] == "pending"
     assert fixture == original
@@ -433,9 +438,10 @@ def test_optional_or_blank_excerpt_keeps_raw_shape_and_source_only_review(quote,
 @pytest.mark.parametrize("quote", [None, "wrong ... excerpt", "overfitting"])
 @pytest.mark.parametrize("citation,code", [
     ({"source": "wrong.pdf", "page": 3}, "citation_source_mismatch"),
-    ({"source": "week1.pdf", "page": 9}, "citation_page_mismatch"),
+    ({"source": "week1.pdf", "page": 9}, "citation_outside_window"),
 ])
 def test_source_routing_is_independent_from_quote_localization(quote, citation, code, item, chunks):
+    chunks[0]["provenance"] = provenance_for(chunks[0]["text"])
     item.update(citation)
     value = support()
     value["citation_evidence"][0]["quote"] = quote
@@ -465,7 +471,7 @@ def test_model_can_explicitly_request_human_review(phase, flag, item, chunks):
     result = validate(value, item, chunks, phase)
     assert result["model_review"] == value
     assert result["human_review"]["status"] == ("pending" if flag else "not_required")
-    assert result["verification"]["diagnostics"] == []
+    assert all(d["severity"] == "info" for d in result["verification"]["diagnostics"])
     if flag:
         assert result["human_review"]["reasons"] == [
             {"code": "model_requested_review", "path": "human_review_required"}]
@@ -479,13 +485,13 @@ def test_human_review_flag_is_strict_boolean(flag, item, chunks):
         validate(value, item, chunks, "answerability")
 
 
-def test_multipage_positive_without_quote_still_routes_to_human(item, chunks):
+def test_multipage_positive_without_quote_is_not_a_standalone_human_reason(item, chunks):
     chunks[0].update(page=2, page_end=4)
     value = support()
     value["citation_evidence"] = [{"chunk_id": "c1"}]
     result = validate(value, item, chunks)
-    assert result["human_review"]["status"] == "pending"
-    assert {"code": "citation_page_unresolved_in_multipage_chunk", "path": "citation_evidence[0]"} in result["human_review"]["reasons"]
+    assert result["human_review"]["status"] == "not_required"
+    assert result["verification"]["elastic_citation"]["status"] == "unverified"
 
 
 def test_saved_openrouter_ellipsis_responses_are_complete_without_fake_human_review():
@@ -513,8 +519,8 @@ def test_saved_openrouter_ellipsis_responses_are_complete_without_fake_human_rev
     assert fixture == before
 
 
-@pytest.mark.parametrize("verdict,pending", [("supported", True), ("unsupported", False)])
-def test_cross_page_routing_only_for_positive_citation_claim(verdict, pending, item, chunks):
+@pytest.mark.parametrize("verdict,pending", [("supported", False), ("unsupported", False)])
+def test_cross_page_alone_does_not_route_either_verdict(verdict, pending, item, chunks):
     chunks[0].update(page=2, page_end=4)
     value = support()
     value["citation_support"] = verdict
@@ -526,8 +532,9 @@ def test_cross_page_routing_only_for_positive_citation_claim(verdict, pending, i
 
 
 @pytest.mark.parametrize("source,page,code", [("other.pdf", 3, "citation_source_mismatch"),
-                                              ("week1.pdf", 99, "citation_page_mismatch")])
+                                              ("week1.pdf", 99, "citation_outside_window")])
 def test_negative_citation_is_not_exempt_from_source_identity_checks(source, page, code, item, chunks):
+    chunks[0]["provenance"] = provenance_for(chunks[0]["text"])
     item.update(source=source, page=page)
     value = support()
     value["citation_support"] = "unsupported"

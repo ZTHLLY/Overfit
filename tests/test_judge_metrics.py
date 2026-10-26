@@ -61,7 +61,7 @@ def call(call_id="c1", attempt=1, usage=None):
 
 def test_full_model_review_three_labels_without_automatic_approval():
     result = summarize([row()])
-    assert result["schema_version"] == 3
+    assert result["schema_version"] == 4
     assert result["model_all_positive_count"] == result["complete_model_review_item_count"] == 1
     assert result["evaluated_phase_count"] == result["planned_phase_count"] == 2
     assert result["selected_evaluated_phase_count"] == result["selected_phase_count"] == 2
@@ -245,7 +245,7 @@ def test_functions_do_not_mutate_inputs():
 def test_pending_preserves_positive_labels_completion_and_queue():
     sample = row()
     state = sample["support"]
-    reason = {"code": "citation_page_unresolved_in_multipage_chunk", "path": "citation_evidence[0]"}
+    reason = {"code": "citation_identity_conflict", "path": "citation_evidence[0]"}
     state["human_review"] = {"status": "pending", "reasons": [reason]}
     state["verification"] = {"structure": "valid", "consistency": "valid", "evidence": "diagnostics",
                              "diagnostics": [reason], "evidence_records": [
@@ -262,7 +262,7 @@ def test_pending_preserves_positive_labels_completion_and_queue():
     assert state["model_review"]["citation_support"] == "supported"
     report = render_judge_report(result, [sample])
     assert "citation_support: supported" in report
-    assert "交由人工检查" in report and "不是最终通过" in report
+    assert "citation_identity_conflict" in report and "待人工复核" in report and "不是最终通过" in report
     assert "来源：week1.pdf · 页范围 1–2" in report
 
 
