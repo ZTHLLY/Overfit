@@ -1,15 +1,16 @@
 """Layer 7 -- Generator.
 
-Assembles a prompt from retrieved material, calls the language model under a
-JSON schema, validates what comes back, and renders Markdown.
+Assembles a prompt from retrieved material, asks the language model for a JSON
+object, validates what comes back against the internal schema, and renders
+Markdown.
 
 Three things here are load-bearing:
 
 **The schema is the grounding mechanism.** Requiring `source` and `page` on
-every item forces the model to point at something it was given. That is an
-enforceable constraint in a way that "please do not make things up" in a
-prompt is not -- and the citation it produces is checkable by a human, which
-is the actual guarantee this tool offers.
+every accepted item rejects output that does not point at something it was
+given. That is an enforceable constraint in a way that "please do not make
+things up" in a prompt is not -- and the citation it produces is checkable by
+a human, which is the actual guarantee this tool offers.
 
 **Validation with retry, not hope.** A 27B model running locally follows a
 schema most of the time, not always. When it does not, the failure is fed
@@ -17,10 +18,10 @@ back to it and the request is repeated. Without this the command fails on a
 missing field after a minute of generation, which is the most annoying
 possible outcome.
 
-**Graceful degradation on structured output.** Not every endpoint supports
-schema-constrained decoding. We ask for it, fall back to plain JSON mode, and
-in the last resort parse JSON out of prose -- validating identically in all
-three cases, so a weaker server means a slower path, not a broken one.
+**Portable structured output.** OpenAI-compatible endpoints do not all support
+strict schema-constrained decoding. JSON-object mode is the common provider
+contract; in the last resort we parse JSON out of prose. Both paths are
+validated identically against the internal Pydantic schema.
 """
 
 from __future__ import annotations
@@ -43,11 +44,20 @@ from overfit.evaluation.contracts import TraceWriteError
 from overfit.evaluation.trace import safe_error
 from overfit.models import Chunk, GeneratedExam, GeneratedItem
 
-__all__ = ["GenerationError", "GenerationResult", "Generator"]
+__all__ = [
+    "GenerationCallBudgetExceeded",
+    "GenerationError",
+    "GenerationResult",
+    "Generator",
+]
 
 
 class GenerationError(OverfitError):
     """The model never produced output matching the schema."""
+
+
+class GenerationCallBudgetExceeded(GenerationError):
+    """A caller-owned provider-call budget was exhausted before dispatch."""
 
 
 @dataclass
@@ -99,6 +109,7 @@ class Generator:
         count: int,
         topic: str | None = None,
         max_attempts: int | None = None,
+        max_calls: int | None = None,
         on_token=None,
         recorder=None,
     ) -> GenerationResult:
@@ -115,6 +126,7 @@ class Generator:
             user,
             GeneratedExam,
             max_attempts or get_settings().max_retries + 1,
+            max_calls=max_calls,
             on_token=on_token,
             **({"recorder": recorder} if recorder is not None else {}),
         )
@@ -239,25 +251,33 @@ class Generator:
 
     def _complete(
         self, system: str, user: str, schema, max_attempts: int, on_token=None,
-        recorder=None,
+        recorder=None, max_calls: int | None = None,
     ):
         """Call the model until the reply validates, or give up with detail."""
+        if max_calls is not None and (type(max_calls) is not int or max_calls < 1):
+            raise GenerationCallBudgetExceeded(
+                "Generation provider-call budget exhausted before dispatch."
+            )
         client = self._ensure_client()
         messages = [
             {"role": "system", "content": system},
             {"role": "user", "content": user},
         ]
-        json_schema = schema.model_json_schema()
         problems: list[str] = []
+        calls_used = 0
 
         for attempt in range(1, max_attempts + 1):
-            # Strongest constraint the endpoint will accept, weakening as we
-            # learn what it rejects.
+            # JSON-object mode is the portable provider contract. If an older
+            # endpoint rejects even that, fall back to parsing JSON from text.
             raw = None
             for format_index, response_format in enumerate(
-                _response_formats(json_schema, attempt), start=1
+                _response_formats(), start=1
             ):
                 try:
+                    if max_calls is not None and calls_used >= max_calls:
+                        raise GenerationCallBudgetExceeded(
+                            "Generation provider-call budget exhausted before dispatch."
+                        )
                     trace_args = {} if recorder is None else {
                         "recorder": recorder, "attempt_index": attempt,
                         "format_index": format_index,
@@ -265,10 +285,12 @@ class Generator:
                     raw = self._stream(
                         client, response_format, messages, on_token, **trace_args
                     )
+                    calls_used += 1
                     break
-                except TraceWriteError:
+                except (TraceWriteError, GenerationCallBudgetExceeded):
                     raise
                 except Exception as exc:  # noqa: BLE001 - endpoint capability probe
+                    calls_used += 1
                     detail = str(exc) if recorder is None else "provider call failed"
                     problems.append(f"attempt {attempt}: {type(exc).__name__}: {detail}")
             if raw is None:
@@ -363,18 +385,8 @@ class Generator:
         )
 
 
-def _response_formats(json_schema: dict, attempt: int):
-    """Constraint options, strongest first.
-
-    Schema-constrained decoding makes an invalid reply impossible rather than
-    unlikely, so it is always worth asking for. Older or lighter servers
-    reject the parameter outright, hence the ladder.
-    """
-    if attempt == 1:
-        yield {
-            "type": "json_schema",
-            "json_schema": {"name": "exam", "schema": json_schema, "strict": True},
-        }
+def _response_formats():
+    """Portable structured-output options, strongest first."""
     yield {"type": "json_object"}
     yield None  # unconstrained; _extract_json will dig the object out
 
@@ -402,36 +414,35 @@ def _extract_json(raw: str) -> dict:
 
 
 _ITEM_KEYS = {"question", "answer", "source", "page"}
+_QUESTION_LIST_KEYS = ("items", "questions", "exam", "results")
 
 
 def _coerce(data: object) -> object:
     """Accept the shapes a model reasonably chooses instead of the exact one.
 
-    Asked for `{"items": [...]}`, models routinely return the bare array, or
-    wrap it under a name of their own -- `questions`, `exam`, `results`.
+    The wire contract asks for `{"questions": [...]}`, while the internal
+    model deliberately remains `GeneratedExam.items`. Older models and saved
+    fixtures may still use `items`, a bare array, or one of the two historical
+    explicit aliases `exam` and `results`.
     Every one of those carries exactly the information requested; rejecting
     them is pedantry that costs a retry, a minute, and tokens, and often
     fails again the same way.
 
-    The rule is to coerce only where the intent is unambiguous. A bare list
-    can only be the list. A single-key object whose value is a list can only
-    be that list under another name. Anything genuinely ambiguous is passed
-    through untouched, so validation still catches real mistakes -- being
-    liberal here must not become being credulous.
+    The rule is to coerce only allowlisted shapes. An arbitrary single list
+    such as `{"warnings": []}` is not a question collection and must fail
+    validation rather than silently becoming an empty exam.
     """
     if isinstance(data, list):
         return {"items": data}
 
     if isinstance(data, dict):
-        if "items" in data:
-            return data
+        for key in _QUESTION_LIST_KEYS:
+            if key in data:
+                value = data[key]
+                return {"items": value} if key != "items" else data
         # A single item returned on its own, without any list around it.
         if _ITEM_KEYS.issubset(data.keys()):
             return {"items": [data]}
-        # The list under a different name: {"questions": [...]}
-        lists = [value for value in data.values() if isinstance(value, list)]
-        if len(lists) == 1:
-            return {"items": lists[0]}
 
     return data
 

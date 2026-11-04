@@ -10,6 +10,7 @@ from typer.testing import CliRunner
 
 from overfit import cli
 from overfit.config import EmbedSettings, LLMSettings, Settings
+from overfit.errors import RerankError
 from overfit.evaluation import live
 from overfit.evaluation.contracts import TraceWriteError
 from overfit.evaluation.trace import TraceWriter
@@ -99,6 +100,72 @@ def test_live_commits_complete_run_and_never_overwrites_course_files(setup):
     assert second["run_dir"] != result["run_dir"]
 
 
+def test_topic_trace_records_actual_reranker_service_identity(setup):
+    service = SimpleNamespace(
+        adapter=SimpleNamespace(
+            provider="openrouter",
+            model="override/reranker",
+            base_url="https://override.example/api/v1?token=SECRET",
+        ),
+        timeout=12.0,
+    )
+
+    result = live.run_mock_trace(
+        setup.settings,
+        setup.open_store,
+        course="COURSE",
+        questions=1,
+        topic="clustering",
+        material=0,
+        reranker=service,
+    )
+
+    assert result["exit_code"] == 0
+    manifest = json.loads((Path(result["run_dir"]) / "manifest.json").read_text())
+    config = manifest["config"]
+    assert config["rerank_provider"] == "openrouter"
+    assert config["rerank_model"] == "override/reranker"
+    assert config["rerank_endpoint"] == "https://override.example/api/v1"
+    assert config["rerank_timeout"] == 12.0
+    assert "SECRET" not in json.dumps(manifest)
+
+
+def test_cli_topic_trace_uses_cli_built_service_identity(setup, monkeypatch):
+    service = SimpleNamespace(
+        adapter=SimpleNamespace(
+            provider="openrouter",
+            model="cli/reranker",
+            base_url="https://cli.example/api/v1",
+        ),
+        timeout=9.0,
+    )
+    monkeypatch.setattr(cli, "_make_rerank_service", lambda *args, **kwargs: service)
+
+    result = CliRunner().invoke(
+        cli.app,
+        [
+            "mock",
+            "--course",
+            "COURSE",
+            "--topic",
+            "clustering",
+            "--trace",
+            "--rerank-model",
+            "cli/reranker",
+        ],
+    )
+
+    assert result.exit_code == 0, result.output
+    run_dir = max((setup.settings.outputs_dir / "eval").iterdir())
+    manifest = json.loads((run_dir / "manifest.json").read_text())
+    config = manifest["config"]
+    assert config["rerank_model"] == "cli/reranker"
+    assert config["rerank_endpoint"] == "https://cli.example/api/v1"
+    assert config["rerank_timeout"] == 9.0
+    assert manifest["task"]["questions"] == 30
+    assert manifest["task"]["material_budget"] == 10
+
+
 @pytest.mark.parametrize("raw,outcome", [
     ('{"items": []}', "model_empty"),
     (json.dumps({"items": [{"topic": "T", "question": "Q", "answer": "A",
@@ -121,6 +188,23 @@ def test_initialization_failure_contacts_no_service(setup, monkeypatch):
     result = run(setup)
     assert result["exit_code"] == 1 and result["run_dir"] is None
     assert setup.actions == [] and setup.calls == []
+    assert "SECRET" not in json.dumps(result)
+
+
+def test_trace_rerank_failure_returns_only_safe_terminal_status(setup, monkeypatch):
+    monkeypatch.setattr(
+        retriever,
+        "gather_material",
+        lambda *args, **kwargs: (_ for _ in ()).throw(
+            RerankError("SECRET provider failure", attempts=3)
+        ),
+    )
+
+    result = run(setup)
+
+    assert result["exit_code"] == 1
+    assert result["rerank_failed"] is True
+    assert result["rerank_attempts"] == 3
     assert "SECRET" not in json.dumps(result)
 
 
@@ -179,7 +263,12 @@ def test_cli_trace_route_runs_and_default_route_does_not_create_eval(setup, monk
     assert result.exit_code == 0, result.output
     assert "Trace status: completed" in result.output
     eval_root = setup.settings.outputs_dir / "eval"
-    count = len(list(eval_root.iterdir()))
+    run_dirs = list(eval_root.iterdir())
+    assert len(run_dirs) == 1
+    manifest = json.loads((run_dirs[0] / "manifest.json").read_text())
+    assert manifest["task"]["questions"] == 30
+    assert manifest["task"]["material_budget"] == 60
+    count = len(run_dirs)
     # The original branch is deliberately not subject to the new trace assertion.
     class Store:
         def __enter__(self):
@@ -192,6 +281,10 @@ def test_cli_trace_route_runs_and_default_route_does_not_create_eval(setup, monk
     assert setup.settings.output_path("COURSE", "mock_exam.md").exists()
     assert len(list(eval_root.iterdir())) == count
     assert "timeout" not in setup.calls[-1]
+
+
+def test_settings_default_question_count_matches_mock_cli_default(setup):
+    assert setup.settings.num_questions == 30
 
 
 @pytest.mark.parametrize("failed_artifact", [
@@ -240,7 +333,7 @@ def test_generation_exhaustion_is_failed_not_model_empty(setup):
     setup.use_response(RuntimeError("SECRET provider error"))
     result = run(setup)
     assert result["status"] == "failed" and result["exit_code"] == 1
-    assert len(setup.calls) == 3
+    assert len(setup.calls) == 2
     terminal = events(result["run_dir"])[-1]["payload"]
     assert terminal["generation_outcome"] == "failed" and terminal["stage"] == "generation"
     assert "SECRET" not in json.dumps(events(result["run_dir"]))

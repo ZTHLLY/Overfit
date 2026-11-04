@@ -31,7 +31,7 @@ SQLite 文件是两半之间的持久化边界。当前代码没有 LangChain、
 | `ParsedDocument` | `source`, `pages` | Parser → Chunker |
 | `Chunk` | `id`, `text`, `source`, `page`, `page_end`, `section` | Chunker → Embedder/Store/Prompt |
 | `EmbeddedChunk` | `chunk`, `embedding` | Embedder → Store；Store → Selection |
-| `RetrievedChunk` | `chunk`, `score` | Store/Retriever → CLI |
+| `RetrievedChunk` | `chunk`, `vector_score`, `vector_rank`, optional `rerank_score`, `rerank_rank`; `score` is a read-only compatibility view | Store/Retriever → CLI |
 | `GeneratedItem` | `topic`, `question`, `answer`, `source`, `page` | LLM → Pydantic → renderer |
 | `GeneratedExam` | required `items` list（允许显式空列表） | Generator 输出 |
 
@@ -241,14 +241,16 @@ hash 未变才标记 `cached`。内容改变只重建该文件；`--force` 忽�
 ```text
 query string
   → 同一个 Embedder.embed_one()
-  → VectorStore.search(top_k, fetch_k)
-  → RetrievedChunk(chunk, cosine score)
+  → VectorStore.search_candidates(最多 40)
+  → OpenRouter voyageai/rerank-3
+  → 最多 10 个最终 RetrievedChunk
 ```
 
-当前是 dense vector KNN，没有 lexical/hybrid search、metadata filter、query
-rewriting 或 cross-encoder re-ranking。`fetch_k` 已预留宽候选接口，但目前直接
-截为 `top_k`。向量相近表示“谈论相近主题”，不保证 passage 真正回答 query；
-这也是 `search` 命令存在的原因。
+Dense KNN 只提供宽候选集；reranker 同时读取 query 和每个 candidate text，
+输出最终相关性顺序。vector/rerank score 和 rank 分开保留，便于诊断排名
+变化。产品 query 路径缺少 reranker 配置时 fail fast；`retrieve_dense()` 是显式
+评测 baseline，不是产品 fallback。当前仍没有 lexical/hybrid search、metadata
+filter 或 query rewriting。
 
 ### 6.2 为整份产物选材
 
@@ -264,11 +266,15 @@ rewriting 或 cross-encoder re-ranking。`fetch_k` 已预留宽候选接口，�
   5. 每组内继续选相互有距离的代表性材料，减少重复。
 - **有 `--topic`：**
   1. embed topic；
-  2. 先从 vector index 取默认 40 个候选（至少覆盖请求 count）；
-  3. 在候选内用 MMR，按 relevance 与 redundancy 的 min-max 值组合；
-  4. `gather_material` 当前传入 `diversity=0.4`。
+  2. 从 vector index 取最多 40 个候选；
+  3. 过滤不足 200 字符等低信息文本；
+  4. 调用 reranker 对剩余候选重排；
+  5. 按 rerank 顺序扫描，移除完全/近重复（cosine `>=0.92`），并限制每个
+     source 最多两个 chunk；
+  6. topic mock 默认最终材料预算为 10，`--material` 可覆盖。
 
-Clustering 使用 deterministic farthest-point seeds + 最多 6 轮 Lloyd assignment，
+No-topic clustering 使用 deterministic farthest-point seeds + 最多 6 轮 Lloyd
+assignment，
 每组选择接近 centroid 且内容足够长的 member。通常先排除不足 200 字符的生成
 候选；若因此不够用，会退回最长的材料。代表性中的长度权重在 400 字符饱和，
 避免短标题成为 topic representative。最后按 `(source, page)` 排序交给模型。
@@ -289,23 +295,27 @@ question 数会如何分配。`coverage` 打印生成器会看到的选材；两
 模型生成最多指定数量的问题，并允许跳过行政通知、碎片或不适合出题的材料。
 `system.j2` 要求只使用所给材料、问题自包含、答案引用 file/page、宁缺毋滥。
 
-默认选材数是 `questions × 2`；`--material` 非零时直接采用该数。`--topic` 同时
-影响 selection 和 prompt 的 focus 行。这里的数是 selection budget，不是返回数量
-保证；候选不足或组内 slot 超过 member 数时，实际 passages 可以更少。
+无 topic 时默认选材数是 `questions × 2`（当前默认 30 题，即 60 个
+passages）；topic 模式默认最终材料数是 10。`--material` 非零时覆盖对应
+默认。`--topic` 同时影响 selection 和 prompt 的 focus 行。这些数是
+selection budget，不是返回题数保证；候选不足或去重/限源后，实际
+passages 可以更少。
 
 ### 7.2 响应约束和重试
 
 Generator 使用 streaming chat completions，按以下强度逐级退化：
 
-1. 首次优先请求 strict `json_schema`；
-2. endpoint 不支持时尝试 `json_object`；
-3. 最后不带 response format，从回复文字中提取 JSON object。
+1. 优先请求兼容面更广的 `json_object`，并要求 wire envelope 为
+   `{"questions": [...]}`；
+2. endpoint 不支持时不带 response format，从回复文字中提取 JSON object。
 
 返回值会经过 JSON 解析和 Pydantic `GeneratedExam` 校验。为了兼容信息完整但
-wrapper 不同的回复，代码可把 bare list、单个完整 item、或唯一 list 字段
-（如 `questions`）规范成 `{"items": [...]}`。真正缺字段/类型不符则把第一条
+wrapper 不同的旧回复，代码可把 bare list、单个完整 item，或白名单字段
+`items`/`questions`/`exam`/`results` 规范成 `{"items": [...]}`；不会猜测任意
+单列表字段。真正缺字段/类型不符则把第一条
 校验错误连同原回复反馈给模型重试。`MAX_RETRIES=3` 表示正常最多 4 个 attempt。
-显式 `{"items": []}` 是合法的诚实输出；缺少 `items` 不是。
+wire 层显式 `{"questions": []}` 和兼容层旧格式 `{"items": []}` 都是合法的诚实
+输出；缺少任何允许的题目集合字段不是。
 `items` 当前没有 schema-level 最大长度，Generator 也不截断，因此 prompt 虽要求
 “up to count”，不遵守该上限的模型仍可能返回并写出更多题。
 
@@ -367,18 +377,17 @@ SQLite schema。因此表中不需要 embed query 的 index 命令（包括 `sta
 
 ## 自动化测试现状
 
-`tests/test_parser.py` 当前只有 5 个 parser invariant tests：前四个用 synthetic
-`Page` 覆盖页码保留、结构化 block 保护、labelled furniture 优先与断行连字符恢复；
-第五个读取临时空文本文件并检查空文档报错。Loader、
-Chunker、Embedder、Store、Retriever/Selection、Generator、CLI、真实 PDF backend
-和端到端链路都尚无自动化覆盖。
+当前全量回归为 **743 passed**，覆盖 Parser、Loader、Chunker、Embedder、
+Store、Retriever/Selection、reranker、Generator、trace/replay、Judge、挑战评测与 CLI。
+默认测试使用 fake provider 并禁止真实 API；live integration/eval 只能由用户
+显式发起。Ruff 与 `git diff --check` 也是当前提交前验证的一部分。
 
 ## Roadmap（不是现状）
 
 - OCR；
-- lexical/hybrid search、re-ranking；
+- lexical/hybrid search、query rewriting；
 - `summary`、`compare`、`relate`；
 - 多课程批量产物；
 - section 提取与 section citation；
 - remote source loader；
-- 覆盖所有层的 unit/integration/end-to-end tests。
+- 更大规模与更多 provider 的 integration/end-to-end 扩展。

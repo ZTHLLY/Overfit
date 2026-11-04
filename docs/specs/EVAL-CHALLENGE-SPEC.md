@@ -1,12 +1,11 @@
 # Judge Challenge 执行入口 Spec
 
-> **2026-10-06 版本更新：** 新运行是 challenge-v2 / schema 2 + judge-v4；仍读取原 suite v1，新增来源使用显式 inputs/annotations v2。v2 输入要求正整数页和同源材料，不以旧严格页 membership 阻断邻页案例；严格与弹性结果并列。完整新契约与验收见 [文档结构 spec](/Users/silver/Documents/github/Overfit/docs/specs/DOCUMENT-STRUCTURE-SPEC.md) 第 9 节和 [实施计划](/Users/silver/Documents/github/Overfit/docs/plans/DOCUMENT-STRUCTURE-PLAN.md)。下文保留旧阶段契约与证据；版本差异以本说明和新契约为准，历史产物不改写。
+> **2026-11-03 运行更新：** 当前完整运行为 challenge-v2 / schema 2 + judge-v4；仍读取原 suite v1，新增来源使用显式 inputs/annotations v2。v2 输入要求正整数页和同源材料，不以旧严格页 membership 阻断邻页案例；严格与弹性结果并列。完整新契约与验收见 [文档结构 spec](DOCUMENT-STRUCTURE-SPEC.md) 第 9 节和 [实施计划](../plans/DOCUMENT-STRUCTURE-PLAN.md)。下文保留旧阶段契约与证据；版本差异以本说明和新契约为准，历史产物不改写。
 
 
-> 版本：0.1 · 日期：2026-10-06 · 状态：已实现并通过独立离线验收（519 tests）；仅执行离线 prepare，未调用真实 challenge 模型或完成语义校准。
-> 用户已授权文档后实现；本轮不调用模型、不改数据集或历史结果、不 commit/push。
+> 版本：0.1 · 原始日期：2026-10-06 · 状态：离线实现与验收已完成；用户授权的 7-case 真实运行于 2026-11-03 完成。
 
-实施见 [EVAL-CHALLENGE-PLAN.md](/Users/silver/Documents/github/Overfit/docs/plans/EVAL-CHALLENGE-PLAN.md)，数据见 [ifn580_v1 README](/Users/silver/Documents/github/Overfit/eval/judge_challenges/ifn580_v1/README.md)。正式 trace judge 契约仍见 [EVAL-JUDGE-SPEC.md](/Users/silver/Documents/github/Overfit/docs/specs/EVAL-JUDGE-SPEC.md)。
+实施见 [EVAL-CHALLENGE-PLAN.md](../plans/EVAL-CHALLENGE-PLAN.md)，数据见 [ifn580_v1 README](../../eval/judge_challenges/ifn580_v1/README.md)。正式 trace judge 契约仍见 [EVAL-JUDGE-SPEC.md](EVAL-JUDGE-SPEC.md)。
 
 ## 1 目标与非目标
 
@@ -105,3 +104,23 @@ outputs/eval/challenges/<UUID>/
 | C-09 | 既有全部测试回归；judge.py/runner.py/metrics.py哈希不变，正式replay兼容保留 |
 
 作者测试与独立 reviewer 分开；测试仅 fake client 和禁网络 fixture。最终按真实证据回填计划，不将工程验收或 prepare 说成已跑通真实 challenge。
+
+## 7 真实运行证据与历史对照
+
+当前完整运行为
+challenge-v2 / judge-v4 `87378834-46cb-42dd-8e1e-e558cc95353e` (local artifact: `outputs/eval/challenges/87378834-46cb-42dd-8e1e-e558cc95353e/report.md`)：
+7 cases（3 controls + 4 mutants）、14/14 调用与响应、0 重试、0 技术错误、58,434 tokens，
+成本未知，2 cases 待人工复核。三个 control 均为模型三维正向意见；人工对照
+设计目标后，每个 mutant 至少在一个设计目标维度出现预期方向判定；
+case-004 的 citation 仍是 `supported`。这是对原始结果
+的人工读取，不是程序自动准确率，也不将未校准的小样本外推为生产可靠性。
+
+历史的 challenge-v1 / judge-v3 运行
+`439cafe9-26f7-4b1b-b261-689ba9126033` (local artifact: `outputs/eval/challenges/439cafe9-26f7-4b1b-b261-689ba9126033/report.md`)
+保留不改写。其 case-004 是 `material=partially_supported` +
+`citation=partially_supported`；当前 v4 同案例是
+`material=partially_supported` + `citation=supported`。这个差异与当前 rubric 将
+“内容是否被材料支持”和“引用位置是否支持”分开解释的方式一致，
+但也可能只是单次模型运行差异；两次运行不能建立版本因果或优劣，
+也不替代两条待人工项的复核。索引见
+[GENERATOR-JUDGE-CHALLENGE.md](../evaluation/GENERATOR-JUDGE-CHALLENGE.md)。

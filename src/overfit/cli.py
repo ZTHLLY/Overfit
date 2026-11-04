@@ -11,9 +11,10 @@ from pathlib import Path
 from typing import Annotated
 
 import typer
+from pydantic import SecretStr, ValidationError
 
-from overfit.config import get_settings
-from overfit.errors import OverfitError
+from overfit.config import RerankSettings, get_settings
+from overfit.errors import OverfitError, RerankConfigurationError, RerankError
 from overfit.ingestion import chunker, loader, parser
 
 app = typer.Typer(
@@ -147,6 +148,65 @@ def eval_judge_challenge(
         raise typer.Exit(result["exit_code"])
 
 
+@eval_app.command("generator-challenge")
+def eval_generator_challenge(
+    suite_dir: Annotated[
+        Path, typer.Argument(help="Controlled Generator fixture suite directory.")
+    ],
+    execute: Annotated[
+        bool,
+        typer.Option("--execute", help="Explicitly call the configured Generator."),
+    ] = False,
+    max_calls: Annotated[
+        int,
+        typer.Option(
+            "--max-calls",
+            min=0,
+            help="Global provider-call budget including format fallbacks.",
+        ),
+    ] = 0,
+    max_items: Annotated[
+        int | None,
+        typer.Option("--max-items", min=1, help="Execute only the first N cases."),
+    ] = None,
+    max_attempts: Annotated[
+        int,
+        typer.Option("--max-attempts", min=1, help="Validation attempts per case."),
+    ] = 2,
+) -> None:
+    """Prepare or explicitly execute isolated Generator material fixtures."""
+    from overfit.evaluation.generator_challenge import (
+        GeneratorChallengeError,
+        run_generator_challenge,
+    )
+
+    try:
+        settings = get_settings() if execute else None
+        result = run_generator_challenge(
+            suite_dir,
+            execute=execute,
+            max_calls=max_calls,
+            max_items=max_items,
+            max_attempts=max_attempts,
+            output_dir=Path("outputs"),
+            settings=settings,
+        )
+    except (GeneratorChallengeError, ValidationError, OSError) as exc:
+        typer.secho(str(exc), fg=typer.colors.RED, err=True)
+        raise typer.Exit(1) from None
+
+    typer.echo(f"Generator challenge status: {result['status']}")
+    typer.echo(
+        f"Cases: {len(result['records'])}/{result['selected_count']}; "
+        f"provider calls: {result['call_count']}/{result['max_calls']}"
+    )
+    if not execute:
+        typer.echo("Prepare only: no settings, keys, or model calls were used.")
+    typer.echo(f"Report: {Path(result['report_path']).resolve()}")
+    if result["exit_code"]:
+        raise typer.Exit(result["exit_code"])
+
+
 @app.callback(invoke_without_command=True)
 def _root(ctx: typer.Context) -> None:
     if ctx.invoked_subcommand is None:
@@ -158,6 +218,79 @@ PathOpt = Annotated[
     Path | None,
     typer.Option("--path", "-p", help="Read from this directory instead of COURSES_DIR."),
 ]
+
+
+def _make_rerank_service(
+    settings,
+    *,
+    provider: str | None = None,
+    api_key: str | None = None,
+    model: str | None = None,
+    base_url: str | None = None,
+    timeout: float | None = None,
+):
+    """Apply one-invocation CLI overrides and validate before opening an index."""
+    from overfit.query.rerankers.openrouter import OpenRouterReranker
+    from overfit.query.rerankers.service import RerankService
+
+    values = settings.rerank.model_dump()
+    updates = {
+        "provider": provider,
+        "model": model,
+        "base_url": base_url,
+        "timeout": timeout,
+    }
+    values.update({key: value for key, value in updates.items() if value is not None})
+    if api_key is not None:
+        values["api_key"] = SecretStr(api_key)
+    try:
+        config = RerankSettings(_env_file=None, **values).for_query()
+    except ValidationError:
+        raise RerankConfigurationError(
+            "Invalid reranker configuration: provider must be openrouter, "
+            "model must be non-empty, base URL must use HTTPS, and timeout "
+            "must be positive."
+        ) from None
+    adapter = OpenRouterReranker(
+        api_key=config.api_key.get_secret_value(),
+        model=config.model,
+        base_url=config.base_url,
+        timeout=config.timeout,
+    )
+    return RerankService(
+        adapter,
+        output_dir=settings.outputs_dir,
+        timeout=config.timeout,
+    )
+
+
+def _report_rerank(result) -> None:
+    if result.status.value == "skipped":
+        typer.secho(
+            "[reranker] skipped reason=no_query", fg=typer.colors.CYAN, err=True
+        )
+        return
+    typer.secho(
+        f"[reranker] applied provider={result.provider} model={result.model} "
+        f"candidates={len(result.ranked)} "
+        f"selected={len(result.selected)} attempts={result.attempts} "
+        f"latency_ms={result.latency_ms:.0f}",
+        fg=typer.colors.CYAN,
+        err=True,
+    )
+
+
+def _report_rerank_skipped() -> None:
+    typer.secho("[reranker] skipped reason=no_query", fg=typer.colors.CYAN, err=True)
+
+
+def _report_rerank_failure(exc: OverfitError) -> None:
+    if isinstance(exc, RerankError):
+        typer.secho(
+            f"[reranker] failed attempts={exc.attempts}; generation aborted",
+            fg=typer.colors.RED,
+            err=True,
+        )
 
 
 @app.command()
@@ -360,6 +493,86 @@ def _open_store(course: str, *, create: bool = False):
     return store, embedder, settings
 
 
+@eval_app.command("rerank")
+def eval_rerank(
+    course: Annotated[str, typer.Option("--course", "-c", help="Indexed course name.")],
+    dataset: Annotated[
+        Path,
+        typer.Option("--dataset", help="Frozen retrieval evaluation JSON."),
+    ] = Path("eval/ifn580_eval.json"),
+    execute: Annotated[
+        bool,
+        typer.Option("--execute", help="Explicitly call the configured reranker."),
+    ] = False,
+    resume: Annotated[
+        Path | None,
+        typer.Option("--resume", help="Explicitly resume an incomplete run directory."),
+    ] = None,
+    no_cache: Annotated[
+        bool,
+        typer.Option("--no-cache", help="Ignore exact-request evaluation cache entries."),
+    ] = False,
+    rerank_provider: Annotated[str | None, typer.Option("--rerank-provider")] = None,
+    rerank_api_key: Annotated[str | None, typer.Option("--rerank-api-key")] = None,
+    rerank_model: Annotated[str | None, typer.Option("--rerank-model")] = None,
+    rerank_base_url: Annotated[str | None, typer.Option("--rerank-base-url")] = None,
+    rerank_timeout: Annotated[
+        float | None, typer.Option("--rerank-timeout", min=0.001)
+    ] = None,
+) -> None:
+    """Run the formal 47-item, two-track dense Top-40 → rerank Top-10 eval."""
+    if not execute:
+        typer.secho(
+            "No calls made. Formal rerank evaluation requires explicit --execute.",
+            fg=typer.colors.RED,
+            err=True,
+        )
+        raise typer.Exit(1)
+
+    from overfit.evaluation.rerank_runner import (
+        RerankEvalRunError,
+        run_rerank_evaluation,
+    )
+
+    try:
+        settings = get_settings()
+        service = _make_rerank_service(
+            settings,
+            provider=rerank_provider,
+            api_key=rerank_api_key,
+            model=rerank_model,
+            base_url=rerank_base_url,
+            timeout=rerank_timeout,
+        )
+        store, embedder, settings = _open_store(course)
+        with store:
+            result = run_rerank_evaluation(
+                course=course,
+                dataset_path=dataset,
+                store=store,
+                embedder=embedder,
+                reranker=service,
+                output_dir=settings.outputs_dir,
+                execute=True,
+                resume=resume,
+                no_cache=no_cache,
+                index_path=settings.db_path(course),
+            )
+    except (OverfitError, RerankEvalRunError, OSError, ValidationError) as exc:
+        typer.secho(str(exc), fg=typer.colors.RED, err=True)
+        raise typer.Exit(1) from None
+
+    typer.echo(f"Rerank evaluation status: {result['status']}")
+    typer.echo(f"Report: {result['run_dir'] / 'report.md'}")
+    if result["status"] != "complete":
+        typer.secho(
+            "Run is incomplete; inspect the report and use --resume explicitly.",
+            fg=typer.colors.RED,
+            err=True,
+        )
+        raise typer.Exit(1)
+
+
 @app.command()
 def ingest(
     course: CourseArg,
@@ -451,8 +664,15 @@ def ingest(
 def search(
     query: Annotated[str, typer.Argument(help="What to look for.")],
     course: CourseArg,
-    top_k: Annotated[int, typer.Option("--top-k", "-k", help="Results to show.")] = 5,
+    top_k: Annotated[
+        int, typer.Option("--top-k", "-k", help="Results to show.", min=1)
+    ] = 10,
     chars: Annotated[int, typer.Option(help="Characters of each chunk to print.")] = 300,
+    rerank_provider: Annotated[str | None, typer.Option("--rerank-provider")] = None,
+    rerank_api_key: Annotated[str | None, typer.Option("--rerank-api-key")] = None,
+    rerank_model: Annotated[str | None, typer.Option("--rerank-model")] = None,
+    rerank_base_url: Annotated[str | None, typer.Option("--rerank-base-url")] = None,
+    rerank_timeout: Annotated[float | None, typer.Option("--rerank-timeout", min=0.001)] = None,
 ) -> None:
     """Search the index directly, without generating anything.
 
@@ -463,10 +683,28 @@ def search(
     from overfit.query import retriever
 
     try:
+        settings = get_settings()
+        reranker = _make_rerank_service(
+            settings,
+            provider=rerank_provider,
+            api_key=rerank_api_key,
+            model=rerank_model,
+            base_url=rerank_base_url,
+            timeout=rerank_timeout,
+        )
         store, embedder, _ = _open_store(course)
         with store:
-            hits = retriever.retrieve(query, store, embedder, top_k=top_k)
+            hits = retriever.retrieve(
+                query,
+                store,
+                embedder,
+                top_k=top_k,
+                fetch_k=40,
+                reranker=reranker,
+                on_rerank=_report_rerank,
+            )
     except OverfitError as exc:
+        _report_rerank_failure(exc)
         typer.secho(str(exc), fg=typer.colors.RED, err=True)
         raise typer.Exit(1) from exc
 
@@ -475,8 +713,9 @@ def search(
 
     for rank, hit in enumerate(hits, start=1):
         typer.secho(
-            f"{rank}. {hit.score:+.3f}  {hit.chunk.citation}",
-            fg=typer.colors.GREEN if hit.score > 0.5 else typer.colors.WHITE,
+            f"{rank}. rerank={hit.rerank_score:+.3f} (r{hit.rerank_rank})  "
+            f"vector={hit.vector_score:+.3f} (r{hit.vector_rank})  {hit.chunk.citation}",
+            fg=typer.colors.GREEN,
         )
         text = " ".join(hit.chunk.text.split())
         typer.echo(f"   {text[:chars]}{'...' if len(text) > chars else ''}\n")
@@ -485,10 +724,15 @@ def search(
 @app.command()
 def mock(
     course: CourseArg,
-    questions: Annotated[int, typer.Option("--questions", "-q", help="How many.")] = 10,
+    questions: Annotated[int, typer.Option("--questions", "-q", help="How many.")] = 30,
     topic: Annotated[str | None, typer.Option(help="Restrict to one subject.")] = None,
     material: Annotated[int, typer.Option(help="Passages to draw from.")] = 0,
     trace: Annotated[bool, typer.Option("--trace", help="Record an auditable generation run.")] = False,
+    rerank_provider: Annotated[str | None, typer.Option("--rerank-provider")] = None,
+    rerank_api_key: Annotated[str | None, typer.Option("--rerank-api-key")] = None,
+    rerank_model: Annotated[str | None, typer.Option("--rerank-model")] = None,
+    rerank_base_url: Annotated[str | None, typer.Option("--rerank-base-url")] = None,
+    rerank_timeout: Annotated[float | None, typer.Option("--rerank-timeout", min=0.001)] = None,
 ) -> None:
     """Write a practice exam from the course material.
 
@@ -497,14 +741,47 @@ def mock(
     support a question, and the model needs room to skip them rather than
     being forced to pad.
     """
+    settings = get_settings()
+    try:
+        reranker = (
+            _make_rerank_service(
+                settings,
+                provider=rerank_provider,
+                api_key=rerank_api_key,
+                model=rerank_model,
+                base_url=rerank_base_url,
+                timeout=rerank_timeout,
+            )
+            if topic
+            else None
+        )
+    except OverfitError as exc:
+        _report_rerank_failure(exc)
+        typer.secho(str(exc), fg=typer.colors.RED, err=True)
+        raise typer.Exit(1) from None
+    if not topic:
+        _report_rerank_skipped()
     if trace:
         from overfit.evaluation.live import run_mock_trace
 
         result = run_mock_trace(
-            get_settings(), _open_store, course=course, questions=questions,
-            topic=topic, material=material,
+            settings,
+            _open_store,
+            course=course,
+            questions=questions,
+            topic=topic,
+            material=material,
+            reranker=reranker,
+            on_rerank=_report_rerank if topic else None,
         )
         if result["error"] is not None:
+            if result.get("rerank_failed"):
+                typer.secho(
+                    f"[reranker] failed attempts={result['rerank_attempts']}; "
+                    "generation aborted",
+                    fg=typer.colors.RED,
+                    err=True,
+                )
             typer.secho(result["error"]["message"], fg=typer.colors.RED, err=True)
         typer.echo(f"Trace status: {result['status']}")
         if result["run_dir"] is not None:
@@ -513,17 +790,22 @@ def mock(
 
     from overfit.query import generator, retriever
 
-    settings = get_settings()
     settings.ensure_dirs()
-    budget = material or questions * 2
+    budget = material or (10 if topic else questions * 2)
 
     try:
         store, embedder, _ = _open_store(course)
         with store:
             chunks = retriever.gather_material(
-                store, embedder, count=budget, topic=topic
+                store,
+                embedder,
+                count=budget,
+                topic=topic,
+                reranker=reranker,
+                on_rerank=_report_rerank if topic else None,
             )
     except OverfitError as exc:
+        _report_rerank_failure(exc)
         typer.secho(str(exc), fg=typer.colors.RED, err=True)
         raise typer.Exit(1) from exc
 
@@ -676,9 +958,22 @@ def topics(
 @app.command()
 def coverage(
     course: CourseArg,
-    count: Annotated[int, typer.Option("--count", "-n", help="Chunks to select.")] = 12,
+    count: Annotated[
+        int | None,
+        typer.Option(
+            "--count",
+            "-n",
+            help="Chunks to select (default: 10 with topic, 12 without).",
+            min=1,
+        ),
+    ] = None,
     topic: Annotated[str | None, typer.Option(help="Restrict to a topic first.")] = None,
     chars: Annotated[int, typer.Option(help="Characters of each chunk to print.")] = 180,
+    rerank_provider: Annotated[str | None, typer.Option("--rerank-provider")] = None,
+    rerank_api_key: Annotated[str | None, typer.Option("--rerank-api-key")] = None,
+    rerank_model: Annotated[str | None, typer.Option("--rerank-model")] = None,
+    rerank_base_url: Annotated[str | None, typer.Option("--rerank-base-url")] = None,
+    rerank_timeout: Annotated[float | None, typer.Option("--rerank-timeout", min=0.001)] = None,
 ) -> None:
     """Preview the material a generation command would be given.
 
@@ -690,13 +985,35 @@ def coverage(
     from overfit.query import retriever
 
     try:
+        settings = get_settings()
+        reranker = (
+            _make_rerank_service(
+                settings,
+                provider=rerank_provider,
+                api_key=rerank_api_key,
+                model=rerank_model,
+                base_url=rerank_base_url,
+                timeout=rerank_timeout,
+            )
+            if topic
+            else None
+        )
+        if not topic:
+            _report_rerank_skipped()
+        budget = count if count is not None else (10 if topic else 12)
         store, embedder, _ = _open_store(course)
         with store:
             total = store.stats()["chunks"]
             picked = retriever.gather_material(
-                store, embedder, count=count, topic=topic
+                store,
+                embedder,
+                count=budget,
+                topic=topic,
+                reranker=reranker,
+                on_rerank=_report_rerank if topic else None,
             )
     except OverfitError as exc:
+        _report_rerank_failure(exc)
         typer.secho(str(exc), fg=typer.colors.RED, err=True)
         raise typer.Exit(1) from exc
 

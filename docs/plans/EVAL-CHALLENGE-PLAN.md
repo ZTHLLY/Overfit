@@ -1,9 +1,8 @@
 # Judge Challenge 实施计划
 
-> 日期：2026-10-06 · 状态：已实现并通过独立离线验收（519 tests）；真实 suite 离线 prepare 完成，未在线执行或完成语义校准。
-> 本轮授权文档后编码；不调用真实模型，不修改数据或旧结果，不 commit/push。
+> 原始日期：2026-10-06 · 当前状态：离线实现与验收完成；2026-11-03 用户授权的 challenge-v2 / judge-v4 真实 suite 完成。
 
-行为以 [EVAL-CHALLENGE-SPEC.md](/Users/silver/Documents/github/Overfit/docs/specs/EVAL-CHALLENGE-SPEC.md) 为准。仅实现独立 challenge 执行入口，不扩成评测框架。
+行为以 [EVAL-CHALLENGE-SPEC.md](../specs/EVAL-CHALLENGE-SPEC.md) 为准。仅实现独立 challenge 执行入口，不扩成评测框架。
 
 ## 1 实施顺序
 
@@ -26,7 +25,7 @@
 - 新增独立 challenge 模块与 CLI，严格 suite loader 在配置／客户端前校验全部案例；复用已有 judge-v3 请求与响应验证，不更改正式 judge 的 rubric 或指标语义。
 - `.venv/bin/python -m pytest -q`：作者、主线程和独立 reviewer 均为 **519 passed**；主线程最终 **1.76 秒**，独立 reviewer **1.93 秒**。`.venv/bin/python -m ruff check src tests`、`git diff --check` 均通过。
 - 独立 reviewer 另完成 **8 项禁网络边界检查**：mutant 排在前面而 control 未选时不补调用、6 类坏后缀在配置前拒绝、`1e999` 来源 schema 版本数值溢出拒绝（provenance.source_tasks_schema_version）。配对报告中未执行 control 保持未评，不推断基线结论。
-- 主线程在 `socket.connect`／`connect_ex`／`getaddrinfo` 封锁下执行真实 suite 的 CLI 离线 prepare，成功生成 [prepare 报告](/Users/silver/Documents/github/Overfit/outputs/eval/challenges/47c16ac8-faed-450b-ae21-6acf7365272e/report.md)：**prepared、7 cases（3 controls + 4 mutants）、0/14 已评阶段、0 次调用**。
+- 主线程在 `socket.connect`／`connect_ex`／`getaddrinfo` 封锁下执行真实 suite 的 CLI 离线 prepare，成功生成 prepare 报告 (local artifact: `outputs/eval/challenges/47c16ac8-faed-450b-ae21-6acf7365272e/report.md`)：**prepared、7 cases（3 controls + 4 mutants）、0/14 已评阶段、0 次调用**。
 - reviewer 核验该 prepare 的完整产物 hashes、inputs/annotations 原字节快照一致、14 个阶段未评、0 call intent、空人工队列。这只验证集成准备流程，不是 challenge 模型实验。
 - **90 个 baseline 文件哈希未变**，包含 inputs/annotations、历史产物和正式 judge 的 judge.py／runner.py／metrics.py。对原正式 v3 记录 `b32e3a2e-0db7-40ad-9d48-fc80d525db1c` 只读调用 `runner._reconstruct`，6/6 阶段兼容性验证通过；没有写回历史记录或生成新语义结论。
 - 对 C-01～C-09 的独立代码复核无遗留阻塞；主实现与独立审阅分开进行。输入快照保全和工程测试不证明人工设计目标必被模型识别。
@@ -36,4 +35,19 @@
 
 离线 prepare 随时可用；实际模型执行需用户自行确认当前独立 JUDGE 配置与明确预算。7 cases 无重试需要 14 次调用；默认每阶段最多 2 次尝试，完整示例设置 JUDGE_MAX_ATTEMPTS=1 禁用 runner 重试。预算包含重试，不承诺 max-calls 14 一定完成所有阶段。只选前 N cases 不会按配对关系自动加案例，报告保留未选 control 的缺失信息。
 
-下一步是观察模型面对配对变体是否给出合理解释，不是让程序代替人宣告 judge 已达标。少量样本表现不能冒称语义校准或生产可靠性。
+该后续观察已执行，证据记录如下；程序仍不代替人宣告 judge 已达标，少量样本表现不能冒称语义校准或生产可靠性。
+
+## 5 真实运行回填（2026-11-03）
+
+- 当前运行：challenge-v2 / judge-v4 报告 (local artifact: `outputs/eval/challenges/87378834-46cb-42dd-8e1e-e558cc95353e/report.md`)；
+  7 cases（3 controls + 4 mutants），14/14 调用与响应，0 重试，0 技术错误，
+  58,434 tokens，成本未知，2 cases 待人工复核。
+- 三个 control 均为模型三维正向意见。人工将原始模型结果与设计目标对照后，
+  每个 mutant 至少在一个设计目标维度出现预期方向判定；case-004
+  的 citation 仍是 `supported`。这不是自动计分或已校准的准确率。
+- 历史 challenge-v1 / judge-v3 报告 (local artifact: `outputs/eval/challenges/439cafe9-26f7-4b1b-b261-689ba9126033/report.md`)
+  保留。case-004 从 v3 的 `material=partially_supported` +
+  `citation=partially_supported` 变为 v4 的 `material=partially_supported` +
+  `citation=supported`；该差异与当前 rubric 将内容支持和引用位置分开解释的方式一致，
+  但也可能只是单次模型运行差异；不能建立版本因果或优劣。
+- 精简索引见 [GENERATOR-JUDGE-CHALLENGE.md](../evaluation/GENERATOR-JUDGE-CHALLENGE.md)；原始响应仅保留在运行产物中。

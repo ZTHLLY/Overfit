@@ -171,10 +171,12 @@ Query 侧有三种不同操作，不能统称为一次普通 top-k：
 
 ### Direct retrieval
 
-`search` 把 query 交给同一个 `Embedder`，再由 sqlite-vec 做近邻查询。因为写入向量
-已经归一化，store 将 squared L2 distance 精确换算成 cosine similarity。当前没有
-hybrid search、metadata filtering、cross-encoder re-ranking 或 query rewriting；
-`fetch_k` 只是为未来较宽候选池预留的接口。
+`search` 把 query 交给同一个 `Embedder`，再由 sqlite-vec 取得最多 40 个 dense
+候选。因为写入向量已经归一化，store 将 squared L2 distance 精确换算成 cosine
+similarity。候选随后由 OpenRouter `voyageai/rerank-3` 重排并选出用户请求的最终
+数量（默认最多 10）；vector/rerank 两套 score 与 rank 都保留。当前仍没有
+lexical/hybrid search、metadata filtering 或 query rewriting。产品 query 路径要求
+reranker，vector-only 检索只作为显式评测 baseline，不是静默 fallback。
 
 ### Corpus-wide selection
 
@@ -194,21 +196,23 @@ hybrid search、metadata filtering、cross-encoder re-ranking 或 query rewritin
 
 ### Topic-focused selection
 
-指定 `mock --topic` 或 `coverage --topic` 时，系统先检索一个较宽候选池，再以
-Maximal Marginal Relevance（MMR）平衡 query 相关性和候选之间的重复度。MMR 的
-两项分数都先 min-max 到 `[0,1]`，避免 cosine 分布过窄使 diversity 参数失效。
+指定 `mock --topic` 或 `coverage --topic` 时，系统先取得最多 40 个 dense 候选，
+过滤低信息文本，再调用同一 reranker。最终选择按 rerank 顺序扫描，移除完全重复、
+embedding cosine `>=0.92` 的近重复，并限制每个精确 source 最多两个 chunk；不会再
+用旧的向量相关性与多样性计算覆盖 reranker 顺序。topic mock 默认最终材料预算为 10，
+显式 `--material` 可覆盖。
 
 ### Layer 7 — Generator
 
 Generator 把带 `[source pN]` 标签的 chunk 渲染进 Jinja2 prompt，并通过 OpenAI-
-compatible chat completions 流式生成。结构化输出采用逐级降级：
+compatible chat completions 流式生成。结构化输出采用可移植的逐级降级：
 
-1. 严格 `json_schema`；
-2. `json_object`；
-3. 无 response format，再从回复中提取 JSON。
+1. `json_object`，wire envelope 固定为 `{"questions": [...]}`；
+2. 无 response format，再从回复中提取 JSON。
 
 响应通过 Pydantic `GeneratedExam` 校验。失败时错误会反馈给模型并重试；合理但不同
-的 wrapper 形状（裸数组、`questions` 等单列表字段）会被无歧义地归一化。校验之后
+的白名单 wrapper（`items`、`questions`、`exam`、`results`）、裸数组或单个完整
+item 会被归一化为内部 `{"items": [...]}`；任意单列表字段不会被猜测。校验之后
 还会把每条 citation 与实际提供的 chunk 核对：不存在的 source 或远离材料范围的
 page 会被丢弃，最多相差两页的近误差会修正到最近允许页。
 
@@ -222,13 +226,13 @@ topic 分组；当前没有 multiple-choice / short-answer / applied section 分
 ![Diagnostics and verification](./diagrams/04-eval.svg)
 
 当前工作区已有 47 题的英文离线 golden set，保存在
-[/Users/silver/Documents/github/Overfit/eval/ifn580_eval.json](/Users/silver/Documents/github/Overfit/eval/ifn580_eval.json)，
+[eval/ifn580_eval.json](../eval/ifn580_eval.json)，
 本轮未修改。现已实现 opt-in `mock --trace`、严格引用检查、基础报告及离线
 `eval replay RUN_DIR`。PR 2 的独立 judge、逐题语义报告与离线判定回放也已实现；
 用户已完成真实三题生成、PR1 回放、本地和 OpenRouter judge 试跑，尚无校准基线。judge-v2 历史验收为 404 tests；judge-v3 职责修订已通过独立离线验收（439 tests），语义由模型判断、技术由程序记录、实质疑点交人工。Ragas 集成
 和自动 retrieval benchmark 仍为后续范围。上方 SVG 是 PR1 阶段示意，judge 状态以
 本节当前文字和 PR2 spec 为准。生成质量路线、数据审计与后续诊断方案见
-[EVALUATION.md](/Users/silver/Documents/github/Overfit/docs/EVALUATION.md)。
+[EVALUATION.md](EVALUATION.md)。
 下方描述的是已有诊断能力，不代表 golden set 已经完成跑分：
 
 1. `inspect --show-removed`：检查 extraction 与不可逆清理；
@@ -242,13 +246,16 @@ topic 分组；当前没有 multiple-choice / short-answer / applied section 分
 8. 人工打开引用页：确认答案真的被该页支持。代码只能证明“引用指向提供过的页”，
    不能证明答案语义完全正确。
 
-自动化测试保留 Parser 的五个不变量，并新增生成 trace/fallback、严格引用、持久化
-故障、回放完整性和假客户端 CLI 流程覆盖。测试使用合成数据和临时目录，不调用真实
-模型；历史 judge-v1 新增输入隔离、schema／证据校验、预算、指标与离线回放覆盖，共 371
-项测试通过；历史 v2 修订另有 404 项测试、Ruff 与独立复核通过证据；v3 本轮 439 项测试、Ruff、独立复核通过，未进行新在线 pilot 或语义校准。测试不证明检索质量、PDF 解析保真度或答案语义正确。PR1 历史验证使用
+当前分支全量回归为 **743 passed**。自动化测试保留 Parser 的五个不变量，并新增生成
+trace/fallback、严格引用、持久化故障、回放完整性和假客户端 CLI 流程覆盖。测试使用
+合成数据和临时目录，不调用真实模型；历史 judge-v1 新增输入隔离、schema／证据校验、
+预算、指标与离线回放覆盖，共 371 项测试通过；历史 v2 修订另有 404 项测试、Ruff 与
+独立复核通过证据；历史 v3 修订为 439 项测试、Ruff、独立复核通过，未进行新在线 pilot
+或语义校准。这些历史数量记录对应当时阶段，不替代当前 743 项全量结果。测试不证明
+检索质量、PDF 解析保真度或答案语义正确。PR1 历史验证使用
 隔离 Python 3.12.14；用户随后通过 `uv run` 修复项目 `.venv` 为 Python 3.12.13，
-PR2 使用该环境验收。当前证据见 [EVAL-JUDGE-PLAN.md](/Users/silver/Documents/github/Overfit/docs/plans/EVAL-JUDGE-PLAN.md)，
-历史证据保留在 [EVAL-TRACE-PLAN.md](/Users/silver/Documents/github/Overfit/docs/plans/EVAL-TRACE-PLAN.md)。
+PR2 使用该环境验收。当前证据见 [EVAL-JUDGE-PLAN.md](plans/EVAL-JUDGE-PLAN.md)，
+历史证据保留在 [EVAL-TRACE-PLAN.md](plans/EVAL-TRACE-PLAN.md)。
 
 ### 生成质量 MVP 的已实现基础与后续边界
 
@@ -295,8 +302,9 @@ judge-v1/v2 为历史已验收实现；当前 v3 修订已实现并独立离线�
 
 当前学习内容输出仍是 mock exam 与答案，新增 trace/replay 仅提供审计记录和基础报告。README 中曾出现的 `summary`、`compare`、
 `relate`、多课程 `--courses` 和生成式问答不是现有 CLI 命令，属于 Roadmap。其他未
-实现能力包括 OCR、hybrid search、re-ranking、自动 retrieval evaluation 和 section
-级引用。新增能力应复用七层边界，而不是绕过 provenance 与 index profile 护栏。
+未实现能力包括 OCR、hybrid search、query rewriting 和 section 级引用。当前已有
+API reranking 与显式 `eval rerank`，新增能力应复用七层边界，而不是绕过 provenance
+与 index profile 护栏。
 
 另外还有几项应按当前行为理解、而不是按理想接口推断：
 

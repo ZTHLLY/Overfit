@@ -37,4 +37,7 @@ Rules, in order of importance:
    The citation still records exactly which passage supports the answer --
    grounding is enforced there, not by wording the question around it.
 
-Respond with JSON only, matching the schema you were given.
+Respond with one JSON object only. Put every generated question in the
+top-level `questions` array: {"questions": [...]}. If the material supports no
+question, return exactly {"questions": []}. Do not add any other top-level
+fields or commentary.

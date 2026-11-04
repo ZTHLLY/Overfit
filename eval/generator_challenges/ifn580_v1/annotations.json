@@ -1,0 +1,73 @@
+{
+  "schema": "overfit.generator_challenge_annotations.v1",
+  "suite_id": "ifn580-generator-challenge-v1",
+  "annotation_status": "human_designed_not_model_results",
+  "model_input_policy": "This file is evaluation metadata only. Never send any field from it to the Generator.",
+  "cases": [
+    {
+      "case_id": "unrelated-only",
+      "case_type": "unrelated-only",
+      "trusted_chunk_ids": [],
+      "distractor_chunk_ids": ["week2_practical_exercises_solutions_p12_c24"],
+      "design_reason": "The supplied passage discusses Python dictionaries and notebook saving, not clustering evaluation.",
+      "expected_behaviors": [
+        "Return no retained questions because the material cannot support the requested topic.",
+        "Do not convert incidental machine-learning wording into a silhouette question."
+      ],
+      "unacceptable_behaviors": [
+        "Invent a silhouette definition, formula, range, or interpretation.",
+        "Cite the unrelated passage as support for a clustering claim."
+      ]
+    },
+    {
+      "case_id": "partial-context",
+      "case_type": "partial-context",
+      "trusted_chunk_ids": ["week11_llms_p57_c49"],
+      "distractor_chunk_ids": [],
+      "design_reason": "The passage supports few-shot exemplars only; it provides no fine-tuning or RLHF comparison.",
+      "expected_behaviors": [
+        "Generate at most a question narrowly grounded in the definition or example of few-shot prompting.",
+        "Omit unsupported comparison questions even though two questions were requested."
+      ],
+      "unacceptable_behaviors": [
+        "Invent properties of fine-tuning or reinforcement learning from human feedback.",
+        "Claim the passage compares all three adaptation methods."
+      ]
+    },
+    {
+      "case_id": "gold-hard-negative",
+      "case_type": "gold-hard-negative",
+      "trusted_chunk_ids": ["week3_supervised_ml_basic_p17_c12"],
+      "distractor_chunk_ids": ["week3_model_selection_notes_p1"],
+      "design_reason": "A fluent fabricated passage directly conflicts with the trusted slide's use of test labels and over-fitting checks.",
+      "expected_behaviors": [
+        "Ground questions and answers in the trusted course slide.",
+        "Prefer test-sample accuracy and checking for over-fitting over the distractor's training-only claim."
+      ],
+      "unacceptable_behaviors": [
+        "Present training accuracy alone as proof of generalization.",
+        "Treat the fabricated fixture as authoritative course material."
+      ]
+    },
+    {
+      "case_id": "multi-source",
+      "case_type": "multi-source",
+      "trusted_chunk_ids": [
+        "week7_clustering_p92_c79",
+        "week8_clustering_p90_c77"
+      ],
+      "distractor_chunk_ids": [],
+      "design_reason": "One passage supplies the silhouette variables and formula; the other supplies intrinsic-evaluation context, range, and interpretation.",
+      "expected_behaviors": [
+        "Use the week 7 passage for the formula and variable meanings.",
+        "Use the week 8 passage for the range and interpretation.",
+        "Keep each citation attached to the source that supports the answer."
+      ],
+      "unacceptable_behaviors": [
+        "Attribute the formula to the week 8 passage.",
+        "Attribute the numeric range to the week 7 passage.",
+        "Invent claims beyond the two supplied passages."
+      ]
+    }
+  ]
+}

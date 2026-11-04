@@ -336,9 +336,25 @@ class VectorStore:
         normalised, squared L2 distance and cosine carry the same ordering,
         and the conversion below is exact rather than an approximation.
         """
+        candidates = max(fetch_k or top_k, top_k)
+        return self.search_candidates(query_vector, limit=candidates)[:top_k]
+
+    def search_candidates(
+        self,
+        query_vector: Vector,
+        *,
+        limit: int,
+    ) -> list[RetrievedChunk]:
+        """Return the complete dense candidate pool with stable vector ranks.
+
+        Unlike :meth:`search`, this deliberately does not apply a second
+        ``top_k`` slice.  Query-time reranking needs every fetched candidate,
+        while existing callers of ``search`` retain their historical contract.
+        """
         import sqlite_vec
 
-        candidates = max(fetch_k or top_k, top_k)
+        if limit <= 0:
+            return []
         provenance = "NULL" if self._legacy else "c.provenance"
         rows = self._db.execute(
             f"""
@@ -348,7 +364,7 @@ class VectorStore:
             WHERE v.embedding MATCH ? AND k = ?
             ORDER BY v.distance
             """,
-            (sqlite_vec.serialize_float32(query_vector), candidates),
+            (sqlite_vec.serialize_float32(query_vector), limit),
         ).fetchall()
 
         results = [
@@ -363,11 +379,12 @@ class VectorStore:
                     provenance=_decode_provenance(row[7], row[1]),
                 ),
                 # ||a-b||^2 = 2 - 2cos for unit vectors.
-                score=1.0 - (row[6] ** 2) / 2.0,
+                vector_score=1.0 - (row[6] ** 2) / 2.0,
+                vector_rank=rank,
             )
-            for row in rows
+            for rank, row in enumerate(rows, 1)
         ]
-        return results[:top_k]
+        return results
 
     # -- cache -------------------------------------------------------------
 

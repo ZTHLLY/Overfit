@@ -69,6 +69,23 @@ def test_storage_provenance_roundtrip_selection_and_cache(tmp_path):
         assert store.all_embedded()[0].chunk.provenance["page_count"] == 12
 
 
+def test_search_candidates_is_wide_without_changing_search_top_k(tmp_path):
+    first = sample_chunk()
+    second = Chunk("second", "A second substantial passage. " * 10, "other.pdf", 2)
+    with VectorStore.open(tmp_path / "wide.db", PROFILE, create=True) as store:
+        store.add(
+            [
+                EmbeddedChunk(first, [1.0, 0.0]),
+                EmbeddedChunk(second, [0.8, 0.6]),
+            ]
+        )
+        assert len(store.search([1.0, 0.0], top_k=1, fetch_k=2)) == 1
+        candidates = store.search_candidates([1.0, 0.0], limit=2)
+        assert [item.chunk.id for item in candidates] == [first.id, second.id]
+        assert [item.vector_rank for item in candidates] == [1, 2]
+        assert candidates[0].vector_score > candidates[1].vector_score
+
+
 def test_storage_revalidates_mutated_metadata_and_rolls_back(tmp_path):
     chunk = sample_chunk()
     with VectorStore.open(tmp_path / "new.db", PROFILE, create=True) as store:

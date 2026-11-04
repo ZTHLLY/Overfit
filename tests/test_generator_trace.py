@@ -10,7 +10,12 @@ from overfit.config import LLMSettings
 from overfit.evaluation.contracts import TraceWriteError
 from overfit.models import Chunk, GeneratedExam
 from overfit.query import generator as module
-from overfit.query.generator import GenerationError, Generator, _drop_invented_citations
+from overfit.query.generator import (
+    GenerationCallBudgetExceeded,
+    GenerationError,
+    Generator,
+    _drop_invented_citations,
+)
 
 
 class Recorder:
@@ -87,31 +92,69 @@ def complete(instance, recorder=None, attempts=2):
 
 
 @pytest.mark.parametrize("traced", [False, True])
-def test_fallback_ladder_and_attempts_unchanged(traced):
+def test_json_object_is_the_first_format_and_plain_json_is_the_only_fallback(traced):
     recorder = Recorder() if traced else None
     instance = generator([
-        RuntimeError("unsupported schema"), RuntimeError("unsupported JSON"), "{}",
-        RuntimeError("unsupported JSON"), '{"items": []}',
+        RuntimeError("unsupported JSON"), "{}",
+        RuntimeError("unsupported JSON"), '{"questions": []}',
     ], recorder)
     exam, attempts, raw = complete(instance, recorder)
-    assert exam.items == [] and attempts == 2 and raw == '{"items": []}'
+    assert exam.items == [] and attempts == 2 and raw == '{"questions": []}'
     calls = instance._client.calls
     assert [call["response_format"]["type"] if call["response_format"] else None
-            for call in calls] == ["json_schema", "json_object", None, "json_object", None]
-    assert len(calls) == 5
+            for call in calls] == ["json_object", None, "json_object", None]
+    assert len(calls) == 4
     assert ("timeout" in calls[0]) is traced
     assert calls[-1]["messages"][2]["content"] == "{}"
     assert "did not match the schema" in calls[-1]["messages"][3]["content"]
     if recorder:
         starts = recorder.of("call_started")
         assert [(e["attempt_index"], e["format_index"]) for e in starts] == [
-            (1, 1), (1, 2), (1, 3), (2, 1), (2, 2),
+            (1, 1), (1, 2), (2, 1), (2, 2),
         ]
-        assert len({event["call_id"] for event in starts}) == 5
+        assert len({event["call_id"] for event in starts}) == 4
         assert [event["request"] for event in starts] == calls
         assert len(starts[0]["request"]["messages"]) == 2
         assert [event["status"] for event in recorder.of("validation_finished")] == ["invalid", "valid"]
         assert all(e["elapsed_seconds"] >= 0 for e in recorder.of("call_finished"))
+
+
+def test_questions_wire_envelope_is_normalized_to_internal_items():
+    raw = json.dumps({"questions": [item()]})
+
+    exam, attempts, returned = complete(generator([raw]), attempts=1)
+
+    assert attempts == 1 and returned == raw
+    assert [question.model_dump() for question in exam.items] == [item()]
+
+
+def test_unrecognized_list_envelope_is_not_mistaken_for_questions():
+    instance = generator(['{"warnings": []}'])
+
+    with pytest.raises(GenerationError, match="did not return valid output"):
+        complete(instance, attempts=1)
+
+
+def test_provider_call_budget_stops_before_the_next_fallback():
+    recorder = Recorder()
+    instance = generator(
+        [RuntimeError("unsupported JSON"), "{}"],
+        recorder,
+    )
+
+    with pytest.raises(GenerationCallBudgetExceeded):
+        instance._complete(
+            "system",
+            "user",
+            GeneratedExam,
+            2,
+            recorder=recorder,
+            max_calls=2,
+        )
+
+    assert len(instance._client.calls) == 2
+    assert len(recorder.of("call_started")) == 2
+    assert len(recorder.of("call_finished")) == 2
 
 
 def test_empty_body_distinct_from_valid_empty_items():
@@ -232,13 +275,16 @@ def test_equal_distance_tie_break_matches_original_set_iteration():
 def test_mock_exam_public_hook_records_material_prompt_and_citation():
     chunks = [Chunk("chunk-2", "SECOND", "notes.pdf", 5), Chunk("chunk-1", "FIRST", "notes.pdf", 8)]
     recorder = Recorder()
-    instance = generator([json.dumps({"items": [item()]})], recorder)
+    instance = generator([json.dumps({"questions": [item()]})], recorder)
     result = instance.mock_exam("COURSE", chunks, count=1, max_attempts=1, recorder=recorder)
     assert len(result.exam.items) == 1 and result.dropped == []
     request = recorder.of("call_started")[0]["request"]
     assert request == instance._client.calls[0]
     assert request["model"] == "fixture-model" and request["temperature"] == 0.25
     assert request["timeout"] == 123.0
+    system = request["messages"][0]["content"]
+    assert '{"questions": [...]}' in system
+    assert '{"questions": []}' in system
     user = request["messages"][1]["content"]
     assert user.index("SECOND") < user.index("FIRST")
     assert recorder.of("citation_processed")[0]["call_id"] == recorder.last_call_id
@@ -255,11 +301,11 @@ def test_citation_write_failure_propagates_after_only_one_call():
 
 def test_all_provider_formats_exhausted_have_error_events_and_no_validation():
     recorder = Recorder()
-    instance = generator([TimeoutError("SECRET") for _ in range(5)], recorder)
+    instance = generator([TimeoutError("SECRET") for _ in range(4)], recorder)
     with pytest.raises(GenerationError, match="after 2 attempts"):
         complete(instance, recorder)
-    assert len(instance._client.calls) == 5
-    assert len(recorder.of("call_finished")) == 5
+    assert len(instance._client.calls) == 4
+    assert len(recorder.of("call_finished")) == 4
     assert not recorder.of("validation_finished")
     for event in recorder.of("call_finished"):
         assert event["status"] == "error" and event["content"] == ""

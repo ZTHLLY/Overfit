@@ -126,8 +126,8 @@
     <rect x="1072" y="752" width="464" height="174" rx="18" fill="#ECFDF5" stroke="#A7F3D0"/>
     <text x="1096" y="785" class="eyebrow" fill="#047857">MOCK MATERIAL BUDGET</text>
     <text x="1096" y="817" class="title" fill="#065F46">selected passages → Generator</text>
-    <text x="1096" y="847" class="body">Default passage budget = questions × 2</text>
-    <text x="1096" y="870" class="body">Override with <tspan class="mono">--material</tspan>.</text>
+    <text x="1096" y="847" class="body">No topic: questions × 2. Topic: 10.</text>
+    <text x="1096" y="870" class="body">Override either with <tspan class="mono">--material</tspan>.</text>
     <text x="1096" y="893" class="small">The model may return fewer questions or an explicit empty list.</text>
   </g>
 
@@ -153,15 +153,15 @@
       <text x="486" y="1066" font-size="14" font-weight="750" fill="#065F46">Stream completion</text>
       <text x="454" y="1097" class="body">OpenAI-compatible chat endpoint</text>
       <text x="454" y="1120" class="body">with configured temperature.</text>
-      <text x="454" y="1142" class="body">Response-format ladder:</text>
-      <text x="454" y="1169" class="small mono">json_schema (first attempt)</text>
-      <text x="454" y="1189" class="small mono">→ json_object → unconstrained</text>
+      <text x="454" y="1142" class="body">Portable response-format ladder:</text>
+      <text x="454" y="1169" class="small mono">json_object {"questions": [...]}</text>
+      <text x="454" y="1189" class="small mono">→ unconstrained JSON extraction</text>
       <text x="454" y="1211" class="small">Answer and reasoning stream updates are surfaced.</text>
 
       <rect x="776" y="1031" width="326" height="198" rx="13" fill="#ECFDF5" stroke="#A7F3D0"/>
       <circle cx="803" cy="1061" r="15" fill="#059669"/><text x="803" y="1066" text-anchor="middle" class="step">3</text>
       <text x="830" y="1066" font-size="14" font-weight="750" fill="#065F46">Parse + validate + retry</text>
-      <text x="798" y="1097" class="body">Extract JSON, accept unambiguous</text>
+      <text x="798" y="1097" class="body">Extract JSON, accept allowlisted</text>
       <text x="798" y="1120" class="body">wrapper variants, then validate</text>
       <text x="798" y="1142" class="body">GeneratedExam with Pydantic.</text>
       <text x="798" y="1169" class="small">Default maximum: 4 attempts.</text>

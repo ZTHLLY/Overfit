@@ -22,10 +22,17 @@ from functools import lru_cache
 from pathlib import Path
 from typing import Literal
 
-from pydantic import Field, field_validator, model_validator
+from pydantic import Field, SecretStr, field_validator, model_validator
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
-__all__ = ["EmbedSettings", "LLMSettings", "PdfBackend", "Settings", "get_settings"]
+__all__ = [
+    "EmbedSettings",
+    "LLMSettings",
+    "PdfBackend",
+    "RerankSettings",
+    "Settings",
+    "get_settings",
+]
 
 
 # Which library turns a PDF into text -- see `parser`. Spelled as a Literal
@@ -77,6 +84,39 @@ class EmbedSettings(BaseSettings):
     model: str = "bge-m3"
 
 
+class RerankSettings(BaseSettings):
+    """Query-time OpenRouter reranker; irrelevant when no query exists."""
+
+    model_config = _ENV_FILE | SettingsConfigDict(env_prefix="OVERFIT_RERANK_")
+
+    provider: str = "openrouter"
+    base_url: str = "https://openrouter.ai/api/v1"
+    api_key: SecretStr = SecretStr("")
+    model: str = "voyageai/rerank-3"
+    timeout: float = 30.0
+
+    def for_query(self) -> RerankSettings:
+        """Validate only when a real query path needs the external service."""
+        from overfit.errors import RerankConfigurationError
+
+        if self.provider != "openrouter":
+            raise RerankConfigurationError(
+                "The first reranker provider must be openrouter."
+            )
+        if not self.base_url.startswith("https://"):
+            raise RerankConfigurationError("Reranker base URL must use HTTPS.")
+        if not self.model.strip():
+            raise RerankConfigurationError("Reranker model must not be empty.")
+        if self.timeout <= 0:
+            raise RerankConfigurationError("Reranker timeout must be positive.")
+        if not self.api_key.get_secret_value().strip():
+            raise RerankConfigurationError(
+                "Reranker API key is missing. Set OVERFIT_RERANK_API_KEY "
+                "or pass --rerank-api-key."
+            )
+        return self
+
+
 class Settings(BaseSettings):
     """Everything the pipeline needs to run."""
 
@@ -84,6 +124,7 @@ class Settings(BaseSettings):
 
     llm: LLMSettings = Field(default_factory=LLMSettings)
     embed: EmbedSettings = Field(default_factory=EmbedSettings)
+    rerank: RerankSettings = Field(default_factory=RerankSettings)
 
     # ---- Paths -----------------------------------------------------------
     # Course material does not have to live inside the repo. Point
@@ -156,10 +197,10 @@ class Settings(BaseSettings):
     chunk_overlap: int = Field(default=25, ge=0)
 
     # ---- Retrieval (layer 6) --------------------------------------------
-    top_k: int = Field(default=5, ge=1)
+    top_k: int = Field(default=10, ge=1)
 
     # ---- Generation (layer 7) -------------------------------------------
-    num_questions: int = Field(default=10, ge=1)
+    num_questions: int = Field(default=30, ge=1)
     temperature: float = Field(default=0.3, ge=0.0, le=2.0)
     max_retries: int = Field(default=3, ge=0)  # retries on schema validation failure
     # Generous, because the first call to a large local model pays for

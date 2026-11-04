@@ -66,6 +66,10 @@ def _safe_config(config: dict) -> dict:
     scalar_keys = {
         "generation_model",
         "embedding_model",
+        "rerank_provider",
+        "rerank_model",
+        "rerank_timeout",
+        "rerank_endpoint",
         "llm_model",
         "embed_model",
         "temperature",
