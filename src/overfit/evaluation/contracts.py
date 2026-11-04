@@ -46,6 +46,9 @@ class Event(_Versioned):
         "call_finished",
         "validation_finished",
         "citation_processed",
+        "batch_checkpoint",
+        "deduplication_finished",
+        "options_balanced",
         "run_finished",
     ]
     time: str = Field(min_length=1)

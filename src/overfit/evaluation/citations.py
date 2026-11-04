@@ -24,6 +24,10 @@ def check_citation(item: dict, chunks: list[dict]) -> dict:
     page = item.get("page")
     if type(page) is not int or page < 1:
         return {"status": "invalid_page", "chunk_ids": []}
+    page_end = item.get("page_end")
+    if page_end is not None and (type(page_end) is not int or page_end < page):
+        return {"status": "invalid_page", "chunk_ids": []}
+    requested_pages = set(range(page, (page_end or page) + 1))
     source = item.get("source")
     matching = [chunk for chunk in chunks if chunk["source"] == source]
     if not matching:
@@ -32,7 +36,16 @@ def check_citation(item: dict, chunks: list[dict]) -> dict:
         dict.fromkeys(
             chunk["id"]
             for chunk in matching
-            if chunk["page"] <= page <= (chunk.get("page_end") or chunk["page"])
+            if requested_pages
+            & set(range(chunk["page"], (chunk.get("page_end") or chunk["page"]) + 1))
         )
     )
-    return {"status": "valid" if ids else "page_not_supplied", "chunk_ids": ids}
+    supplied_pages = {
+        value
+        for chunk in matching
+        for value in range(chunk["page"], (chunk.get("page_end") or chunk["page"]) + 1)
+    }
+    return {
+        "status": "valid" if requested_pages <= supplied_pages else "page_not_supplied",
+        "chunk_ids": ids,
+    }

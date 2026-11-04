@@ -7,6 +7,7 @@ logic. Anything worth unit-testing belongs in a layer module.
 
 from __future__ import annotations
 
+import json
 from pathlib import Path
 from typing import Annotated
 
@@ -480,15 +481,21 @@ def _open_store(course: str, *, create: bool = False):
 
     settings = get_settings()
     embedder = get_embedder()
+    path = settings.db_path(course)
+    embed_dim = (
+        embedder.dimension
+        if create
+        else VectorStore.read_profile(path, course=course).embed_dim
+    )
     profile = IndexProfile(
         embed_model=embedder.model,
-        embed_dim=embedder.dimension,
+        embed_dim=embed_dim,
         chunk_size=settings.chunk_size,
         chunk_overlap=settings.chunk_overlap,
         parser=settings.pdf_backend,
     )
     store = VectorStore.open(
-        settings.db_path(course), profile, course=course, create=create
+        path, profile, course=course, create=create
     )
     return store, embedder, settings
 
@@ -724,10 +731,17 @@ def search(
 @app.command()
 def mock(
     course: CourseArg,
-    questions: Annotated[int, typer.Option("--questions", "-q", help="How many.")] = 30,
+    questions: Annotated[
+        int | None,
+        typer.Option("--questions", "-q", help="How many (default: 30 without --topic)."),
+    ] = None,
     topic: Annotated[str | None, typer.Option(help="Restrict to one subject.")] = None,
     material: Annotated[int, typer.Option(help="Passages to draw from.")] = 0,
     trace: Annotated[bool, typer.Option("--trace", help="Record an auditable generation run.")] = False,
+    judge: Annotated[
+        bool,
+        typer.Option("--judge", help="Explicitly run the independent MCQ Judge after generation."),
+    ] = False,
     rerank_provider: Annotated[str | None, typer.Option("--rerank-provider")] = None,
     rerank_api_key: Annotated[str | None, typer.Option("--rerank-api-key")] = None,
     rerank_model: Annotated[str | None, typer.Option("--rerank-model")] = None,
@@ -741,7 +755,27 @@ def mock(
     support a question, and the model needs room to skip them rather than
     being forced to pad.
     """
+    if topic and questions is None:
+        raise typer.BadParameter(
+            "--questions is required when --topic is supplied.",
+            param_hint="--questions",
+        )
+    questions = 30 if questions is None else questions
     settings = get_settings()
+    judge_settings = None
+    if judge:
+        from overfit.evaluation.judge import JudgeSettings
+
+        try:
+            judge_settings = JudgeSettings()
+        except (ValidationError, ValueError):
+            typer.secho(
+                "Invalid judge configuration; set JUDGE_MODEL, JUDGE_BASE_URL, "
+                "JUDGE_API_KEY and valid limits.",
+                fg=typer.colors.RED,
+                err=True,
+            )
+            raise typer.Exit(1) from None
     try:
         reranker = (
             _make_rerank_service(
@@ -761,149 +795,71 @@ def mock(
         raise typer.Exit(1) from None
     if not topic:
         _report_rerank_skipped()
-    if trace:
-        from overfit.evaluation.live import run_mock_trace
+    from overfit.evaluation.live import run_mock_trace
 
-        result = run_mock_trace(
-            settings,
-            _open_store,
-            course=course,
-            questions=questions,
-            topic=topic,
-            material=material,
-            reranker=reranker,
-            on_rerank=_report_rerank if topic else None,
-        )
-        if result["error"] is not None:
-            if result.get("rerank_failed"):
-                typer.secho(
-                    f"[reranker] failed attempts={result['rerank_attempts']}; "
-                    "generation aborted",
-                    fg=typer.colors.RED,
-                    err=True,
-                )
-            typer.secho(result["error"]["message"], fg=typer.colors.RED, err=True)
-        typer.echo(f"Trace status: {result['status']}")
-        if result["run_dir"] is not None:
-            typer.echo(result["run_dir"])
-        raise typer.Exit(result["exit_code"])
-
-    from overfit.query import generator, retriever
-
-    settings.ensure_dirs()
-    budget = material or (10 if topic else questions * 2)
-
-    try:
-        store, embedder, _ = _open_store(course)
-        with store:
-            chunks = retriever.gather_material(
-                store,
-                embedder,
-                count=budget,
-                topic=topic,
-                reranker=reranker,
-                on_rerank=_report_rerank if topic else None,
-            )
-    except OverfitError as exc:
-        _report_rerank_failure(exc)
-        typer.secho(str(exc), fg=typer.colors.RED, err=True)
-        raise typer.Exit(1) from exc
-
-    writer = generator.Generator()
-    typer.secho(f"\n{writer.model}", fg=typer.colors.CYAN)
-    typer.echo(
-        f"{len(chunks)} passages -> up to {questions} questions"
-        f"{f'   (topic: {topic})' if topic else ''}"
+    result = run_mock_trace(
+        settings,
+        _open_store,
+        course=course,
+        questions=questions,
+        topic=topic,
+        material=material,
+        reranker=reranker,
+        on_rerank=_report_rerank if topic else None,
     )
-    import time as _time
-
-    started = _time.monotonic()
-
-    # The callback only fires once the endpoint sends a stream update. While
-    # the request is queued or the model is loading, the terminal would
-    # otherwise sit blank and look indistinguishable from a hang.
-    typer.echo("  request sent, waiting for the first stream update...", nl=False)
-    first = True
-
-    def tick(answer_chunks: int, thinking_updates: int = 0) -> None:
-        nonlocal first
-        if first:
-            typer.echo("\r" + " " * 56 + "\r", nl=False)
-            first = False
-        elapsed = _time.monotonic() - started
-        total = answer_chunks + thinking_updates
-        rate = total / elapsed if elapsed else 0
-        # Show reasoning separately: a model deep in its own monologue is
-        # working, but it has not started answering, and those are different
-        # states to be waiting in.
-        stage = (
-            f"thinking {thinking_updates} updates"
-            if thinking_updates and not answer_chunks
-            else f"{answer_chunks} chunks"
-        )
-        typer.echo(f"\r  {stage}   {elapsed:>5.0f}s   {rate:4.1f} updates/s ", nl=False)
-
-    try:
-        result = writer.mock_exam(
-            course, chunks, count=questions, topic=topic, on_token=tick
-        )
-        typer.echo("\r" + " " * 56 + "\r", nl=False)
-    except OverfitError as exc:
-        typer.secho(str(exc), fg=typer.colors.RED, err=True)
-        raise typer.Exit(1) from exc
-
-    items = result.exam.items
-    if not items:
-        typer.secho(
-            "The model returned an explicitly empty list of questions.",
-            fg=typer.colors.YELLOW,
-        )
-        typer.echo(
-            "That can be honest -- the passages may be administrative or "
-            "fragmentary -- but check the reply below before believing it.\n"
-        )
-        typer.echo(f"  raw response: {result.raw[:400] or '(empty body)'}\n")
-        typer.echo("  passages it was given:")
-        for chunk in chunks:
-            preview = " ".join(chunk.text.split())[:90]
-            typer.echo(f"    {chunk.citation}  {preview}")
-        typer.echo(
-            "\nIf those passages look examinable, the model is at fault: try "
-            "--topic to focus it, or a different LLM_MODEL."
-        )
+    if result["error"] is not None:
+        if result.get("rerank_failed"):
+            typer.secho(
+                f"[reranker] failed attempts={result['rerank_attempts']}; generation aborted",
+                fg=typer.colors.RED,
+                err=True,
+            )
+        typer.secho(result["error"]["message"], fg=typer.colors.RED, err=True)
+    typer.echo(f"Trace status: {result['status']}")
+    if result["run_dir"] is not None and trace:
+        typer.echo(result["run_dir"])
+    if result["exit_code"]:
+        raise typer.Exit(result["exit_code"])
+    if result["run_dir"] is None:
         raise typer.Exit(0)
 
-    paper, answers = generator.render_exam(course, result.exam)
-    paper_path = settings.output_path(course, "mock_exam.md")
-    answers_path = settings.output_path(course, "answers.md")
-    paper_path.write_text(paper, encoding="utf-8")
-    answers_path.write_text(answers, encoding="utf-8")
+    run_dir = Path(result["run_dir"])
+    summary = json.loads((run_dir / "result.json").read_text())
+    typer.secho(f"{summary['retained_count']} MCQ questions", fg=typer.colors.GREEN)
+    if not trace and not judge and result["status"] == "completed":
+        settings.ensure_dirs()
+        paper_path = settings.output_path(course, "mock_exam.md")
+        answers_path = settings.output_path(course, "answers.md")
+        paper_path.write_text((run_dir / paper_path.name).read_text(), encoding="utf-8")
+        answers_path.write_text((run_dir / answers_path.name).read_text(), encoding="utf-8")
+        typer.echo(f"\n  {paper_path}\n  {answers_path}")
 
-    typer.secho(f"{len(items)} questions", fg=typer.colors.GREEN)
-    if len(items) < questions:
+    if judge:
+        from overfit.evaluation.runner import JudgeRunError, run_judge
+
+        try:
+            review = run_judge(run_dir, execute=True, settings=judge_settings)
+        except JudgeRunError as exc:
+            typer.secho(str(exc), fg=typer.colors.RED, err=True)
+            raise typer.Exit(1) from None
+        _judge_summary(review)
+        if not trace and review["publication"] is not None:
+            settings.ensure_dirs()
+            paper_path = settings.output_path(course, "mock_exam.md")
+            answers_path = settings.output_path(course, "answers.md")
+            paper_path.write_text(
+                Path(review["publication"]["paper"]).read_text(), encoding="utf-8"
+            )
+            answers_path.write_text(
+                Path(review["publication"]["answers"]).read_text(), encoding="utf-8"
+            )
+            typer.echo(f"\n  {paper_path}\n  {answers_path}")
         typer.echo(
-            f"  ({questions - len(items)} fewer than asked for -- the model "
-            f"judged the rest of the material unsuitable, which is allowed)"
+            f"Judged publication retained {review['metrics']['accepted_count']} questions."
         )
-    if result.dropped:
-        typer.secho(
-            f"  {len(result.dropped)} discarded for citing material that was "
-            f"not supplied:",
-            fg=typer.colors.YELLOW,
-        )
-        for note in result.dropped:
-            typer.echo(f"    {note}")
-    if result.attempts > 1:
-        typer.echo(f"  took {result.attempts} attempts to satisfy the schema")
-
-    typer.echo(f"\n  {paper_path}\n  {answers_path}")
-
-    by_topic: dict[str, int] = {}
-    for item in items:
-        by_topic[item.topic] = by_topic.get(item.topic, 0) + 1
-    typer.echo("\ntopics covered:")
-    for name, number in sorted(by_topic.items(), key=lambda kv: -kv[1]):
-        typer.echo(f"  {number:>3}  {name}")
+    else:
+        typer.echo("MCQ structure validated")
+        typer.echo("Semantic uniqueness and distractor correctness: not judged")
 
 
 @app.command()
@@ -919,9 +875,9 @@ def topics(
     returned to three times; one long handout repeating itself was not. The
     difference matters, and chunk counts cannot see it.
 
-    Ranking uses only the stored vectors; opening the index first probes the
-    configured embedding model's dimension for compatibility. The generation
-    model is not called, and every figure is checkable against the files.
+    Ranking uses only the stored vectors and persisted index profile. Neither
+    the embedding nor generation model is called, and every figure is
+    checkable against the files.
     """
     from overfit.query import retriever, selection
 

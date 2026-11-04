@@ -210,14 +210,17 @@ compatible chat completions 流式生成。结构化输出采用可移植的逐�
 1. `json_object`，wire envelope 固定为 `{"questions": [...]}`；
 2. 无 response format，再从回复中提取 JSON。
 
-响应通过 Pydantic `GeneratedExam` 校验。失败时错误会反馈给模型并重试；合理但不同
-的白名单 wrapper（`items`、`questions`、`exam`、`results`）、裸数组或单个完整
-item 会被归一化为内部 `{"items": [...]}`；任意单列表字段不会被猜测。校验之后
-还会把每条 citation 与实际提供的 chunk 核对：不存在的 source 或远离材料范围的
-page 会被丢弃，最多相差两页的近误差会修正到最近允许页。
+新生成响应只接受 `questions` wire envelope，并经机械归一化后用 Pydantic
+`GeneratedMCQExam` 校验：每题精确 A–D、一个 `correct_option`，每个 option 都携带
+text、explanation 和单一 source/page/page_end 引用。小写 label、数字页码字符串、
+页码范围及重复 `A.` 前缀可机械修正；答案语义、正确选项和来源不会自动修复。任一
+option 引用未出现在本批材料时，整题原子丢弃。
 
-最终输出两个文件：`<course>_mock_exam.md` 与 `<course>_answers.md`。题目按模型给出的
-topic 分组；当前没有 multiple-choice / short-answer / applied section 分类。
+请求按最多 10 题分批，每批最多三次 provider dispatch；完整批次 checkpoint，失败
+即停止。全批完成后做保守跨批去重、不补题，再整体移动 option 对象以平衡 A–D，并
+确定性混排。最终仍输出 `<course>_mock_exam.md` 与 `<course>_answers.md`：试卷隐藏
+topic/解释/引用，答案页保留 topic 并展示四项反馈与引用。历史 `GeneratedExam`
+短答记录仅作为 legacy read/replay contract 保留。
 
 ---
 

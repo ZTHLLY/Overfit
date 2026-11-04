@@ -73,9 +73,10 @@ class _Case(_Strict):
     chunk_ids: list[str] = Field(min_length=1)
 
 
-class _Inputs(_Strict):
-    schema_id: Literal["overfit.generator_challenge_inputs.v1"] = Field(alias="schema")
+class _MCQInputs(_Strict):
+    schema_id: Literal["overfit.generator_challenge_inputs.mcq.v1"] = Field(alias="schema")
     suite_id: str
+    generation_contract: Literal["mcq-v1"]
     chunks: list[_Chunk] = Field(min_length=1)
     cases: list[_Case] = Field(min_length=1)
 
@@ -92,7 +93,27 @@ class _Annotation(_Strict):
     unacceptable_behaviors: list[str] = Field(min_length=1)
 
 
-class _Annotations(_Strict):
+class _MCQAnnotations(_Strict):
+    schema_id: Literal["overfit.generator_challenge_annotations.mcq.v1"] = Field(
+        alias="schema"
+    )
+    suite_id: str
+    generation_contract: Literal["mcq-v1"]
+    annotation_status: Literal["human_designed_not_model_results"]
+    model_input_policy: str
+    cases: list[_Annotation] = Field(min_length=1)
+
+
+class _LegacyInputs(_Strict):
+    schema_id: Literal["overfit.generator_challenge_inputs.v1"] = Field(
+        alias="schema"
+    )
+    suite_id: str
+    chunks: list[_Chunk] = Field(min_length=1)
+    cases: list[_Case] = Field(min_length=1)
+
+
+class _LegacyAnnotations(_Strict):
     schema_id: Literal["overfit.generator_challenge_annotations.v1"] = Field(
         alias="schema"
     )
@@ -131,8 +152,23 @@ def load_suite(suite_dir: Path):
             snapshots[name] = path.read_bytes()
         inputs = _parse(snapshots["inputs.json"])
         annotations = _parse(snapshots["annotations.json"])
-        _Inputs.model_validate(inputs)
-        _Annotations.model_validate(annotations)
+        schema_pair = (inputs.get("schema"), annotations.get("schema"))
+        if schema_pair == (
+            "overfit.generator_challenge_inputs.mcq.v1",
+            "overfit.generator_challenge_annotations.mcq.v1",
+        ):
+            _MCQInputs.model_validate(inputs)
+            _MCQAnnotations.model_validate(annotations)
+        elif schema_pair == (
+            "overfit.generator_challenge_inputs.v1",
+            "overfit.generator_challenge_annotations.v1",
+        ):
+            _LegacyInputs.model_validate(inputs)
+            _LegacyAnnotations.model_validate(annotations)
+            inputs["generation_contract"] = "legacy-short-answer"
+            annotations["generation_contract"] = "legacy-short-answer"
+        else:
+            _require(False)
         _require(inputs["suite_id"] == annotations["suite_id"])
         chunks = {item["id"]: item for item in inputs["chunks"]}
         cases = {item["case_id"]: item for item in inputs["cases"]}
@@ -299,6 +335,11 @@ def run_generator_challenge(
         _require(settings is not None, "Generator settings are required for execution.")
         output_dir = settings.outputs_dir
     root, inputs, _annotations, snapshots = load_suite(suite_dir)
+    if execute and inputs["generation_contract"] != "mcq-v1":
+        raise GeneratorChallengeError(
+            "The legacy short-answer Generator challenge is read-only; "
+            "execute the versioned mcq-v1 suite instead."
+        )
     selected = inputs["cases"][:max_items]
     run_dir = _new_directory(output_dir)
     run_id = run_dir.name
@@ -313,6 +354,7 @@ def run_generator_challenge(
         "mode": "execute" if execute else "prepare",
         "suite_dir": str(root),
         "suite_id": inputs["suite_id"],
+        "generation_contract": inputs["generation_contract"],
         "snapshot_sha256": {name: _digest(raw) for name, raw in snapshots.items()},
         "max_calls": max_calls,
         "max_items": max_items,
@@ -335,6 +377,7 @@ def run_generator_challenge(
         "record_kind": RECORD_KIND,
         "run_id": run_id,
         "suite_id": inputs["suite_id"],
+        "generation_contract": inputs["generation_contract"],
         "mode": manifest["mode"],
         "status": "running" if execute else "prepared",
         "selected_count": len(selected),

@@ -18,6 +18,24 @@ from overfit.models import Chunk
 from overfit.query import generator, retriever
 
 
+def mcq_item(*, source="notes.pdf", page=5):
+    return {
+        "topic": "T",
+        "question": "Which statement is supported?",
+        "options": {
+            label: {
+                "text": f"Option {label}",
+                "explanation": f"Feedback {label}.",
+                "source": source,
+                "page": page,
+                "page_end": None,
+            }
+            for label in "ABCD"
+        },
+        "correct_option": "A",
+    }
+
+
 @pytest.fixture
 def setup(monkeypatch, tmp_path):
     monkeypatch.chdir(tmp_path)
@@ -65,8 +83,7 @@ def setup(monkeypatch, tmp_path):
         instance._client = SimpleNamespace(chat=SimpleNamespace(completions=SimpleNamespace(create=create)))
         monkeypatch.setattr(generator, "Generator", lambda *args, **kwargs: instance)
 
-    use_response(json.dumps({"items": [{"topic": "T", "question": "Q", "answer": "A",
-                                        "source": "notes.pdf", "page": 5}]}))
+    use_response(json.dumps({"questions": [mcq_item()]}))
     return SimpleNamespace(settings=settings, calls=calls, actions=actions, open_store=open_store,
                            use_response=use_response, chunks=chunks)
 
@@ -149,6 +166,8 @@ def test_cli_topic_trace_uses_cli_built_service_identity(setup, monkeypatch):
             "COURSE",
             "--topic",
             "clustering",
+            "--questions",
+            "1",
             "--trace",
             "--rerank-model",
             "cli/reranker",
@@ -162,14 +181,13 @@ def test_cli_topic_trace_uses_cli_built_service_identity(setup, monkeypatch):
     assert config["rerank_model"] == "cli/reranker"
     assert config["rerank_endpoint"] == "https://cli.example/api/v1"
     assert config["rerank_timeout"] == 9.0
-    assert manifest["task"]["questions"] == 30
+    assert manifest["task"]["questions"] == 1
     assert manifest["task"]["material_budget"] == 10
 
 
 @pytest.mark.parametrize("raw,outcome", [
-    ('{"items": []}', "model_empty"),
-    (json.dumps({"items": [{"topic": "T", "question": "Q", "answer": "A",
-                           "source": "unknown.pdf", "page": 5}]}), "all_dropped"),
+    ('{"questions": []}', "model_empty"),
+    (json.dumps({"questions": [mcq_item(source="unknown.pdf")]}), "all_dropped"),
 ])
 def test_empty_and_all_dropped_are_distinct_successes(setup, raw, outcome):
     setup.use_response(raw)
@@ -258,7 +276,7 @@ def test_invalid_trace_arguments_stop_before_any_service(setup, questions, mater
     assert setup.calls == [] and setup.actions == []
 
 
-def test_cli_trace_route_runs_and_default_route_does_not_create_eval(setup, monkeypatch):
+def test_cli_trace_and_default_route_both_create_auditable_runs(setup, monkeypatch):
     result = CliRunner().invoke(cli.app, ["mock", "--course", "COURSE", "--trace"])
     assert result.exit_code == 0, result.output
     assert "Trace status: completed" in result.output
@@ -269,7 +287,6 @@ def test_cli_trace_route_runs_and_default_route_does_not_create_eval(setup, monk
     assert manifest["task"]["questions"] == 30
     assert manifest["task"]["material_budget"] == 60
     count = len(run_dirs)
-    # The original branch is deliberately not subject to the new trace assertion.
     class Store:
         def __enter__(self):
             return self
@@ -278,13 +295,77 @@ def test_cli_trace_route_runs_and_default_route_does_not_create_eval(setup, monk
     monkeypatch.setattr(cli, "_open_store", lambda course: (Store(), object(), setup.settings))
     result = CliRunner().invoke(cli.app, ["mock", "--course", "COURSE"])
     assert result.exit_code == 0, result.output
+    assert "Semantic uniqueness and distractor correctness: not judged" in result.output
     assert setup.settings.output_path("COURSE", "mock_exam.md").exists()
-    assert len(list(eval_root.iterdir())) == count
-    assert "timeout" not in setup.calls[-1]
+    assert len(list(eval_root.iterdir())) == count + 1
+    assert setup.calls[-1]["timeout"] == setup.settings.request_timeout
 
 
 def test_settings_default_question_count_matches_mock_cli_default(setup):
     assert setup.settings.num_questions == 30
+
+
+def test_mock_judge_is_explicit_and_additional(setup, monkeypatch):
+    from overfit.evaluation import judge, runner
+
+    calls = []
+
+    judge_settings = object()
+    monkeypatch.setattr(judge, "JudgeSettings", lambda: judge_settings)
+
+    def fake_judge(run_dir, *, execute, settings):
+        assert settings is judge_settings
+        calls.append((Path(run_dir), execute))
+        return {
+            "status": "completed",
+            "report_path": str(Path(run_dir) / "judge-report.md"),
+            "exit_code": 0,
+            "publication": None,
+            "metrics": {
+                "mode": "execute", "retained_count": 1,
+                "selected_evaluated_phase_count": 1, "selected_phase_count": 1,
+                "evaluated_phase_count": 1, "planned_phase_count": 1,
+                "model_all_positive_count": 1,
+                "human_review_pending_item_count": 0,
+                "technical_error_phase_count": 0, "call_starts": 1,
+                "response_count": 1, "retry_count": 0, "accepted_count": 1,
+            },
+        }
+
+    monkeypatch.setattr(runner, "run_judge", fake_judge)
+    result = CliRunner().invoke(
+        cli.app, ["mock", "--course", "COURSE", "--questions", "1", "--judge"]
+    )
+
+    assert result.exit_code == 0, result.output
+    assert len(calls) == 1 and calls[0][1] is True
+    assert "not judged" not in result.output
+    assert "Judged publication retained 1 questions" in result.output
+
+
+def test_mock_judge_configuration_fails_before_generation(setup, monkeypatch):
+    from overfit.evaluation import judge, live
+
+    monkeypatch.setattr(
+        judge,
+        "JudgeSettings",
+        lambda: (_ for _ in ()).throw(ValueError("invalid")),
+    )
+    contacted = False
+
+    def forbidden(*args, **kwargs):
+        nonlocal contacted
+        contacted = True
+        raise AssertionError("generation must remain cold")
+
+    monkeypatch.setattr(live, "run_mock_trace", forbidden)
+    result = CliRunner().invoke(
+        cli.app, ["mock", "--course", "COURSE", "--questions", "1", "--judge"]
+    )
+
+    assert result.exit_code == 1
+    assert "Invalid judge configuration" in result.output
+    assert contacted is False and setup.calls == []
 
 
 @pytest.mark.parametrize("failed_artifact", [
@@ -333,7 +414,7 @@ def test_generation_exhaustion_is_failed_not_model_empty(setup):
     setup.use_response(RuntimeError("SECRET provider error"))
     result = run(setup)
     assert result["status"] == "failed" and result["exit_code"] == 1
-    assert len(setup.calls) == 2
+    assert len(setup.calls) == 3
     terminal = events(result["run_dir"])[-1]["payload"]
     assert terminal["generation_outcome"] == "failed" and terminal["stage"] == "generation"
     assert "SECRET" not in json.dumps(events(result["run_dir"]))

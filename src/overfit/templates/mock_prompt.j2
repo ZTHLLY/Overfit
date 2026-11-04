@@ -24,13 +24,23 @@ END OF MATERIAL
 
 Write up to {{ count }} questions drawn from the passages above.
 
-For each question set:
-  topic     two to five words naming what is being tested
-  question  self-contained; a student should be able to answer it without
-            seeing the passage it came from
-  answer    complete, and supported by the material
-  source    the file name shown in brackets above, exactly as written
-  page      the page number shown in brackets above
+For each question set exactly these fields:
+  topic           two to five words naming what is being tested
+  question        positive, self-contained, single-best-answer stem
+  options         one object with exactly four keys: A, B, C, and D
+  correct_option  exactly one of A, B, C, or D
+
+Each A-D option must be an object with exactly these fields:
+  text         the option shown to the student
+  explanation  concise feedback stating why it is correct or what is wrong,
+               including the corrected knowledge
+  source       the course-relative file name shown in brackets, exactly as written
+  page         the first cited page number
+  page_end     the final cited page number for a range, otherwise null
+
+Every option needs its own citation. The citation for an incorrect option supports
+the corrected knowledge in its explanation, not the false distractor wording.
+Do not add top-level answer/source/page fields or a difficulty field.
 
 Spread the questions across different passages. Do not write two questions
 that test the same point. If a passage is administrative, a citation, or a

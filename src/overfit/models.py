@@ -23,10 +23,13 @@ Rule of thumb: pydantic at the boundary, dataclasses on the inside.
 
 from __future__ import annotations
 
+import re
+import unicodedata
 from dataclasses import dataclass, replace
 from pathlib import Path
+from typing import Literal
 
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, ConfigDict, Field, field_validator, model_validator
 
 from overfit.provenance import validate_provenance
 
@@ -35,6 +38,9 @@ __all__ = [
     "EmbeddedChunk",
     "GeneratedExam",
     "GeneratedItem",
+    "GeneratedMCQExam",
+    "GeneratedMCQItem",
+    "GeneratedMCQOption",
     "Page",
     "ParsedDocument",
     "RetrievedChunk",
@@ -297,3 +303,124 @@ class GeneratedExam(BaseModel):
         description="One entry per question. Empty only if the material "
         "genuinely supports none."
     )
+
+
+MCQLabel = Literal["A", "B", "C", "D"]
+_NEGATIVE_STEM = re.compile(
+    r"\bexcept\b"
+    r"|^\s*(?:which|what)\s+of\s+the\s+following\s+(?:is|are)\s+"
+    r"(?:not|false|incorrect)\b"
+    r"|^\s*(?:which|what)\s+(?:statement|option|choice|claim|answer)\b"
+    r"[^?]{0,120}\b(?:is|are)\s+(?:not|false|incorrect)\b"
+    r"|^\s*what\s+(?:is|are)\s+(?:not|false|incorrect)\b",
+    re.IGNORECASE,
+)
+_ALL_OR_NONE = re.compile(r"\b(?:all|none)\s+of\s+the\s+above\b", re.IGNORECASE)
+
+
+def _sentence_count(value: str) -> int:
+    """Count prose sentences conservatively for deterministic upper bounds."""
+    return max(1, len(re.findall(r"[.!?]+(?:\s|$)", value.strip())))
+
+
+class GeneratedMCQOption(BaseModel):
+    """One complete MCQ option; feedback and evidence travel with its text."""
+
+    model_config = ConfigDict(extra="forbid", str_strip_whitespace=True)
+
+    text: str = Field(min_length=1, max_length=500)
+    explanation: str = Field(min_length=1, max_length=1200)
+    source: str = Field(min_length=1)
+    page: int = Field(strict=True, ge=1)
+    page_end: int | None = Field(strict=True, ge=1)
+
+    @field_validator("text")
+    @classmethod
+    def validate_option_text(cls, value: str) -> str:
+        if _ALL_OR_NONE.search(value):
+            raise ValueError("all/none-of-the-above options are prohibited")
+        if _sentence_count(value) > 2:
+            raise ValueError("option text must contain at most two sentences")
+        return value
+
+    @field_validator("explanation")
+    @classmethod
+    def validate_explanation(cls, value: str) -> str:
+        if _sentence_count(value) > 4:
+            raise ValueError("option explanation must contain at most four sentences")
+        return value
+
+    @model_validator(mode="after")
+    def validate_page_range(self) -> GeneratedMCQOption:
+        if self.page_end is not None and self.page_end < self.page:
+            raise ValueError("page_end must be greater than or equal to page")
+        return self
+
+    @property
+    def citation(self) -> str:
+        if self.page_end is not None and self.page_end != self.page:
+            return f"{self.source} pp{self.page}-{self.page_end}"
+        return f"{self.source} p{self.page}"
+
+
+class GeneratedMCQItem(BaseModel):
+    """A grounded, single-best-answer MCQ in canonical internal form."""
+
+    model_config = ConfigDict(extra="forbid", str_strip_whitespace=True)
+
+    topic: str = Field(min_length=1, max_length=200)
+    question: str = Field(min_length=1, max_length=1200)
+    options: dict[MCQLabel, GeneratedMCQOption]
+    correct_option: MCQLabel
+
+    @field_validator("question")
+    @classmethod
+    def validate_question(cls, value: str) -> str:
+        if _NEGATIVE_STEM.search(value):
+            raise ValueError("negative or reversal question stems are prohibited")
+        if _sentence_count(value) > 3:
+            raise ValueError("question stem must contain at most three sentences")
+        return value
+
+    @model_validator(mode="after")
+    def validate_options(self) -> GeneratedMCQItem:
+        if set(self.options) != set("ABCD"):
+            raise ValueError("options must contain exactly A, B, C, and D")
+
+        normalized = {
+            " ".join(unicodedata.normalize("NFKC", option.text).casefold().split())
+            for option in self.options.values()
+        }
+        if len(normalized) != 4:
+            raise ValueError("option texts must be distinct")
+        return self
+
+    @property
+    def correct(self) -> GeneratedMCQOption:
+        return self.options[self.correct_option]
+
+    # Read-only compatibility projections for consumers that historically
+    # received one answer and citation. They are never accepted on the wire.
+    @property
+    def answer(self) -> str:
+        return f"{self.correct.text} {self.correct.explanation}"
+
+    @property
+    def source(self) -> str:
+        return self.correct.source
+
+    @property
+    def page(self) -> int:
+        return self.correct.page
+
+    @property
+    def page_end(self) -> int | None:
+        return self.correct.page_end
+
+
+class GeneratedMCQExam(BaseModel):
+    """Canonical result for all newly generated ``mock`` questions."""
+
+    model_config = ConfigDict(extra="forbid")
+
+    items: list[GeneratedMCQItem]

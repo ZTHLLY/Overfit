@@ -72,6 +72,24 @@ def item(page=5, source="notes.pdf"):
     return {"topic": "Topic", "question": "Q?", "answer": "A", "page": page, "source": source}
 
 
+def mcq_item(page=5, source="notes.pdf"):
+    return {
+        "topic": "Topic",
+        "question": "Which statement is supported?",
+        "options": {
+            label: {
+                "text": f"Option {label}",
+                "explanation": f"Feedback {label}.",
+                "page": page,
+                "page_end": None,
+                "source": source,
+            }
+            for label in "ABCD"
+        },
+        "correct_option": "A",
+    }
+
+
 @pytest.fixture(autouse=True)
 def isolated_settings(monkeypatch, tmp_path):
     # Even accidental future settings reads have no project .env to discover.
@@ -275,7 +293,7 @@ def test_equal_distance_tie_break_matches_original_set_iteration():
 def test_mock_exam_public_hook_records_material_prompt_and_citation():
     chunks = [Chunk("chunk-2", "SECOND", "notes.pdf", 5), Chunk("chunk-1", "FIRST", "notes.pdf", 8)]
     recorder = Recorder()
-    instance = generator([json.dumps({"questions": [item()]})], recorder)
+    instance = generator([json.dumps({"questions": [mcq_item()]})], recorder)
     result = instance.mock_exam("COURSE", chunks, count=1, max_attempts=1, recorder=recorder)
     assert len(result.exam.items) == 1 and result.dropped == []
     request = recorder.of("call_started")[0]["request"]
@@ -292,7 +310,7 @@ def test_mock_exam_public_hook_records_material_prompt_and_citation():
 
 def test_citation_write_failure_propagates_after_only_one_call():
     recorder = Recorder(fail_on="citation_processed")
-    instance = generator([json.dumps({"items": [item()]})], recorder)
+    instance = generator([json.dumps({"questions": [mcq_item()]})], recorder)
     with pytest.raises(TraceWriteError):
         instance.mock_exam("COURSE", [Chunk("c1", "text", "notes.pdf", 5)],
                            count=1, recorder=recorder)
@@ -314,7 +332,7 @@ def test_all_provider_formats_exhausted_have_error_events_and_no_validation():
 
 
 def test_trace_and_untraced_results_match_when_every_item_is_dropped():
-    raw = json.dumps({"items": [item(30), item(source="unknown.pdf")]})
+    raw = json.dumps({"questions": [mcq_item(30), mcq_item(source="unknown.pdf")]})
     chunks = [Chunk("c1", "content", "notes.pdf", 5)]
     recorder = Recorder()
     traced = generator([raw], recorder).mock_exam(
@@ -328,10 +346,10 @@ def test_trace_and_untraced_results_match_when_every_item_is_dropped():
 
 
 def test_normalized_pre_policy_is_not_claimed_to_be_raw_response():
-    raw = json.dumps({"items": [item("5")]})
+    raw = json.dumps({"questions": [mcq_item("5")]})
     recorder = Recorder()
     instance = generator([raw], recorder)
     instance.mock_exam("COURSE", [Chunk("c1", "text", "notes.pdf", 5)],
                        count=1, recorder=recorder)
-    assert json.loads(recorder.of("call_finished")[0]["content"])["items"][0]["page"] == "5"
-    assert recorder.of("citation_processed")[0]["pre_policy"]["page"] == 5
+    assert json.loads(recorder.of("call_finished")[0]["content"])["questions"][0]["options"]["A"]["page"] == "5"
+    assert recorder.of("citation_processed")[0]["pre_policy"]["options"]["A"]["page"] == 5

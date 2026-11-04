@@ -18,15 +18,19 @@ from overfit.evaluation.generator_challenge import (
     run_generator_challenge,
 )
 from overfit.evaluation.replay import replay_run
-from overfit.evaluation.runner import run_judge
+from overfit.evaluation.runner import replay_judgment, run_judge
 from overfit.query.generator import Generator
+
+LEGACY_SUITE = Path(__file__).resolve().parents[1] / "eval/generator_challenges/ifn580_v1"
+MCQ_SUITE = Path(__file__).resolve().parents[1] / "eval/generator_challenges/ifn580_mcq_v1"
 
 
 def _suite(root: Path, *, sentinel: str = "ANNOTATION_SECRET") -> Path:
     root.mkdir()
     inputs = {
-        "schema": "overfit.generator_challenge_inputs.v1",
+        "schema": "overfit.generator_challenge_inputs.mcq.v1",
         "suite_id": "fixture-v1",
+        "generation_contract": "mcq-v1",
         "chunks": [
             {
                 "id": "c1",
@@ -49,8 +53,9 @@ def _suite(root: Path, *, sentinel: str = "ANNOTATION_SECRET") -> Path:
         ],
     }
     annotations = {
-        "schema": "overfit.generator_challenge_annotations.v1",
+        "schema": "overfit.generator_challenge_annotations.mcq.v1",
         "suite_id": "fixture-v1",
+        "generation_contract": "mcq-v1",
         "annotation_status": "human_designed_not_model_results",
         "model_input_policy": "Never send annotations to the model.",
         "cases": [
@@ -93,13 +98,21 @@ class _Client:
         self.calls.append(kwargs)
         content = json.dumps(
             {
-                "items": [
+                "questions": [
                     {
                         "topic": "Trusted topic",
-                        "question": "What does the material state?",
-                        "answer": "It states the answer.",
-                        "source": "notes.pdf",
-                        "page": 5,
+                        "question": "Which statement is supported?",
+                        "options": {
+                            label: {
+                                "text": f"Option {label}",
+                                "explanation": f"Feedback {label}.",
+                                "source": "notes.pdf",
+                                "page": 5,
+                                "page_end": None,
+                            }
+                            for label in "ABCD"
+                        },
+                        "correct_option": "A",
                     }
                 ]
             }
@@ -120,6 +133,41 @@ def _factory(client):
         return result
 
     return make
+
+
+def test_versioned_real_suites_preserve_legacy_and_add_mcq_contract():
+    _, legacy, _, _ = load_suite(LEGACY_SUITE)
+    _, mcq, _, _ = load_suite(MCQ_SUITE)
+
+    assert legacy["schema"] == "overfit.generator_challenge_inputs.v1"
+    assert legacy["generation_contract"] == "legacy-short-answer"
+    assert mcq["schema"] == "overfit.generator_challenge_inputs.mcq.v1"
+    assert mcq["generation_contract"] == "mcq-v1"
+    assert [case["case_id"] for case in legacy["cases"]] == [
+        case["case_id"] for case in mcq["cases"]
+    ]
+
+
+def test_legacy_suite_prepare_is_readable_but_execution_is_rejected(tmp_path):
+    prepared = run_generator_challenge(
+        LEGACY_SUITE, output_dir=tmp_path / "prepare"
+    )
+    assert prepared["status"] == "prepared"
+    manifest = json.loads((prepared["run_dir"] / "manifest.json").read_text())
+    assert manifest["generation_contract"] == "legacy-short-answer"
+
+    with pytest.raises(
+        GeneratorChallengeError, match="legacy short-answer.*read-only"
+    ):
+        run_generator_challenge(
+            LEGACY_SUITE,
+            execute=True,
+            max_calls=1,
+            settings=_settings(tmp_path),
+            trace_runner=lambda *args, **kwargs: (_ for _ in ()).throw(
+                AssertionError("legacy suite must not execute")
+            ),
+        )
 
 
 def test_prepare_validates_and_records_without_settings_or_trace_calls(tmp_path):
@@ -193,6 +241,7 @@ def test_execute_writes_replayable_trace_and_hides_annotations(tmp_path, monkeyp
     assert replay_run(trace)["trace_integrity"] == "complete"
     prepared = run_judge(trace, execute=False)
     assert prepared["status"] == "prepared"
+    assert replay_judgment(prepared["judgment_dir"])["status"] == "prepared"
     request = client.calls[0]
     assert "ANNOTATION_SECRET" not in json.dumps(request)
     assert "Trusted material states the answer." in json.dumps(request)
@@ -241,9 +290,9 @@ def test_loader_rejects_duplicate_json_keys(tmp_path):
     inputs = (suite / "inputs.json").read_text()
     (suite / "inputs.json").write_text(
         inputs.replace(
-            '"schema": "overfit.generator_challenge_inputs.v1",',
-            '"schema": "overfit.generator_challenge_inputs.v1", '
-            '"schema": "overfit.generator_challenge_inputs.v1",',
+            '"schema": "overfit.generator_challenge_inputs.mcq.v1",',
+            '"schema": "overfit.generator_challenge_inputs.mcq.v1", '
+            '"schema": "overfit.generator_challenge_inputs.mcq.v1",',
             1,
         )
     )

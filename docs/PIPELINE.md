@@ -164,7 +164,8 @@ BODY 与 FURNITURE layer：不是提前悄悄删除页眉页脚，而是把 verd
 - 默认每批 16 条；API 返回后按 response item 的 `index` 排序；
 - 请求失败最多尝试 4 次，退避为 1.5、3、6 秒；
 - 空白字符串用一个空格代替，保持 batch 索引对齐；
-- 首次以 `"dimension probe"` 实际请求模型，得到真实 vector width；
+- 新建 index 时以 `"dimension probe"` 实际请求模型，得到真实
+  vector width；打开已有 index 时直接读取已持久化的宽度；
 - 每个向量归一化为单位长度，使余弦相似度可由 dot product/L2 距离稳定转换。
 
 Embedding endpoint、key 和模型名来自 `EMBED_*`。当前默认是 Ollama +
@@ -293,7 +294,8 @@ question 数会如何分配。`coverage` 打印生成器会看到的选材；两
 
 `mock_prompt.j2` 把每个 passage 标为 `[source pN]` 或 `[source ppN-M]`，要求
 模型生成最多指定数量的问题，并允许跳过行政通知、碎片或不适合出题的材料。
-`system.j2` 要求只使用所给材料、问题自包含、答案引用 file/page、宁缺毋滥。
+`system.j2` 要求只使用所给材料、生成正向单一最佳答案 MCQ、每个 A–D option
+都给简短反馈和一个 file/page 引用，并排除数值计算、NOT/EXCEPT 及 all/none。
 
 无 topic 时默认选材数是 `questions × 2`（当前默认 30 题，即 60 个
 passages）；topic 模式默认最终材料数是 10。`--material` 非零时覆盖对应
@@ -309,40 +311,34 @@ Generator 使用 streaming chat completions，按以下强度逐级退化：
    `{"questions": [...]}`；
 2. endpoint 不支持时不带 response format，从回复文字中提取 JSON object。
 
-返回值会经过 JSON 解析和 Pydantic `GeneratedExam` 校验。为了兼容信息完整但
-wrapper 不同的旧回复，代码可把 bare list、单个完整 item，或白名单字段
-`items`/`questions`/`exam`/`results` 规范成 `{"items": [...]}`；不会猜测任意
-单列表字段。真正缺字段/类型不符则把第一条
-校验错误连同原回复反馈给模型重试。`MAX_RETRIES=3` 表示正常最多 4 个 attempt。
-wire 层显式 `{"questions": []}` 和兼容层旧格式 `{"items": []}` 都是合法的诚实
-输出；缺少任何允许的题目集合字段不是。
-`items` 当前没有 schema-level 最大长度，Generator 也不截断，因此 prompt 虽要求
-“up to count”，不遵守该上限的模型仍可能返回并写出更多题。
+新写入只接受精确的 `{"questions": [...]}` envelope，随后机械归一化大小写 label、
+页码数字字符串/范围、空白及 option 内重复 label 前缀，再用
+`GeneratedMCQExam` 严格校验。语义字段不自动修复。请求按最多 10 题分批，每批
+provider dispatch 上限为 3；schema/transport fallback 都计入同一上限。模型可诚实
+返回更少题，跨批去重后也不会 top-up。历史短答 wrapper 兼容只保留在 legacy
+`GeneratedExam` 读取与 replay 路径，不是新的 `mock` 写入路径。
 
 ### 7.3 Citation 过滤的保证范围
 
-Schema 强制每题有 `source` 和 `page`，随后代码将它们与**本次实际提供给模型的
-passages**比对：
-
-- source 不存在：丢弃；
-- page 不在提供范围，且相差超过 2 页：丢弃；
-- 相差不超过 2 页：修正为最近的允许页；
-- page-spanning chunk 的整个 `[page, page_end]` 都允许。
+Schema 强制四个 option 各有 `source`、`page`、`page_end`，随后代码将它们与
+**本批实际提供给模型的 passages**比对。每项引用都必须落在同 source 的已提供
+页范围内；任一 option 失败即丢弃整题。MCQ 路径不做附近页修复。
 
 这能保证引用指向某个已提供 passage，不能证明答案语义上确实由该 passage
 支持。模板因此明确提示读者回看原文。
 
 ### 7.4 Markdown 输出
 
-合法 items 先按 LLM 给出的 `topic`（空字符串变 `General`）分组，再写：
+校验、跨批去重和正确 label 平衡后，题目确定性混排并写：
 
 ```text
-outputs/<safe-course>_mock_exam.md   # 问题，不含答案
-outputs/<safe-course>_answers.md     # 同样分组，含答案和 source/page
+outputs/<safe-course>_mock_exam.md   # stem + A–D text；隐藏 topic/解释/引用
+outputs/<safe-course>_answers.md     # topic、正确项、A–D 反馈及各自引用
 ```
 
-当前模板没有 multiple-choice/short-answer/applied 三段固定 section，也不会自动
-生成题型或难度元数据。
+新 `mock` 固定为 MCQ v1，不生成短答、计算题或 difficulty 元数据。普通运行明确
+标记语义唯一性和 distractor 正确性为 `not judged`；只有显式 `--judge` 才调用
+独立 MCQ Judge。
 
 ---
 

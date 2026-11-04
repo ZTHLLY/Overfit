@@ -27,7 +27,6 @@ validated identically against the internal Pydantic schema.
 from __future__ import annotations
 
 import json
-import re
 from copy import deepcopy
 from dataclasses import asdict, dataclass
 from datetime import UTC, datetime
@@ -42,7 +41,19 @@ from overfit.errors import OverfitError
 from overfit.evaluation.citations import check_citation
 from overfit.evaluation.contracts import TraceWriteError
 from overfit.evaluation.trace import safe_error
-from overfit.models import Chunk, GeneratedExam, GeneratedItem
+from overfit.models import (
+    Chunk,
+    GeneratedExam,
+    GeneratedItem,
+    GeneratedMCQExam,
+    GeneratedMCQItem,
+)
+from overfit.query.mcq_wire import (
+    extract_json as _extract_json,
+)
+from overfit.query.mcq_wire import (
+    normalize_mcq_wire as _normalize_mcq_wire,
+)
 
 __all__ = [
     "GenerationCallBudgetExceeded",
@@ -62,7 +73,7 @@ class GenerationCallBudgetExceeded(GenerationError):
 
 @dataclass
 class GenerationResult:
-    exam: GeneratedExam
+    exam: GeneratedMCQExam | GeneratedExam
     attempts: int
     dropped: list[str]  # items rejected because their citation was invented
     raw: str = ""  # the model's last reply, kept for when the result is empty
@@ -124,13 +135,14 @@ class Generator:
         exam, attempts, raw = self._complete(
             system,
             user,
-            GeneratedExam,
+            GeneratedMCQExam,
             max_attempts or get_settings().max_retries + 1,
             max_calls=max_calls,
+            max_items=count,
             on_token=on_token,
             **({"recorder": recorder} if recorder is not None else {}),
         )
-        exam, dropped = _drop_invented_citations(exam, chunks, recorder=recorder)
+        exam, dropped = _drop_invalid_mcq_citations(exam, chunks, recorder=recorder)
         return GenerationResult(
             exam=exam, attempts=attempts, dropped=dropped, raw=raw
         )
@@ -251,7 +263,7 @@ class Generator:
 
     def _complete(
         self, system: str, user: str, schema, max_attempts: int, on_token=None,
-        recorder=None, max_calls: int | None = None,
+        recorder=None, max_calls: int | None = None, max_items: int | None = None,
     ):
         """Call the model until the reply validates, or give up with detail."""
         if max_calls is not None and (type(max_calls) is not int or max_calls < 1):
@@ -309,8 +321,17 @@ class Generator:
                     })
                 continue
             try:
-                exam = schema.model_validate(_coerce(_extract_json(raw)))
-            except (ValidationError, ValueError, json.JSONDecodeError) as exc:
+                parsed = _extract_json(raw)
+                if schema is GeneratedMCQExam:
+                    parsed = _normalize_mcq_wire(parsed)
+                else:
+                    parsed = _coerce(parsed)
+                exam = schema.model_validate(parsed)
+                if max_items is not None and len(exam.items) > max_items:
+                    raise ValueError(
+                        f"response contains {len(exam.items)} items; maximum is {max_items}"
+                    )
+            except (ValidationError, TypeError, ValueError, json.JSONDecodeError) as exc:
                 if recorder is not None:
                     recorder.emit("validation_finished", {
                         "call_id": recorder.last_call_id, "status": "invalid",
@@ -389,28 +410,6 @@ def _response_formats():
     """Portable structured-output options, strongest first."""
     yield {"type": "json_object"}
     yield None  # unconstrained; _extract_json will dig the object out
-
-
-_JSON_BLOCK = re.compile(r"\{.*\}", re.DOTALL)
-
-
-def _extract_json(raw: str) -> dict:
-    """Parse the reply, tolerating the wrappers models like to add.
-
-    Fenced code blocks and a sentence of preamble are common even when JSON
-    was explicitly requested. Refusing to handle that would fail a response
-    that is, apart from decoration, entirely correct.
-    """
-    text = raw.strip()
-    if text.startswith("```"):
-        text = re.sub(r"^```(?:json)?\s*|\s*```$", "", text, flags=re.MULTILINE).strip()
-    try:
-        return json.loads(text)
-    except json.JSONDecodeError:
-        match = _JSON_BLOCK.search(text)
-        if not match:
-            raise ValueError(f"no JSON object in reply: {text[:200]!r}") from None
-        return json.loads(match.group())
 
 
 _ITEM_KEYS = {"question", "answer", "source", "page"}
@@ -522,8 +521,79 @@ def _drop_invented_citations(
     return GeneratedExam(items=kept), dropped
 
 
-def render_exam(course: str, exam: GeneratedExam) -> tuple[str, str]:
+def _drop_invalid_mcq_citations(
+    exam: GeneratedMCQExam, chunks: list[Chunk], *, recorder=None,
+) -> tuple[GeneratedMCQExam, list[str]]:
+    """Atomically reject an MCQ if any option cites unsupplied material.
+
+    Unlike the legacy short-answer policy, mcq-v1 never moves a citation to a
+    nearby page: selecting a different page is a semantic change, not a wire
+    normalization.  A broken option invalidates the whole four-option item.
+    """
+    allowed: dict[str, set[int]] = {}
+    for chunk in chunks:
+        pages = allowed.setdefault(chunk.source, set())
+        pages.update(range(chunk.page, (chunk.page_end or chunk.page) + 1))
+
+    kept: list[GeneratedMCQItem] = []
+    dropped: list[str] = []
+    for original_index, item in enumerate(exam.items, start=1):
+        failure = None
+        for label in "ABCD":
+            option = item.options[label]
+            if option.source not in allowed:
+                failure = f"option {label}: {option.source} — no such file in the material"
+                reason = "unknown_source"
+                break
+            cited_pages = set(range(option.page, (option.page_end or option.page) + 1))
+            if not cited_pages.issubset(allowed[option.source]):
+                shown = (
+                    f"pp{option.page}-{option.page_end}"
+                    if option.page_end is not None and option.page_end != option.page
+                    else f"p{option.page}"
+                )
+                failure = f"option {label}: {option.source} {shown} — pages not supplied"
+                reason = "page_not_supplied"
+                break
+        else:
+            reason = "citation_supplied"
+
+        if failure is None:
+            kept.append(item)
+        else:
+            dropped.append(failure)
+
+        if recorder is not None:
+            post = item.model_dump() if failure is None else None
+            recorder.emit("citation_processed", {
+                "call_id": recorder.last_call_id,
+                "item_id": f"{recorder.last_call_id}-item-{original_index}",
+                "original_index": original_index,
+                "final_index": len(kept) if post is not None else None,
+                "pre_policy": item.model_dump(),
+                "post_policy": post,
+                "action": "keep" if post is not None else "drop",
+                "reason": reason,
+                "pre_check": None,
+                "post_check": None,
+            })
+
+    return GeneratedMCQExam(items=kept), dropped
+
+
+def render_exam(
+    course: str,
+    exam: GeneratedMCQExam | GeneratedExam,
+    *,
+    answers_file: str | None = None,
+    generated_on: str | None = None,
+) -> tuple[str, str]:
     """Render the question paper and the answer key."""
+    if isinstance(exam, GeneratedMCQExam):
+        return _render_mcq_exam(
+            course, exam, answers_file=answers_file, generated_on=generated_on
+        )
+
     numbered = [
         {
             "number": index,
@@ -545,8 +615,56 @@ def render_exam(course: str, exam: GeneratedExam) -> tuple[str, str]:
         "items": numbered,
         "grouped": list(grouped.items()),
         "sources": sorted({item["source"] for item in numbered}),
-        "generated_at": datetime.now(UTC).date().isoformat(),
-        "answers_file": get_settings().output_path(course, "answers.md").name,
+        "generated_at": generated_on or datetime.now(UTC).date().isoformat(),
+        "answers_file": answers_file
+        or get_settings().output_path(course, "answers.md").name,
+    }
+    env = _templates()
+    return (
+        env.get_template("mock_exam.md.j2").render(**context),
+        env.get_template("mock_answers.md.j2").render(**context),
+    )
+
+
+def _render_mcq_exam(
+    course: str,
+    exam: GeneratedMCQExam,
+    *,
+    answers_file: str | None = None,
+    generated_on: str | None = None,
+) -> tuple[str, str]:
+    numbered = []
+    for index, item in enumerate(exam.items, start=1):
+        options = []
+        for label in "ABCD":
+            option = item.options[label]
+            options.append({
+                "label": label,
+                "text": option.text,
+                "explanation": option.explanation,
+                "citation": option.citation,
+            })
+        numbered.append({
+            "number": index,
+            "topic": item.topic,
+            "question": item.question,
+            "options": options,
+            "correct_option": item.correct_option,
+            "correct_text": item.correct.text,
+        })
+
+    context = {
+        "generation_contract": "mcq-v1",
+        "course": course,
+        "items": numbered,
+        "sources": sorted({
+            option.source
+            for item in exam.items
+            for option in item.options.values()
+        }),
+        "generated_at": generated_on or datetime.now(UTC).date().isoformat(),
+        "answers_file": answers_file
+        or get_settings().output_path(course, "answers.md").name,
     }
     env = _templates()
     return (

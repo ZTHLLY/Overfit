@@ -191,14 +191,14 @@ class TraceWriter:
     ) -> TraceWriter:
         writer = None
         try:
-            task = _snapshot(task)
-            if type(task.get("questions")) is not int or task["questions"] <= 0:
+            raw_task = _snapshot(task)
+            if type(raw_task.get("questions")) is not int or raw_task["questions"] <= 0:
                 raise ValueError("Invalid question count")
-            budget = task.get("material_budget", 0)
+            budget = raw_task.get("material_budget", 0)
             if type(budget) is not int or budget < 0:
                 raise ValueError("Invalid material budget")
             task = {
-                key: task.get(key)
+                key: raw_task.get(key)
                 for key in (
                     "course",
                     "topic",
@@ -207,6 +207,34 @@ class TraceWriter:
                     "task_id",
                 )
             }
+            contract = raw_task.get("generation_contract")
+            if contract is not None:
+                if contract != "mcq-v1":
+                    raise ValueError("Unsupported generation contract")
+                plan = raw_task.get("batch_plan")
+                if (
+                    not isinstance(plan, list)
+                    or not plan
+                    or any(
+                        not isinstance(row, dict)
+                        or set(row) != {"index", "question_count"}
+                        or type(row["index"]) is not int
+                        or row["index"] < 1
+                        or type(row["question_count"]) is not int
+                        or not 1 <= row["question_count"] <= 10
+                        for row in plan
+                    )
+                    or [row["index"] for row in plan] != list(range(1, len(plan) + 1))
+                    or sum(row["question_count"] for row in plan) != raw_task["questions"]
+                    or not isinstance(raw_task.get("seed_identity"), str)
+                    or not raw_task["seed_identity"]
+                ):
+                    raise ValueError("Invalid MCQ batch identity")
+                task.update(
+                    generation_contract=contract,
+                    batch_plan=plan,
+                    seed_identity=raw_task["seed_identity"],
+                )
             if not isinstance(task["course"], str) or not task["course"]:
                 raise ValueError("Invalid course")
             task["material_budget"] = budget

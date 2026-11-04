@@ -168,13 +168,13 @@ Run `uv run overfit <command> --help` for every option.
 | `chunks` | Parses and previews actual chunks before indexing | none |
 | `ingest` | Parses, chunks, embeds and writes/updates one course index | embedding |
 | `search QUERY` | Dense Top 40 → OpenRouter rerank → up to 10; prints both vector and rerank ranks/scores | embedding + reranker |
-| `mock` | Selects material, calls the LLM, validates it and writes two Markdown files; opt-in `--trace` records a run-specific audit bundle | generation; index opening probes embedding dimension; `--topic` also embeds and reranks |
+| `mock` | Generates auditable `mcq-v1` A–D exams in batches of at most 10; `--judge` explicitly adds independent MCQ review | generation; `--topic` also embeds and reranks; Judge only with `--judge` |
 | `eval replay RUN_DIR` | Revalidates a local trace and writes a separate replay report; no settings, index or provider access | none |
 | `eval rerank --course COURSE --execute` | Runs the explicit 47-question, two-track dense Top-40 → rerank Top-10 evaluation; supports `--no-cache` and explicit `--resume` | embedding + real reranker; no generator or judge |
 | `eval generator-challenge SUITE_DIR` | Prepares a controlled Generator fixture offline; `--execute` requires an explicit hard provider-call budget | none in prepare; generation only in execute |
-| `topics` | Clusters stored vectors and ranks topics by distinct source-file coverage | embedding dimension probe only; no query embedding or LLM |
-| `coverage` | Shows the passages `mock` would receive; optional topic focus uses dense Top 40, reranking and diversity constraints | dimension probe; `--topic` also embeds and reranks; no LLM |
-| `status` | Shows index profile, counts and sources | embedding dimension probe only; no LLM |
+| `topics` | Clusters stored vectors and ranks topics by distinct source-file coverage | none |
+| `coverage` | Shows the passages `mock` would receive; optional topic focus uses dense Top 40, reranking and diversity constraints | none without a topic; `--topic` embeds and reranks; no LLM |
+| `status` | Shows index profile, counts and sources | none |
 | `embed-check` | Prints vector dimension and similarity probes, including Chinese-to-English retrieval | embedding |
 
 Current command signatures (defaults in parentheses):
@@ -187,7 +187,7 @@ overfit chunks      --course/-c COURSE [--path/-p PATH] [--show 5]
 overfit ingest      --course/-c COURSE [--path/-p PATH] [--force] [--rebuild]
 overfit search      QUERY --course/-c COURSE [--top-k/-k 10] [--chars 300]
 overfit mock        --course/-c COURSE [--questions/-q 30] [--topic TEXT]
-                    [--material 0] [--trace]
+                    [--material 0] [--trace] [--judge]
 overfit eval replay RUN_DIR
 overfit eval rerank --course/-c COURSE [--dataset PATH] --execute
                     [--no-cache] [--resume RUN_DIR] [--rerank-* overrides]
@@ -203,10 +203,11 @@ overfit embed-check
 Running `overfit` without a subcommand currently prints `hello overfit`;
 running it with `--help` lists the commands above.
 
-Current implementation detail: opening any existing index first probes the
-configured embedding model for its dimension. Therefore even `status`,
-`topics`, whole-course `coverage`, and `mock` currently require the embedding
-endpoint to be reachable, despite not embedding a semantic query themselves.
+Opening an existing index reads its persisted profile, including vector width,
+without contacting the embedding endpoint. `status`, `topics`, whole-course
+`coverage`, and whole-course `mock` therefore use only stored vectors. Creating
+an index still probes the configured embedding model for its real width;
+query/topic paths embed their query as usual.
 
 `eval rerank` is a live, paid path: it does nothing unless `--execute` is
 present. To force fresh provider calls, run:
@@ -237,7 +238,7 @@ settings, keys, or providers:
 
 ```bash
 uv run overfit eval generator-challenge \
-  eval/generator_challenges/ifn580_v1
+  eval/generator_challenges/ifn580_mcq_v1
 ```
 
 Live execution additionally requires a positive hard call budget. Every provider
@@ -246,11 +247,15 @@ dispatch is rejected before it is sent:
 
 ```bash
 uv run overfit eval generator-challenge \
-  eval/generator_challenges/ifn580_v1 \
+  eval/generator_challenges/ifn580_mcq_v1 \
   --execute \
   --max-calls 20 \
   --max-attempts 2
 ```
+
+The historical `eval/generator_challenges/ifn580_v1` short-answer suite remains
+unchanged and prepare-readable as baseline evidence; it is read-only and cannot
+be executed by the MCQ Generator challenge runner.
 
 The fixture sends only its ordered chunks and request fields to the Generator;
 annotations stay local. It does not open the production index and does not call
@@ -264,33 +269,46 @@ allocates passages by topic weight, and chooses representative, non-duplicate
 chunks. With `--topic`, it retrieves dense Top 40, removes material shorter
 than 200 characters, reranks every remaining candidate, then scans by rerank
 priority while removing exact/near duplicates and allowing at most two chunks
-per source file. Topic mode defaults to 10 passages; without a topic the
-historical budget remains twice the question count. Selection may return fewer
-passages rather than refill with low-quality material. Override with `--material`.
+per source file. Topic mode uses 10 passages by default and requires an explicit
+`--questions`; without a topic the material budget remains twice the question
+count. Selection may return fewer passages rather than refill with low-quality
+material. Override with `--material`.
+
+Requests are planned in batches of at most 10 questions. Each batch has a hard
+ceiling of three provider dispatches. Complete batches are checkpointed; a failed
+batch stops later batches and no incomplete exam is published. After all batches,
+clear cross-batch duplicates are removed without top-up, whole option objects are
+reordered to balance A–D correct labels, and questions are deterministically mixed.
+The 2:1 and 3:1 material ratios remain evaluation tracks; no live comparison has
+yet frozen a winner.
 
 The provider is asked for a portable JSON-object envelope,
 `{"questions": [...]}`; the adapter normalizes that wire shape to the internal
-`GeneratedExam.items` model before validation. The model may honestly return
-fewer questions. Each accepted question has this validated shape:
+`GeneratedMCQExam.items` model after mechanical page/label/prefix normalization.
+The model may honestly return fewer questions. Each accepted question has exact
+A–D option objects; every option includes `text`, `explanation`, `source`, `page`,
+and `page_end`, plus one `correct_option` at item level:
 
 ```json
 {
   "topic": "Bias and variance",
-  "question": "...",
-  "answer": "...",
-  "source": "week03/lecture.pdf",
-  "page": 12
+  "question": "Which statement is supported?",
+  "options": {
+    "A": {"text": "...", "explanation": "...", "source": "week03/lecture.pdf", "page": 12, "page_end": null},
+    "B": {"text": "...", "explanation": "...", "source": "week04/tutorial.pdf", "page": 3, "page_end": null},
+    "C": {"text": "...", "explanation": "...", "source": "week03/lecture.pdf", "page": 13, "page_end": null},
+    "D": {"text": "...", "explanation": "...", "source": "week05/practical.pdf", "page": 7, "page_end": null}
+  },
+  "correct_option": "A"
 }
 ```
 
-Questions are grouped by the model-provided topic in the paper. Answers are
-grouped the same way and carry `Source: <file>, page <n>`. The generator drops
-items whose source/page is not among the supplied passages (and repairs page
-near-misses of at most two pages). This verifies that a citation refers to
-provided material; users should still check whether the cited page truly
-supports the answer. The current schema permits fewer questions but does not
-set a maximum list length, so a model that ignores the requested upper bound is
-not truncated by code.
+The paper hides topics, explanations, and citations. The answer key retains the
+topic, identifies the correct letter/text, and shows feedback plus a citation for
+all four options. Any invalid option citation drops the whole item; semantic fields
+and nearby pages are never repaired. Ordinary `mock` explicitly reports semantic
+uniqueness and distractor correctness as **not judged**. `mock --judge` is the
+additional authorization boundary for the independent finite MCQ Judge.
 
 ## Configuration
 
@@ -328,9 +346,11 @@ defaults are hard-coded to the same values; use `search --top-k` and
 
 ## Generation trace and offline replay
 
-`mock --trace` is opt-in. It retains actual materials, visible requests/responses,
-validation and citation changes under the configured `outputs_dir/eval/<run_id>/`.
-Default `mock` output remains unchanged; traced exams do not overwrite it.
+Every new `mock` records an auditable `generation_contract=mcq-v1` run under
+`outputs_dir/eval/<run_id>/`; `--trace` additionally prints that directory and
+leaves course-level output files untouched. Ordinary `mock` copies the completed
+paper/answer artifacts to their normal course-level paths. Historical short-answer
+traces remain readable and replayable without synthetic options.
 
 ```bash
 # Online: still calls embedding/generation services; run only when intended.
@@ -477,3 +497,6 @@ the earlier [PR 1 record](docs/plans/EVAL-TRACE-PLAN.md) remains historical evid
 | [RETRIEVAL-RERANK-PLAN.md](docs/plans/RETRIEVAL-RERANK-PLAN.md) | OpenRouter implementation and offline/live verification stages |
 | [RERANK-EVALUATION.md](docs/evaluation/RERANK-EVALUATION.md) | Index of the formal rerank evaluation JSON and human-readable report |
 | [GENERATOR-JUDGE-CHALLENGE.md](docs/evaluation/GENERATOR-JUDGE-CHALLENGE.md) | Compact index of controlled Generator and Judge challenge artifacts and findings |
+| [MOCK-MCQ-SPEC.md](docs/specs/MOCK-MCQ-SPEC.md) | Frozen MCQ v1 product, schema, batching, feedback, Judge and compatibility contract |
+| [MOCK-MCQ-PLAN.md](docs/plans/MOCK-MCQ-PLAN.md) | Planned TDD milestones, migration, offline matrix and user-authorized live gates for MCQ v1 |
+| [MOCK-MCQ-LIVE-GATES.md](docs/evaluation/MOCK-MCQ-LIVE-GATES.md) | Append-only record of authorized MCQ live gates, replay identities and remaining gates |

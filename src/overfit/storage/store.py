@@ -94,6 +94,57 @@ class VectorStore:
     # -- lifecycle ---------------------------------------------------------
 
     @classmethod
+    def read_profile(cls, path: Path, *, course: str = "") -> IndexProfile:
+        """Read the immutable index profile without contacting an embedder.
+
+        Read-only commands already have the vector width recorded in ``meta``.
+        Re-probing the configured model merely to rediscover that width creates
+        an unnecessary service dependency, so callers can use this snapshot
+        before opening the store.  :meth:`open` still compares the resulting
+        profile with the live database and fails closed if either changes.
+        """
+        if not path.exists():
+            raise IndexMissingError(course or path.stem, path)
+
+        snapshot = _read_snapshot(path)
+        try:
+            snapshot_path = Path(snapshot.name) / "index.db"
+            connection = sqlite3.connect(
+                snapshot_path.as_uri() + "?mode=ro&immutable=1", uri=True
+            )
+            try:
+                stored = dict(connection.execute("SELECT key, value FROM meta"))
+            finally:
+                connection.close()
+        finally:
+            snapshot.cleanup()
+
+        version = stored.get("schema_version", "unknown")
+        if version not in {"1", SCHEMA_VERSION}:
+            raise IndexMismatchError(
+                "schema_version", version, SCHEMA_VERSION, course or path.stem
+            )
+        try:
+            profile = IndexProfile(
+                embed_model=stored["embed_model"],
+                embed_dim=int(stored["embed_dim"]),
+                chunk_size=int(stored["chunk_size"]),
+                chunk_overlap=int(stored["chunk_overlap"]),
+                parser=stored.get("parser", "pypdf"),
+            )
+        except (KeyError, TypeError, ValueError) as exc:
+            raise OverfitError("Index profile metadata is missing or invalid.") from exc
+        if (
+            not profile.embed_model
+            or profile.embed_dim <= 0
+            or profile.chunk_size <= 0
+            or profile.chunk_overlap < 0
+            or not profile.parser
+        ):
+            raise OverfitError("Index profile metadata is missing or invalid.")
+        return profile
+
+    @classmethod
     def open(
         cls,
         path: Path,

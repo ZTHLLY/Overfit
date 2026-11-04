@@ -35,8 +35,11 @@
 5. 验证返回数量；
 6. 将每个 vector 归一化为单位长度。
 
-首次访问 `embedder.dimension` 会 embed `"dimension probe"`，用实际返回值长度
-建/校验 sqlite-vec 的固定宽度表。项目没有 `EMBED_DIM` 配置项。
+新建 index 时首次访问 `embedder.dimension` 会 embed
+`"dimension probe"`，用实际返回值长度建立 sqlite-vec 的固定宽度表。
+已有 index 的只读路径直接读取 `meta.embed_dim`，不联系 embedding endpoint；
+store 仍会将其他 profile 字段与当前配置比对。项目没有 `EMBED_DIM`
+配置项。
 
 直接检索时 query 调用同一个 `Embedder.embed_one()`，然后 sqlite-vec 执行 KNN。
 这保证代码路径相同；数据库 profile 负责保证 model ID/dimension 与建库时相同。
@@ -244,12 +247,12 @@ Linux 上是否存在该 hostname 取决于容器启动配置；核心要求只�
 | `embed-check` | 是 | 否 |
 | `ingest` | 是 | 否 |
 | `search` | 是 | 否 |
-| `status`, `topics` | **当前是**（dimension probe） | 否 |
-| `coverage` | **当前是**（open probe；topic 还会 embed query） | 否 |
-| `mock` | **当前是**（open probe；topic 还会 embed query） | 是 |
+| `status`, `topics` | 否 | 否 |
+| `coverage` | 无 topic 时否；topic 会 embed query | 否 |
+| `mock` | 无 topic 时否；topic 会 embed query | 是 |
 
-数据库已建好并不代表可以完全离线于 embedding endpoint 使用，这是当前
-`_open_store()` 的实现事实。
+已有数据库的纯读取和 whole-course 选材可离线于 embedding endpoint；
+查询、topic 选材与 ingest 仍需要该 endpoint。
 
 ## 选择模型时需要满足的合同
 

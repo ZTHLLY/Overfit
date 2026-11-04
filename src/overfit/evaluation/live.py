@@ -7,12 +7,51 @@ import json
 import sqlite3
 from dataclasses import asdict
 from pathlib import Path
+from uuid import uuid4
 
 from overfit.errors import RerankError
 from overfit.evaluation.citations import check_citation
 from overfit.evaluation.report import render_report, summarize
 from overfit.evaluation.trace import TraceWriter, collect_code_identity, safe_error
+from overfit.query.mcq import BatchGenerationError
 from overfit.query.rerankers.logging import safe_endpoint_identity
+
+
+class _BatchRecorder:
+    """Attach immutable batch/material identity to Generator trace events."""
+
+    def __init__(self, writer: TraceWriter, batch_index: int, chunks: list) -> None:
+        self.writer = writer
+        self.batch_index = batch_index
+        self.chunks = [asdict(chunk) for chunk in chunks]
+        self.last_call_id = None
+
+    def start_call(self, attempt_index: int, format_index: int, request: dict) -> str:
+        call_id = str(uuid4())
+        self.writer.emit(
+            "call_started",
+            {
+                "batch_index": self.batch_index,
+                "call_id": call_id,
+                "attempt_index": attempt_index,
+                "format_index": format_index,
+                "request": request,
+            },
+        )
+        self.last_call_id = call_id
+        self.writer.last_call_id = call_id
+        return call_id
+
+    def emit(self, event_type: str, payload: dict) -> None:
+        payload = dict(payload)
+        if event_type == "citation_processed":
+            payload["batch_index"] = self.batch_index
+            item = payload.get("pre_policy") or {}
+            payload["option_checks"] = {
+                label: check_citation(option, self.chunks)
+                for label, option in item.get("options", {}).items()
+            }
+        self.writer.emit(event_type, payload)
 
 
 def _canonical(value: object) -> str:
@@ -73,10 +112,28 @@ def run_mock_trace(settings, open_store_callback, *, course: str, questions: int
             getattr(rerank_adapter, "base_url", None)
         )
         rerank_timeout = getattr(reranker, "timeout", None)
+        from overfit.query.mcq import plan_batches
+
+        batches = plan_batches(questions)
+        seed_identity = hashlib.sha256(
+            _canonical(
+                {
+                    "course": course,
+                    "topic": topic,
+                    "questions": questions,
+                    "material_budget": budget,
+                    "model": settings.llm.model,
+                    "contract": "mcq-v1",
+                }
+            ).encode()
+        ).hexdigest()
         trace = TraceWriter.create(
             settings.outputs_dir,
             {"course": course, "topic": topic, "questions": questions,
-             "material_budget": budget},
+             "material_budget": budget,
+             "generation_contract": "mcq-v1",
+             "batch_plan": [asdict(batch) for batch in batches],
+             "seed_identity": seed_identity},
             {"generation_model": settings.llm.model,
              "embedding_model": settings.embed.model,
              "rerank_provider": rerank_provider,
@@ -106,26 +163,117 @@ def run_mock_trace(settings, open_store_callback, *, course: str, questions: int
                 reranker=reranker,
                 on_rerank=on_rerank,
             )
-            serialized = [asdict(chunk) for chunk in chunks]
-            check_citation({"page": 1, "source": ""}, serialized)
-            trace.emit("materials_selected", {
-                "chunks": serialized,
-                "selection": {"mode": "topic" if topic else "course", "topic": topic,
-                              "requested_count": budget, "actual_count": len(chunks)},
-                "index": index,
-                "materials_sha256": hashlib.sha256(_canonical(serialized).encode()).hexdigest(),
-            })
+            if not chunks:
+                raise ValueError("No generation material was selected.")
+            from overfit.evaluation.elastic import validate_materials
+
+            validate_materials([asdict(chunk) for chunk in chunks])
         stage = "generation"
-        result = generator.Generator(settings.llm).mock_exam(
-            course, chunks, count=questions, topic=topic,
-            max_attempts=settings.max_retries + 1, recorder=trace,
+        from overfit.models import GeneratedMCQExam
+        from overfit.query.mcq import (
+            balance_options,
+            deduplicate_items,
+            mix_items,
+            partition_material,
+            run_batches,
+        )
+
+        material_batches = partition_material(chunks, batches, reuse=bool(topic))
+        writer = generator.Generator(settings.llm)
+        dropped = []
+        attempts = 0
+        item_batches = {}
+
+        def checkpoint(state):
+            trace.emit("batch_checkpoint", state)
+            if state["state"] == "completed":
+                trace.write_artifact(
+                    f"checkpoint-batch-{state['batch_index']:03d}.json",
+                    _canonical({"generation_contract": "mcq-v1", **state}) + "\n",
+                )
+
+        def generate_batch(batch, *, max_calls):
+            nonlocal attempts
+            selected = material_batches[batch.index - 1]
+            serialized = [asdict(chunk) for chunk in selected]
+            trace.emit("materials_selected", {
+                "batch_index": batch.index,
+                "chunks": serialized,
+                "selection": {
+                    "mode": "topic" if topic else "course",
+                    "topic": topic,
+                    "requested_count": len(selected),
+                    "actual_count": len(selected),
+                },
+                "index": index,
+                "materials_sha256": hashlib.sha256(
+                    _canonical(serialized).encode()
+                ).hexdigest(),
+            })
+            result = writer.mock_exam(
+                course,
+                selected,
+                count=batch.question_count,
+                topic=topic,
+                max_attempts=3,
+                max_calls=max_calls,
+                recorder=_BatchRecorder(trace, batch.index, selected),
+            )
+            attempts += result.attempts
+            dropped.extend(result.dropped)
+            items = list(result.exam.items)
+            item_batches.update({id(item): batch.index for item in items})
+            return items
+
+        generated_items = run_batches(
+            batches, generate_batch, checkpoint=checkpoint
+        )
+        deduplicated = deduplicate_items(generated_items)
+        trace.emit(
+            "deduplication_finished",
+            {
+                "items": [item.model_dump() for item in deduplicated.items],
+                "removed": deduplicated.removed,
+            },
+        )
+        balanced = balance_options(
+            deduplicated.items, seed_identity=seed_identity
+        )
+        mixed = mix_items(balanced.items, seed_identity=seed_identity)
+        balanced_items = [item.model_dump() for item in balanced.items]
+        mixed_items = [item.model_dump() for item in mixed]
+        presentation_order = [balanced_items.index(item) for item in mixed_items]
+        origin_batches = [item_batches[id(item)] for item in deduplicated.items]
+        trace.emit(
+            "options_balanced",
+            {
+                "items": mixed_items,
+                "balanced_items": balanced_items,
+                "presentation_order": presentation_order,
+                "item_material_batches": [
+                    origin_batches[index] for index in presentation_order
+                ],
+                "mappings": balanced.mappings,
+                "seed_identity": seed_identity,
+            },
+        )
+        result = generator.GenerationResult(
+            exam=GeneratedMCQExam(items=mixed),
+            attempts=attempts,
+            dropped=dropped,
+            raw="",
         )
         stage = "artifacts"
         summary = summarize(trace.manifest, trace.events)
         trace.write_artifact("result.json", _canonical(summary) + "\n")
         trace.write_artifact("report.md", render_report(summary))
         if result.exam.items:
-            paper, answers = generator.render_exam(course, result.exam)
+            paper, answers = generator.render_exam(
+                course,
+                result.exam,
+                answers_file=answers_name,
+                generated_on=trace.manifest["started_at"][:10],
+            )
             trace.write_artifact(paper_name, paper)
             trace.write_artifact(answers_name, answers)
         status = "completed" if result.exam.items else "empty"
@@ -148,7 +296,9 @@ def run_mock_trace(settings, open_store_callback, *, course: str, questions: int
                 # A finished API response alone cannot prove generation failed:
                 # validation or a fallback could still have followed. Only the
                 # caught exhaustion exception supplies that terminal fact.
-                if (stage == "generation" and isinstance(exc, generator.GenerationError)
+                if (stage == "generation" and isinstance(
+                        exc, (generator.GenerationError, BatchGenerationError)
+                    )
                         and not any(event["event_type"] == "validation_finished"
                                     and event["payload"]["status"] == "valid"
                                     for event in trace.events)):
@@ -189,6 +339,9 @@ def run_fixture_trace(
             raise ValueError("Invalid fixture generation limits")
         paper_name = settings.output_path(course, "mock_exam.md").name
         answers_name = settings.output_path(course, "answers.md").name
+        seed_identity = hashlib.sha256(
+            f"mcq-v1:{fixture_identity['task_id']}".encode()
+        ).hexdigest()
         trace = TraceWriter.create(
             settings.outputs_dir,
             {
@@ -197,6 +350,9 @@ def run_fixture_trace(
                 "questions": questions,
                 "material_budget": len(chunks),
                 "task_id": fixture_identity["task_id"],
+                "generation_contract": "mcq-v1",
+                "batch_plan": [{"index": 1, "question_count": questions}],
+                "seed_identity": seed_identity,
             },
             {
                 "generation_model": settings.llm.model,
@@ -209,9 +365,16 @@ def run_fixture_trace(
         )
         serialized = [asdict(chunk) for chunk in chunks]
         check_citation({"page": 1, "source": ""}, serialized)
+        trace.emit("batch_checkpoint", {
+            "batch_index": 0, "question_count": questions, "state": "planned",
+        })
+        trace.emit("batch_checkpoint", {
+            "batch_index": 1, "question_count": questions, "state": "running",
+        })
         trace.emit(
             "materials_selected",
             {
+                "batch_index": 1,
                 "chunks": serialized,
                 "selection": {
                     "mode": "generator_challenge_fixture",
@@ -242,14 +405,47 @@ def run_fixture_trace(
             topic=topic,
             max_attempts=max_attempts,
             max_calls=max_calls,
-            recorder=trace,
+            recorder=_BatchRecorder(trace, 1, chunks),
+        )
+        trace.emit("batch_checkpoint", {
+            "batch_index": 1, "question_count": questions, "state": "completed",
+        })
+        from overfit.models import GeneratedMCQExam
+        from overfit.query.mcq import balance_options, deduplicate_items, mix_items
+
+        deduplicated = deduplicate_items(list(result.exam.items))
+        trace.emit("deduplication_finished", {
+            "items": [item.model_dump() for item in deduplicated.items],
+            "removed": deduplicated.removed,
+        })
+        balanced = balance_options(deduplicated.items, seed_identity=seed_identity)
+        mixed = mix_items(balanced.items, seed_identity=seed_identity)
+        balanced_items = [item.model_dump() for item in balanced.items]
+        mixed_items = [item.model_dump() for item in mixed]
+        presentation_order = [balanced_items.index(item) for item in mixed_items]
+        trace.emit("options_balanced", {
+            "items": mixed_items,
+            "balanced_items": balanced_items,
+            "presentation_order": presentation_order,
+            "item_material_batches": [1 for _ in mixed_items],
+            "mappings": balanced.mappings,
+            "seed_identity": seed_identity,
+        })
+        result = generator.GenerationResult(
+            exam=GeneratedMCQExam(items=mixed), attempts=result.attempts,
+            dropped=result.dropped, raw=result.raw,
         )
         stage = "artifacts"
         summary = summarize(trace.manifest, trace.events)
         trace.write_artifact("result.json", _canonical(summary) + "\n")
         trace.write_artifact("report.md", render_report(summary))
         if result.exam.items:
-            paper, answers = generator.render_exam(course, result.exam)
+            paper, answers = generator.render_exam(
+                course,
+                result.exam,
+                answers_file=answers_name,
+                generated_on=trace.manifest["started_at"][:10],
+            )
             trace.write_artifact(paper_name, paper)
             trace.write_artifact(answers_name, answers)
         status = "completed" if result.exam.items else "empty"

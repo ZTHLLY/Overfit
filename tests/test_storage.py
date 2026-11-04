@@ -69,6 +69,13 @@ def test_storage_provenance_roundtrip_selection_and_cache(tmp_path):
         assert store.all_embedded()[0].chunk.provenance["page_count"] == 12
 
 
+def test_stored_profile_can_be_read_without_an_embedding_model(tmp_path):
+    path = tmp_path / "profile.db"
+    VectorStore.open(path, PROFILE, create=True).close()
+
+    assert VectorStore.read_profile(path, course="COURSE") == PROFILE
+
+
 def test_search_candidates_is_wide_without_changing_search_top_k(tmp_path):
     first = sample_chunk()
     second = Chunk("second", "A second substantial passage. " * 10, "other.pdf", 2)
