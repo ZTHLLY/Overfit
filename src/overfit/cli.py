@@ -25,6 +25,26 @@ app = typer.Typer(
 )
 eval_app = typer.Typer(help="Inspect traces offline or explicitly run an independent judge.")
 app.add_typer(eval_app, name="eval")
+course_app = typer.Typer(help="Discover local courses.", no_args_is_help=True)
+app.add_typer(course_app, name="course")
+
+
+@course_app.command("list")
+def course_list() -> None:
+    """List courses from configured source and index directories without opening indexes."""
+    from overfit.courses import discover_courses
+
+    try:
+        courses = discover_courses(get_settings())
+    except (OSError, RuntimeError, ValidationError):
+        typer.secho("Unable to list courses; check COURSES_DIR and INDEX_DIR.",
+                    fg=typer.colors.RED, err=True)
+        raise typer.Exit(1) from None
+    if not courses:
+        typer.echo("No courses found.")
+    for course, index_present in courses:
+        status = "index present" if index_present else "not indexed"
+        typer.echo(f"{course}\t{status}")
 
 
 @eval_app.command("replay")
@@ -48,7 +68,18 @@ def eval_replay(run_dir: Annotated[Path, typer.Argument(help="Recorded run direc
 def _judge_summary(result: dict, *, replay: bool = False) -> None:
     """Display the report itself, not just an opaque output directory."""
     metrics = result["metrics"]
-    typer.echo(f"{'Judge replay' if replay else 'Judge review'} status: {result['status']}")
+    status = result["status"]
+    workflow = result.get("workflow", metrics.get("workflow"))
+    if workflow == "formal":
+        label = {"completed": "formal complete", "incomplete": "formal incomplete",
+                 "interrupted": "formal incomplete (interrupted)", "prepared": "prepared (formal)"}.get(status, status)
+    elif workflow == "calibration":
+        label = f"calibration {status} / no publication"
+    else:
+        label = status
+    typer.echo(f"{'Judge replay' if replay else 'Judge review'} status: {label}")
+    if protocol_version := result.get("protocol_version"):
+        typer.echo(f"Protocol: {protocol_version}")
     if metrics["mode"] == "prepare":
         typer.echo("Prepare only: no judge calls; semantics not evaluated. Missing results do not mean incorrect questions.")
     typer.echo(
@@ -56,11 +87,20 @@ def _judge_summary(result: dict, *, replay: bool = False) -> None:
         f"Selected reviews completed: {metrics['selected_evaluated_phase_count']}/{metrics['selected_phase_count']}; "
         f"Overall coverage: {metrics['evaluated_phase_count']}/{metrics['planned_phase_count']}"
     )
-    typer.echo(f"Model positive on all three dimensions: {metrics['model_all_positive_count']} (not final approval); "
+    typer.echo(f"Model positive on every required dimension: {metrics['model_all_positive_count']} (not final approval); "
                f"Pending human review: {metrics['human_review_pending_item_count']} questions; "
                f"Technical errors: {metrics['technical_error_phase_count']} phases")
     typer.echo(f"{'Recorded model call attempts' if replay else 'Model call attempts'}: {metrics['call_starts']}; "
                f"Responses received: {metrics['response_count']}; Retries: {metrics['retry_count']}")
+    if "mandatory_failure_item_count" in metrics:
+        typer.echo(f"Mandatory failures: {metrics['mandatory_failure_item_count']} questions")
+    usage = metrics.get("usage") or {}
+    known_usage = [f"{name}={usage[name]}" for name in (
+        "prompt_tokens", "completion_tokens", "reasoning_tokens",
+        "visible_completion_tokens", "total_tokens",
+    ) if name in usage]
+    if known_usage:
+        typer.echo("Recorded token usage: " + "; ".join(known_usage))
     if replay:
         typer.echo("Offline replay only; no new model calls.")
     typer.echo("Preliminary automated review; not yet human-calibrated.")
@@ -69,14 +109,29 @@ def _judge_summary(result: dict, *, replay: bool = False) -> None:
         raise typer.Exit(result["exit_code"])
 
 
+def _judge_v2_preflight() -> None:
+    """Show protocol policy before any client can be constructed; never print env values."""
+    typer.echo("MCQ Judge v2 preflight: calibration / no publication")
+    typer.echo("Frozen protocol attempts: 2; completion-token schedule: 8192 -> 16384")
+    typer.echo("Strict JSON Schema; reasoning disabled; provider parameters required.")
+    typer.echo("JUDGE_MAX_OUTPUT_TOKENS, JUDGE_MAX_ATTEMPTS, JUDGE_TEMPERATURE: "
+               "legacy-only; not applied to v2.")
+
+
 @eval_app.command("judge")
 def eval_judge(
     run_dir: Annotated[Path, typer.Argument(help="Complete generation trace directory.")],
     execute: Annotated[bool, typer.Option("--execute", help="Explicitly call configured JUDGE service.")] = False,
-    max_calls: Annotated[int, typer.Option("--max-calls", min=0, help="Hard call budget, including retries; required for execute.")] = 0,
-    max_items: Annotated[int | None, typer.Option("--max-items", min=1, help="Review at most this many retained items; others remain in metrics.")] = None,
+    max_calls: Annotated[int, typer.Option(
+        "--max-calls", min=0,
+        help="Short-answer call budget including retries; required for short-answer execution. MCQ derives its ceiling from JUDGE_MAX_ATTEMPTS.",
+    )] = 0,
+    max_items: Annotated[int | None, typer.Option(
+        "--max-items", min=1,
+        help="Review at most this many items. For MCQ, limit preparation only; execution requires the full set.",
+    )] = None,
 ) -> None:
-    """Prepare an offline report; use --execute to opt into independent model review."""
+    """Prepare an offline report or execute independent review. MCQ Judge v1 is the default for MCQ runs."""
     from pydantic import ValidationError
 
     from overfit.evaluation.runner import JudgeRunError, run_judge
@@ -89,6 +144,31 @@ def eval_judge(
     except (OverfitError, ValidationError, OSError):
         typer.secho("Invalid judge configuration, input or recording; check the complete trace and independent JUDGE settings.",
                     fg=typer.colors.RED, err=True)
+        raise typer.Exit(1) from None
+    _judge_summary(result)
+
+
+@eval_app.command("judge-review")
+def eval_judge_review(
+    run_dir: Annotated[Path, typer.Argument(help="Complete MCQ generation trace directory.")],
+    base_judgment: Annotated[Path, typer.Option("--base-judgment", help="Frozen v1 judgment for comparison only.")],
+    items: Annotated[str, typer.Option("--items", help="Required strictly increasing, unique 1-based indices, e.g. 3,5.")],
+    execute: Annotated[bool, typer.Option("--execute", help="Explicitly execute non-publishing v2 calibration.")] = False,
+) -> None:
+    """Calibrate explicit MCQ items in an independent record; no publication or resume."""
+    from overfit.evaluation.runner import JudgeRunError, run_mcq_judge_review
+
+    _judge_v2_preflight()
+    try:
+        result = run_mcq_judge_review(
+            run_dir, base_judgment=base_judgment, items=items, execute=execute,
+        )
+    except JudgeRunError as exc:
+        typer.secho(str(exc), fg=typer.colors.RED, err=True)
+        raise typer.Exit(1) from None
+    except (OverfitError, ValidationError, OSError, ValueError):
+        typer.secho("Invalid calibration input, selection, base judgment or independent JUDGE configuration; "
+                    "no publication.", fg=typer.colors.RED, err=True)
         raise typer.Exit(1) from None
     _judge_summary(result)
 
@@ -138,7 +218,7 @@ def eval_judge_challenge(
     typer.echo(f"Cases: {metrics['case_count']}; Selected reviews completed: "
                f"{metrics['selected_evaluated_phase_count']}/{metrics['selected_phase_count']}; "
                f"Overall coverage: {metrics['evaluated_phase_count']}/{metrics['planned_phase_count']}")
-    typer.echo(f"Model positive on all three dimensions: {metrics['model_all_positive_case_count']} (not final approval); "
+    typer.echo(f"Model positive on every required dimension: {metrics['model_all_positive_case_count']} (not final approval); "
                f"Technical errors: {metrics['technical_error_phase_count']} phases; "
                f"Pending human review: {metrics['human_review_pending_case_count']} cases")
     typer.echo(f"Model call attempts: {metrics['call_starts']}; Responses received: {metrics['response_count']}; Retries: {metrics['retry_count']}")
@@ -728,6 +808,22 @@ def search(
         typer.echo(f"   {text[:chars]}{'...' if len(text) > chars else ''}\n")
 
 
+def _write_mcq_display(settings, course: str, items: list[dict], *, generated_on: str) -> None:
+    from overfit.models import GeneratedMCQExam
+    from overfit.query.generator import render_mcq_display
+
+    paper_path = settings.output_path(course, "mock_exam.md")
+    answers_path = settings.output_path(course, "answers.md")
+    exam = GeneratedMCQExam.model_validate({"items": items})
+    paper, answers = render_mcq_display(
+        course, exam, answers_file=answers_path.name, generated_on=generated_on,
+    )
+    settings.ensure_dirs()
+    paper_path.write_text(paper, encoding="utf-8")
+    answers_path.write_text(answers, encoding="utf-8")
+    typer.echo(f"\n  {paper_path}\n  {answers_path}")
+
+
 @app.command()
 def mock(
     course: CourseArg,
@@ -740,7 +836,7 @@ def mock(
     trace: Annotated[bool, typer.Option("--trace", help="Record an auditable generation run.")] = False,
     judge: Annotated[
         bool,
-        typer.Option("--judge", help="Explicitly run the independent MCQ Judge after generation."),
+        typer.Option("--judge", help="Explicitly run the independent MCQ Judge v1 after generation."),
     ] = False,
     rerank_provider: Annotated[str | None, typer.Option("--rerank-provider")] = None,
     rerank_api_key: Annotated[str | None, typer.Option("--rerank-api-key")] = None,
@@ -827,12 +923,8 @@ def mock(
     summary = json.loads((run_dir / "result.json").read_text())
     typer.secho(f"{summary['retained_count']} MCQ questions", fg=typer.colors.GREEN)
     if not trace and not judge and result["status"] == "completed":
-        settings.ensure_dirs()
-        paper_path = settings.output_path(course, "mock_exam.md")
-        answers_path = settings.output_path(course, "answers.md")
-        paper_path.write_text((run_dir / paper_path.name).read_text(), encoding="utf-8")
-        answers_path.write_text((run_dir / answers_path.name).read_text(), encoding="utf-8")
-        typer.echo(f"\n  {paper_path}\n  {answers_path}")
+        manifest = json.loads((run_dir / "manifest.json").read_text(encoding="utf-8"))
+        _write_mcq_display(settings, course, summary["items"], generated_on=manifest["started_at"][:10])
 
     if judge:
         from overfit.evaluation.runner import JudgeRunError, run_judge
@@ -843,17 +935,12 @@ def mock(
             typer.secho(str(exc), fg=typer.colors.RED, err=True)
             raise typer.Exit(1) from None
         _judge_summary(review)
-        if not trace and review["publication"] is not None:
-            settings.ensure_dirs()
-            paper_path = settings.output_path(course, "mock_exam.md")
-            answers_path = settings.output_path(course, "answers.md")
-            paper_path.write_text(
-                Path(review["publication"]["paper"]).read_text(), encoding="utf-8"
+        if not trace and review["status"] == "completed" and review["publication"] is not None:
+            judgment_dir = Path(review["judgment_dir"])
+            manifest = json.loads((judgment_dir / "manifest.json").read_text(encoding="utf-8"))
+            _write_mcq_display(
+                settings, course, review["accepted_items"], generated_on=manifest["created_at"][:10],
             )
-            answers_path.write_text(
-                Path(review["publication"]["answers"]).read_text(), encoding="utf-8"
-            )
-            typer.echo(f"\n  {paper_path}\n  {answers_path}")
         typer.echo(
             f"Judged publication retained {review['metrics']['accepted_count']} questions."
         )

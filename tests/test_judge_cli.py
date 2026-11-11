@@ -112,7 +112,7 @@ def test_execute_fake_judge_and_replay_print_report_and_coverage(source, monkeyp
     assert result.exit_code == 0, result.output
     assert "status: completed" in result.output
     assert "Selected reviews completed: 2/2" in result.output
-    assert "Model positive on all three dimensions: 1" in result.output
+    assert "Model positive on every required dimension: 1" in result.output
     assert "Model call attempts: 2" in result.output
     path = report_path(result.output)
     assert path.is_file() and len(calls) == 2
@@ -176,7 +176,7 @@ def test_selected_success_prints_both_selected_and_full_coverage(tmp_path, monke
     assert result.exit_code == 0 and "status: completed" in result.output
     assert "Selected reviews completed: 2/2" in result.output
     assert "Overall coverage: 2/6" in result.output
-    assert "Model positive on all three dimensions: 1 (not final approval)" in result.output
+    assert "Model positive on every required dimension: 1 (not final approval)" in result.output
     assert "Automatically approved" not in result.output and len(calls) == 2
 
 

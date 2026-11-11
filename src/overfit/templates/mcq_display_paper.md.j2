@@ -1,0 +1,21 @@
+# {{ course }} — Practice Exam
+
+*{{ items | length }} question{{ 's' if items | length != 1 }} · {{ sources | length }} source document{{ 's' if sources | length != 1 }} · Generated {{ generated_at }}*
+
+{% for item in items %}
+## Question {{ item.number }}
+
+{{ item.question }}
+
+{% for option in item.options %}
+**{{ option.label }}.** {{ option.text }}
+
+{% endfor %}
+{% if not loop.last %}
+---
+
+{% endif %}
+{% endfor %}
+## Answer Key
+
+See `{{ answers_file }}`.

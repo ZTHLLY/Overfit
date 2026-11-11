@@ -633,6 +633,36 @@ def _render_mcq_exam(
     answers_file: str | None = None,
     generated_on: str | None = None,
 ) -> tuple[str, str]:
+    context = _mcq_render_context(course, exam)
+    context.update(
+        generated_at=generated_on or datetime.now(UTC).date().isoformat(),
+        answers_file=answers_file or get_settings().output_path(course, "answers.md").name,
+    )
+    env = _templates()
+    return (
+        env.get_template("mock_exam.md.j2").render(**context),
+        env.get_template("mock_answers.md.j2").render(**context),
+    )
+
+
+def render_mcq_display(
+    course: str,
+    exam: GeneratedMCQExam,
+    *,
+    answers_file: str,
+    generated_on: str,
+) -> tuple[str, str]:
+    """Render the student-facing paper and answer key, not the audit artifacts."""
+    context = _mcq_render_context(course, exam)
+    context.update(generated_at=generated_on, answers_file=answers_file)
+    env = _templates()
+    return (
+        env.get_template("mcq_display_paper.md.j2").render(**context),
+        env.get_template("mcq_display_answers.md.j2").render(**context),
+    )
+
+
+def _mcq_render_context(course: str, exam: GeneratedMCQExam) -> dict:
     numbered = []
     for index, item in enumerate(exam.items, start=1):
         options = []
@@ -653,7 +683,7 @@ def _render_mcq_exam(
             "correct_text": item.correct.text,
         })
 
-    context = {
+    return {
         "generation_contract": "mcq-v1",
         "course": course,
         "items": numbered,
@@ -662,15 +692,7 @@ def _render_mcq_exam(
             for item in exam.items
             for option in item.options.values()
         }),
-        "generated_at": generated_on or datetime.now(UTC).date().isoformat(),
-        "answers_file": answers_file
-        or get_settings().output_path(course, "answers.md").name,
     }
-    env = _templates()
-    return (
-        env.get_template("mock_exam.md.j2").render(**context),
-        env.get_template("mock_answers.md.j2").render(**context),
-    )
 
 
 def _summarise(exc: Exception) -> str:

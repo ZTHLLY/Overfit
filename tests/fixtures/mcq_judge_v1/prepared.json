@@ -1,0 +1,95 @@
+{
+  "case": "prepared",
+  "judgment_id": "00000000-0000-4000-8000-000000000001",
+  "tasks": {
+    "schema_version": 1,
+    "generation_contract": "mcq-v1",
+    "source": {
+      "run_id": "run",
+      "manifest_sha256": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+      "trace_sha256": "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb"
+    },
+    "course": "COURSE",
+    "chunks": [
+      {
+        "id": "c1",
+        "text": "Evidence",
+        "source": "notes.pdf",
+        "page": 5,
+        "page_end": null,
+        "section": null,
+        "provenance": null
+      },
+      {
+        "id": "c2",
+        "text": "Irrelevant other batch",
+        "source": "other.pdf",
+        "page": 9,
+        "page_end": null,
+        "section": null,
+        "provenance": null
+      }
+    ],
+    "item_materials": [
+      [
+        {
+          "id": "c1",
+          "text": "Evidence",
+          "source": "notes.pdf",
+          "page": 5,
+          "page_end": null,
+          "section": null,
+          "provenance": null
+        }
+      ]
+    ],
+    "items": [
+      {
+        "topic": "T",
+        "question": "Which statement is supported?",
+        "options": {
+          "A": {
+            "text": "Option A",
+            "explanation": "Feedback A.",
+            "source": "notes.pdf",
+            "page": 5,
+            "page_end": null
+          },
+          "B": {
+            "text": "Option B",
+            "explanation": "Feedback B.",
+            "source": "notes.pdf",
+            "page": 5,
+            "page_end": null
+          },
+          "C": {
+            "text": "Option C",
+            "explanation": "Feedback C.",
+            "source": "notes.pdf",
+            "page": 5,
+            "page_end": null
+          },
+          "D": {
+            "text": "Option D",
+            "explanation": "Feedback D.",
+            "source": "notes.pdf",
+            "page": 5,
+            "page_end": null
+          }
+        },
+        "correct_option": "A"
+      }
+    ],
+    "generation_model": "generator-fixture"
+  },
+  "artifacts": {
+    "calls.jsonl": "",
+    "complete.json": "{\"artifacts\": {\"calls.jsonl\": \"e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855\", \"judgments.jsonl\": \"142fd471d3ac04f8ab796d34600759fbb36140dc5a92b07c5772045b0eb074ec\", \"manifest.json\": \"38676b27b85d59718012f1ad2ad031ab39d3a9713db5208a784e53e8f1277281\", \"metrics.json\": \"cf8a8961242d7c54f74b0e27664fd90fc5a42c52ceaa88a786bccdcb94bd4004\", \"report.md\": \"5833bdfde88dbb6f3c2a657ba15114167aa2475a1b613538c6a556232c4021e7\", \"review_queue.jsonl\": \"e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855\", \"tasks.json\": \"da46feff54f46b4947eb165787d34d4fc3ab45d41dca9b86260449494fe35179\"}, \"judgment_id\": \"00000000-0000-4000-8000-000000000001\", \"schema_version\": 1, \"status\": \"prepared\"}\n",
+    "judgments.jsonl": "{\"item\": {\"correct_option\": \"A\", \"options\": {\"A\": {\"explanation\": \"Feedback A.\", \"page\": 5, \"page_end\": null, \"source\": \"notes.pdf\", \"text\": \"Option A\"}, \"B\": {\"explanation\": \"Feedback B.\", \"page\": 5, \"page_end\": null, \"source\": \"notes.pdf\", \"text\": \"Option B\"}, \"C\": {\"explanation\": \"Feedback C.\", \"page\": 5, \"page_end\": null, \"source\": \"notes.pdf\", \"text\": \"Option C\"}, \"D\": {\"explanation\": \"Feedback D.\", \"page\": 5, \"page_end\": null, \"source\": \"notes.pdf\", \"text\": \"Option D\"}}, \"question\": \"Which statement is supported?\", \"topic\": \"T\"}, \"reason\": \"prepare\", \"status\": \"not_evaluated\"}\n",
+    "manifest.json": "{\"created_at\": \"2026-11-04T00:00:00+00:00\", \"generation_contract\": \"mcq-v1\", \"judge_config\": null, \"judgment_id\": \"00000000-0000-4000-8000-000000000001\", \"max_calls\": 0, \"max_items\": null, \"mode\": \"prepare\", \"protocol_version\": \"mcq-judge-v1\", \"schema_version\": 1, \"source_identity\": {\"manifest_sha256\": \"aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa\", \"run_id\": \"run\", \"trace_sha256\": \"bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb\"}}\n",
+    "metrics.json": "{\"accepted_count\": 0, \"call_starts\": 0, \"evaluated_phase_count\": 0, \"human_review_pending_item_count\": 0, \"max_calls\": 0, \"mode\": \"prepare\", \"model_all_positive_count\": 0, \"planned_phase_count\": 1, \"response_count\": 0, \"retained_count\": 1, \"retry_count\": 0, \"run_status\": \"prepared\", \"schema_version\": 1, \"selected_evaluated_phase_count\": 0, \"selected_phase_count\": 1, \"technical_error_phase_count\": 0}\n",
+    "report.md": "# MCQ Judge report\n\n- Status: **prepared**\n- Retained: 1\n- Accepted for judged publication: 0\n- Pending human review: 0\n- Technical errors: 0\n- Calls: 0/0\n\n## Item 1\n\n- Status: `not_evaluated`\n- Mandatory pass: `None`\n- Human review: `None`\n",
+    "review_queue.jsonl": "",
+    "tasks.json": "{\"chunks\": [{\"id\": \"c1\", \"page\": 5, \"page_end\": null, \"provenance\": null, \"section\": null, \"source\": \"notes.pdf\", \"text\": \"Evidence\"}, {\"id\": \"c2\", \"page\": 9, \"page_end\": null, \"provenance\": null, \"section\": null, \"source\": \"other.pdf\", \"text\": \"Irrelevant other batch\"}], \"course\": \"COURSE\", \"generation_contract\": \"mcq-v1\", \"generation_model\": \"generator-fixture\", \"item_materials\": [[{\"id\": \"c1\", \"page\": 5, \"page_end\": null, \"provenance\": null, \"section\": null, \"source\": \"notes.pdf\", \"text\": \"Evidence\"}]], \"items\": [{\"correct_option\": \"A\", \"options\": {\"A\": {\"explanation\": \"Feedback A.\", \"page\": 5, \"page_end\": null, \"source\": \"notes.pdf\", \"text\": \"Option A\"}, \"B\": {\"explanation\": \"Feedback B.\", \"page\": 5, \"page_end\": null, \"source\": \"notes.pdf\", \"text\": \"Option B\"}, \"C\": {\"explanation\": \"Feedback C.\", \"page\": 5, \"page_end\": null, \"source\": \"notes.pdf\", \"text\": \"Option C\"}, \"D\": {\"explanation\": \"Feedback D.\", \"page\": 5, \"page_end\": null, \"source\": \"notes.pdf\", \"text\": \"Option D\"}}, \"question\": \"Which statement is supported?\", \"topic\": \"T\"}], \"schema_version\": 1, \"source\": {\"manifest_sha256\": \"aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa\", \"run_id\": \"run\", \"trace_sha256\": \"bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb\"}}\n"
+  }
+}

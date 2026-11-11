@@ -167,6 +167,7 @@ Run `uv run overfit <command> --help` for every option.
 | `inspect` | Reports extraction statistics, samples the longest pages, and can show cleaning removals | none |
 | `chunks` | Parses and previews actual chunks before indexing | none |
 | `ingest` | Parses, chunks, embeds and writes/updates one course index | embedding |
+| `course list` | Lists local course IDs and whether an index file is present | none |
 | `search QUERY` | Dense Top 40 → OpenRouter rerank → up to 10; prints both vector and rerank ranks/scores | embedding + reranker |
 | `mock` | Generates auditable `mcq-v1` A–D exams in batches of at most 10; `--judge` explicitly adds independent MCQ review | generation; `--topic` also embeds and reranks; Judge only with `--judge` |
 | `eval replay RUN_DIR` | Revalidates a local trace and writes a separate replay report; no settings, index or provider access | none |
@@ -185,6 +186,7 @@ overfit inspect     --course/-c COURSE [--path/-p PATH] [--samples 2]
 overfit chunks      --course/-c COURSE [--path/-p PATH] [--show 5]
                     [--spanning]
 overfit ingest      --course/-c COURSE [--path/-p PATH] [--force] [--rebuild]
+overfit course list
 overfit search      QUERY --course/-c COURSE [--top-k/-k 10] [--chars 300]
 overfit mock        --course/-c COURSE [--questions/-q 30] [--topic TEXT]
                     [--material 0] [--trace] [--judge]
@@ -202,6 +204,11 @@ overfit embed-check
 
 Running `overfit` without a subcommand currently prints `hello overfit`;
 running it with `--help` lists the commands above.
+
+Run `uv run overfit course list` to find values for `--course`. It checks the
+configured `COURSES_DIR` and `INDEX_DIR` without opening indexes or contacting
+model services. `index present` indicates that a local index file exists, not
+that its contents or settings have been validated.
 
 Opening an existing index reads its persisted profile, including vector width,
 without contacting the embedding endpoint. `status`, `topics`, whole-course
@@ -308,7 +315,10 @@ topic, identifies the correct letter/text, and shows feedback plus a citation fo
 all four options. Any invalid option citation drops the whole item; semantic fields
 and nearby pages are never repaired. Ordinary `mock` explicitly reports semantic
 uniqueness and distractor correctness as **not judged**. `mock --judge` is the
-additional authorization boundary for the independent finite MCQ Judge.
+additional authorization boundary for the independent finite MCQ Judge. Both
+`mock --judge` and `eval judge` on an MCQ trace use `mcq-judge-v1` by default.
+`eval judge-review` remains an explicit, non-publishing V2 experiment; saved
+V1 and V2 judgments both replay under their recorded protocol.
 
 ## Configuration
 
@@ -348,9 +358,11 @@ defaults are hard-coded to the same values; use `search --top-k` and
 
 Every new `mock` records an auditable `generation_contract=mcq-v1` run under
 `outputs_dir/eval/<run_id>/`; `--trace` additionally prints that directory and
-leaves course-level output files untouched. Ordinary `mock` copies the completed
-paper/answer artifacts to their normal course-level paths. Historical short-answer
-traces remain readable and replayable without synthetic options.
+leaves course-level output files untouched. Ordinary `mock` renders the final
+items to the normal course-level paths using English question headings and
+separators in both the paper and answer key. The separate audit artifacts keep
+their original layout for replay. Historical short-answer traces remain readable
+and replayable without synthetic options.
 
 ```bash
 # Online: still calls embedding/generation services; run only when intended.
@@ -371,20 +383,27 @@ making network calls. The existing 47-item golden set is unchanged.
 ```bash
 # Offline preparation: writes a readable report, all semantic tasks unreviewed.
 uv run overfit eval judge /absolute/path/to/outputs/eval/RUN_ID
-# Explicit online execution only after choosing a judge and call budget.
+# Explicit online MCQ V1 review of all retained items; call ceiling is derived.
 # Requires independent JUDGE_MODEL, JUDGE_BASE_URL and JUDGE_API_KEY.
-uv run overfit eval judge /absolute/path/to/outputs/eval/RUN_ID --execute --max-calls 6
+uv run overfit eval judge /absolute/path/to/outputs/eval/MCQ_RUN_ID --execute
+# Historical short-answer traces require an explicit global call budget.
+uv run overfit eval judge /absolute/path/to/outputs/eval/SHORT_ANSWER_RUN_ID --execute --max-calls 6
 # Offline recomputation from saved judge responses.
 uv run overfit eval judge-replay /absolute/path/to/outputs/eval/RUN_ID/judgments/JUDGMENT_ID
 ```
 
 Judge runs write separate `judgments/<UUID>/` directories, never replace the
-generation trace, and print the report path. Each retained item has two separate
-requests: answerability sees no generated-answer field, while support checks the
-answer and cited page. Unknown, unreviewed and errored items remain in the metric
-denominator. Optional `--max-items N` selects the first N retained items without
-hiding unselected items. SDK retries are disabled; the global `--max-calls` cap
-includes configured runner retries. A valid negative verdict is not retried.
+generation trace, and print the report path. MCQ V1 reviews all dimensions in
+one request per attempt and derives the call ceiling from the retained item
+count and `JUDGE_MAX_ATTEMPTS`. An MCQ execution must cover the full retained
+set; `--max-items N` can limit offline preparation, not formal publication.
+`JUDGE_MODEL` selects the model, not the review protocol.
+
+For historical short-answer traces, each retained item has two separate tasks:
+answerability sees no generated-answer field, while support checks the answer
+and cited page. Optional `--max-items N` selects the first N retained items
+without hiding unselected items. The global `--max-calls` cap includes runner
+retries. SDK retries are disabled, and valid negative verdicts are not retried.
 
 The user completed a real three-question trace, offline replay, local-model pilots,
 and an OpenRouter pilot. Raising the output budget to 4096 resolved truncation;
@@ -500,3 +519,5 @@ the earlier [PR 1 record](docs/plans/EVAL-TRACE-PLAN.md) remains historical evid
 | [MOCK-MCQ-SPEC.md](docs/specs/MOCK-MCQ-SPEC.md) | Frozen MCQ v1 product, schema, batching, feedback, Judge and compatibility contract |
 | [MOCK-MCQ-PLAN.md](docs/plans/MOCK-MCQ-PLAN.md) | Planned TDD milestones, migration, offline matrix and user-authorized live gates for MCQ v1 |
 | [MOCK-MCQ-LIVE-GATES.md](docs/evaluation/MOCK-MCQ-LIVE-GATES.md) | Append-only record of authorized MCQ live gates, replay identities and remaining gates |
+| [MCQ-JUDGE-V2-SPEC.md](docs/specs/MCQ-JUDGE-V2-SPEC.md) | Frozen v2 Judge protocol, strict structured output, retry, calibration and publication contract |
+| [MCQ-JUDGE-V2-PLAN.md](docs/plans/MCQ-JUDGE-V2-PLAN.md) | TDD milestones, v1 compatibility, selective calibration and full v2 live gates |

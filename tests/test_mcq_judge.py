@@ -1,4 +1,4 @@
-"""Offline fake-client tests for the explicit mcq-v1 Judge gate."""
+"""Offline fake-client tests for the opt-in MCQ Judge v2 gate."""
 
 import hashlib
 import json
@@ -7,7 +7,7 @@ from pathlib import Path
 from types import SimpleNamespace
 
 from overfit.evaluation import runner
-from overfit.evaluation.judge import JudgeSettings
+from overfit.evaluation.mcq_protocols import MCQJudgeV2Settings
 
 
 def _item():
@@ -39,6 +39,7 @@ def _review(*, pending=False, positive=True):
         },
         "explanations_accurate": {label: positive for label in "ABCD"},
         "citations_supported": {label: positive for label in "ABCD"},
+        "options_material_derived": {label: positive for label in "ABCD"},
         "positive_stem": positive,
         "no_calculation": positive,
         "reason": "Fixture review.",
@@ -73,12 +74,11 @@ class FailingClient:
 
 
 def _settings():
-    return JudgeSettings(
+    return MCQJudgeV2Settings(
         _env_file=None,
         base_url="https://judge.example/v1",
         api_key="fixture",
         model="judge-fixture",
-        max_attempts=2,
     )
 
 
@@ -116,7 +116,7 @@ def test_mcq_judge_derives_ceiling_and_publishes_only_complete_positive_items(
     monkeypatch.setattr(runner, "_mcq_source", lambda _: _source(tmp_path))
     client = Client([json.dumps(_review())])
 
-    result = runner.run_mcq_judge(
+    result = runner.run_mcq_judge_v2(
         tmp_path, execute=True, settings=_settings(), client_factory=lambda _: client
     )
 
@@ -128,7 +128,8 @@ def test_mcq_judge_derives_ceiling_and_publishes_only_complete_positive_items(
     assert "Which statement is supported?" in Path(
         result["publication"]["paper"]
     ).read_text()
-    assert client.calls[0]["response_format"] == {"type": "json_object"}
+    assert client.calls[0]["response_format"]["type"] == "json_schema"
+    assert client.calls[0]["response_format"]["json_schema"]["strict"] is True
     assert "Irrelevant other batch" not in json.dumps(client.calls[0])
     replay = runner.replay_judgment(result["judgment_dir"])
     assert replay["status"] == "completed"
@@ -140,7 +141,7 @@ def test_pending_item_is_review_only_and_invalid_responses_make_run_incomplete(
 ):
     monkeypatch.setattr(runner, "_mcq_source", lambda _: _source(tmp_path))
     pending = Client([json.dumps(_review(pending=True))])
-    reviewed = runner.run_mcq_judge(
+    reviewed = runner.run_mcq_judge_v2(
         tmp_path, execute=True, settings=_settings(), client_factory=lambda _: pending
     )
     assert reviewed["status"] == "completed"
@@ -152,7 +153,7 @@ def test_pending_item_is_review_only_and_invalid_responses_make_run_incomplete(
     other.mkdir()
     monkeypatch.setattr(runner, "_mcq_source", lambda _: _source(other))
     invalid = Client(["{}", "{}"])
-    failed = runner.run_mcq_judge(
+    failed = runner.run_mcq_judge_v2(
         other, execute=True, settings=_settings(), client_factory=lambda _: invalid
     )
     assert failed["status"] == "incomplete"
@@ -162,7 +163,7 @@ def test_pending_item_is_review_only_and_invalid_responses_make_run_incomplete(
 
 def test_mcq_judge_replay_rejects_ceiling_and_unsafe_json_tampering(tmp_path, monkeypatch):
     monkeypatch.setattr(runner, "_mcq_source", lambda _: _source(tmp_path))
-    result = runner.run_mcq_judge(
+    result = runner.run_mcq_judge_v2(
         tmp_path,
         execute=True,
         settings=_settings(),
@@ -195,7 +196,7 @@ def test_mcq_judge_replay_rejects_ceiling_and_unsafe_json_tampering(tmp_path, mo
 
 def test_mcq_judge_replay_rejects_attempt_after_success(tmp_path, monkeypatch):
     monkeypatch.setattr(runner, "_mcq_source", lambda _: _source(tmp_path))
-    result = runner.run_mcq_judge(
+    result = runner.run_mcq_judge_v2(
         tmp_path,
         execute=True,
         settings=_settings(),
@@ -233,7 +234,7 @@ def test_mcq_judge_replay_rejects_attempt_after_success(tmp_path, monkeypatch):
 
 def test_mcq_judge_replay_rejects_boolean_config_and_forged_report(tmp_path, monkeypatch):
     monkeypatch.setattr(runner, "_mcq_source", lambda _: _source(tmp_path))
-    result = runner.run_mcq_judge(
+    result = runner.run_mcq_judge_v2(
         tmp_path,
         execute=True,
         settings=_settings(),
@@ -252,7 +253,7 @@ def test_mcq_judge_replay_rejects_boolean_config_and_forged_report(tmp_path, mon
     else:
         raise AssertionError("forged MCQ Judge report was accepted")
 
-    report_path.write_text(original_report.replace("Calls: 1/2", "Calls: 1/1"))
+    report_path.write_text(original_report)
     manifest_path = root / "manifest.json"
     manifest = json.loads(manifest_path.read_text())
     manifest["judge_config"]["max_attempts"] = True
@@ -325,7 +326,7 @@ def test_mcq_source_rejects_post_inspection_bytes_and_duplicate_json(tmp_path, m
 
 def test_mcq_judge_replay_rejects_manifest_envelope_tampering(tmp_path, monkeypatch):
     monkeypatch.setattr(runner, "_mcq_source", lambda _: _source(tmp_path))
-    result = runner.run_mcq_judge(
+    result = runner.run_mcq_judge_v2(
         tmp_path,
         execute=True,
         settings=_settings(),
@@ -336,11 +337,11 @@ def test_mcq_judge_replay_rejects_manifest_envelope_tampering(tmp_path, monkeypa
     original = json.loads(manifest_path.read_text())
     mutations = [
         {**original, "untrusted_extra": True},
-        {**original, "schema_version": 2},
+        {**original, "schema_version": 99},
         {**original, "judgment_id": "different"},
         {**original, "source_identity": {**original["source_identity"], "run_id": "other"}},
         {**original, "created_at": "2026-11-04T00:00:00"},
-        {key: value for key, value in original.items() if key != "max_items"},
+        {key: value for key, value in original.items() if key != "selected_items"},
     ]
     for manifest in mutations:
         manifest_path.write_text(
@@ -392,7 +393,7 @@ def test_mcq_judge_replay_rejects_manifest_envelope_tampering(tmp_path, monkeypa
 
 def test_mcq_judge_replay_binds_source_snapshot_with_json_types(tmp_path, monkeypatch):
     monkeypatch.setattr(runner, "_mcq_source", lambda _: _source(tmp_path))
-    result = runner.run_mcq_judge(tmp_path, execute=False)
+    result = runner.run_mcq_judge_v2(tmp_path, execute=False)
     root = Path(result["judgment_dir"])
 
     tasks_path = root / "tasks.json"
@@ -417,7 +418,7 @@ def test_mcq_judge_replay_binds_source_snapshot_with_json_types(tmp_path, monkey
 
 def test_mcq_judge_replay_requires_strict_call_event_envelopes(tmp_path, monkeypatch):
     monkeypatch.setattr(runner, "_mcq_source", lambda _: _source(tmp_path))
-    result = runner.run_mcq_judge(
+    result = runner.run_mcq_judge_v2(
         tmp_path,
         execute=True,
         settings=_settings(),
@@ -441,7 +442,7 @@ def test_mcq_judge_replay_requires_strict_call_event_envelopes(tmp_path, monkeyp
 
 def test_mcq_judge_replay_rejects_unsafe_nested_finish_payloads(tmp_path, monkeypatch):
     monkeypatch.setattr(runner, "_mcq_source", lambda _: _source(tmp_path))
-    result = runner.run_mcq_judge(
+    result = runner.run_mcq_judge_v2(
         tmp_path,
         execute=True,
         settings=_settings(),
@@ -465,7 +466,7 @@ def test_mcq_judge_replay_rejects_unsafe_nested_finish_payloads(tmp_path, monkey
     other = tmp_path / "other"
     other.mkdir()
     monkeypatch.setattr(runner, "_mcq_source", lambda _: _source(other))
-    failed = runner.run_mcq_judge(
+    failed = runner.run_mcq_judge_v2(
         other,
         execute=True,
         settings=_settings(),

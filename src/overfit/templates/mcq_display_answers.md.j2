@@ -1,0 +1,26 @@
+# {{ course }} — Practice Exam Answers
+
+*Generated {{ generated_at }}*
+
+{% for item in items %}
+## Question {{ item.number }}
+
+{{ item.question }}
+
+**Topic:** {{ item.topic }}
+
+**Correct answer:** {{ item.correct_option }}. {{ item.correct_text }}
+
+{% for option in item.options %}
+**{{ option.label }}.** {{ option.text }}
+
+{{ option.explanation }}
+
+> Source: **{{ option.citation }}**
+
+{% endfor %}
+{% if not loop.last %}
+---
+
+{% endif %}
+{% endfor %}

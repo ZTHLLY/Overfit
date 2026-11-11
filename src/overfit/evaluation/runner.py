@@ -12,6 +12,7 @@ from datetime import UTC, datetime
 from pathlib import Path
 from time import monotonic
 from types import SimpleNamespace
+from urllib.parse import urlsplit
 from uuid import uuid4
 
 from pydantic import ValidationError
@@ -57,6 +58,8 @@ def _checker_identity():
     base = Path(__file__).parent
     result = {name: digest((base / name).read_bytes())
               for name in ("judge.py", "runner.py", "metrics.py", "elastic.py")}
+    # Frozen judge-v4 lane: dispatch additions do not change its historical policy.
+    result["runner.py"] = "a58c094160bba825dc38a229fb0550ffde031fc2f0e8d043cd4f82874bc70f86"
     result["provenance.py"] = digest((base.parent / "provenance.py").read_bytes())
     return result
 
@@ -356,8 +359,11 @@ def run_mcq_judge(
     settings=None,
     client_factory=None,
 ):
-    """Explicit, finite, one-phase MCQ Judge; negative items are never rewritten."""
+    """Default MCQ Judge v1; only a full execution can publish."""
     _check(max_items is None or _positive(max_items), "max-items must be positive.")
+    root, _source_result, tasks = _mcq_source(run_dir)
+    _check(not execute or max_items is None or max_items >= len(tasks["items"]),
+           "Formal MCQ Judge requires every retained item; --max-items only limits preparation.")
     if execute:
         try:
             settings = settings or judge.JudgeSettings()
@@ -366,7 +372,6 @@ def run_mcq_judge(
                 "Invalid judge configuration; set JUDGE_MODEL, JUDGE_BASE_URL, "
                 "JUDGE_API_KEY and valid limits."
             ) from None
-    root, _source_result, tasks = _mcq_source(run_dir)
     target = _unique(root / "judgments")
     record = Recording(target)
     selected = tasks["items"][:max_items]
@@ -520,6 +525,7 @@ def run_mcq_judge(
         "judgment_dir": str(target),
         "report_path": str(target / "report.md"),
         "status": status,
+        "protocol_version": judge.MCQ_PROTOCOL_VERSION,
         "metrics": metrics,
         "accepted_items": accepted,
         "publication": publication,
@@ -527,10 +533,36 @@ def run_mcq_judge(
     }
 
 
+def run_mcq_judge_v2(run_dir, *, execute=False, max_items=None, settings=None, client_factory=None):
+    """Explicit opt-in to the immutable formal v2 Judge lane."""
+    from overfit.evaluation.mcq_v2 import run_formal
+    return run_formal(run_dir, execute=execute, max_items=max_items,
+                      settings=settings, client_factory=client_factory)
+
+
+def run_mcq_judge_review(run_dir, *, base_judgment, items, execute=False,
+                         settings=None, client_factory=None):
+    """Explicit selective calibration, never a publishing resume."""
+    from overfit.evaluation.mcq_v2 import run_calibration
+    return run_calibration(run_dir, base_judgment=base_judgment, items=items,
+                           execute=execute, settings=settings, client_factory=client_factory)
+
+
+def run_mcq_judge_capability(run_dir, *, base_judgment, items, execute=False,
+                            settings=None, client_factory=None):
+    """P9 helper: no implied execution, fixed source identity and explicit items 3,5."""
+    from overfit.evaluation.mcq_v2 import run_capability
+    return run_capability(run_dir, base_judgment=base_judgment, items=items,
+                          execute=execute, settings=settings, client_factory=client_factory)
+
+
 def run_judge(run_dir, *, execute=False, max_calls=0, max_items=None, settings=None, client_factory=None):
-    """Prepare by default. Execution always needs explicit config and call budget."""
+    """Prepare by default. MCQ derives its ceiling; short-answer needs a budget."""
     preview = inspect_run(Path(run_dir).expanduser().resolve())
     if preview.get("generation_contract") == "mcq-v1":
+        _check(type(max_calls) is int and max_calls == 0,
+               "MCQ Judge derives its call ceiling from retained items and JUDGE_MAX_ATTEMPTS; "
+               "--max-calls does not apply.")
         return run_mcq_judge(
             run_dir,
             execute=execute,
@@ -797,6 +829,9 @@ def replay_judgment(judgment_dir):
         preview = _json(_read(root, "manifest.json"))
     except (ValueError, TypeError, JudgeRunError):
         raise JudgeRunError("Invalid or unsupported judge recording.") from None
+    if preview.get("protocol_version") == "mcq-judge-v2":
+        from overfit.evaluation.mcq_v2 import replay
+        return replay(judgment_dir)
     if preview.get("protocol_version") == judge.MCQ_PROTOCOL_VERSION:
         return _replay_mcq_judgment(root)
     try:
@@ -819,7 +854,7 @@ def replay_judgment(judgment_dir):
             1 if metrics["run_status"] == "incomplete" else 0}
 
 
-def _replay_mcq_judgment(root: Path):
+def _replay_mcq_judgment(root: Path, *, verify_only=False):
     """Verify an MCQ Judge recording and its raw-response decisions offline."""
     try:
         complete = _json(_read(root, "complete.json"))
@@ -906,15 +941,17 @@ def _replay_mcq_judgment(root: Path):
                 )),
                 "Invalid MCQ Judge configuration shape.",
             )
-            settings = judge.JudgeSettings(
-                _env_file=None,
-                api_key="offline-replay-placeholder",
-                **config,
-            )
-            _check(
-                judge.safe_identity(settings) == config,
-                "MCQ Judge configuration is not a canonical safe identity.",
-            )
+            # Historical replay validates the saved identity, never process settings.
+            endpoint = config["base_url"]
+            parsed = urlsplit(endpoint)
+            _check(endpoint == endpoint.strip() and not any(c.isspace() for c in endpoint)
+                   and parsed.scheme in {"http", "https"} and bool(parsed.hostname)
+                   and parsed.username is None and parsed.password is None
+                   and not parsed.query and not parsed.fragment and bool(config["model"].strip()))
+            _ = parsed.port
+            _check(config["timeout"] > 0 and math.isfinite(config["timeout"])
+                   and math.isfinite(config["temperature"]) and 0 <= config["temperature"] <= 2)
+            settings = SimpleNamespace(**config)
         else:
             _check(manifest.get("judge_config") is None,
                    "Prepare-only MCQ Judge recording has configuration.")
@@ -1177,6 +1214,8 @@ def _replay_mcq_judgment(root: Path):
         raise
     except (ValueError, TypeError, KeyError, IndexError):
         raise JudgeRunError("Invalid or unsupported MCQ Judge recording.") from None
+    if verify_only:
+        return {"status": metrics["run_status"], "metrics": metrics}
     target = _unique(root / "replays")
     record = Recording(target)
     replay_metrics = deepcopy(metrics)
@@ -1191,6 +1230,7 @@ def _replay_mcq_judgment(root: Path):
         "replay_dir": str(target),
         "report_path": str(target / "report.md"),
         "status": status,
+        "protocol_version": judge.MCQ_PROTOCOL_VERSION,
         "metrics": replay_metrics,
         "exit_code": 130 if status == "interrupted" else 1 if status == "incomplete" else 0,
     }

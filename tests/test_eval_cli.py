@@ -286,6 +286,8 @@ def test_cli_trace_and_default_route_both_create_auditable_runs(setup, monkeypat
     manifest = json.loads((run_dirs[0] / "manifest.json").read_text())
     assert manifest["task"]["questions"] == 30
     assert manifest["task"]["material_budget"] == 60
+    assert not setup.settings.output_path("COURSE", "mock_exam.md").exists()
+    assert not setup.settings.output_path("COURSE", "answers.md").exists()
     count = len(run_dirs)
     class Store:
         def __enter__(self):
@@ -296,7 +298,16 @@ def test_cli_trace_and_default_route_both_create_auditable_runs(setup, monkeypat
     result = CliRunner().invoke(cli.app, ["mock", "--course", "COURSE"])
     assert result.exit_code == 0, result.output
     assert "Semantic uniqueness and distractor correctness: not judged" in result.output
-    assert setup.settings.output_path("COURSE", "mock_exam.md").exists()
+    paper = setup.settings.output_path("COURSE", "mock_exam.md").read_text()
+    answers = setup.settings.output_path("COURSE", "answers.md").read_text()
+    assert "## Question 1" in paper and "## Question 1" in answers
+    assert "**Correct answer:**" in answers
+    [default_run] = set(eval_root.iterdir()) - set(run_dirs)
+    manifest = json.loads((default_run / "manifest.json").read_text())
+    assert manifest["started_at"][:10] in paper and manifest["started_at"][:10] in answers
+    for directory in (run_dirs[0], default_run):
+        assert "## Question 1" not in (directory / "COURSE_mock_exam.md").read_text()
+        assert "## Question 1" not in (directory / "COURSE_answers.md").read_text()
     assert len(list(eval_root.iterdir())) == count + 1
     assert setup.calls[-1]["timeout"] == setup.settings.request_timeout
 
@@ -306,18 +317,20 @@ def test_settings_default_question_count_matches_mock_cli_default(setup):
 
 
 def test_mock_judge_is_explicit_and_additional(setup, monkeypatch):
-    from overfit.evaluation import judge, runner
+    from overfit.evaluation import judge, mcq_protocols, runner
 
     calls = []
 
     judge_settings = object()
     monkeypatch.setattr(judge, "JudgeSettings", lambda: judge_settings)
+    monkeypatch.setattr(mcq_protocols, "MCQJudgeV2Settings", lambda: pytest.fail("V2 settings loaded"))
 
     def fake_judge(run_dir, *, execute, settings):
         assert settings is judge_settings
         calls.append((Path(run_dir), execute))
         return {
             "status": "completed",
+            "protocol_version": "mcq-judge-v1",
             "report_path": str(Path(run_dir) / "judge-report.md"),
             "exit_code": 0,
             "publication": None,
@@ -341,6 +354,78 @@ def test_mock_judge_is_explicit_and_additional(setup, monkeypatch):
     assert len(calls) == 1 and calls[0][1] is True
     assert "not judged" not in result.output
     assert "Judged publication retained 1 questions" in result.output
+    assert "Protocol: mcq-judge-v1" in result.output
+    assert "MCQ Judge v2 preflight" not in result.output
+    assert not setup.settings.output_path("COURSE", "mock_exam.md").exists()
+    assert not setup.settings.output_path("COURSE", "answers.md").exists()
+
+
+@pytest.mark.parametrize("trace", [False, True])
+def test_mock_judge_display_uses_published_order_and_judgment_date(setup, monkeypatch, trace):
+    from overfit.evaluation import judge, runner
+    from overfit.models import GeneratedMCQExam
+
+    monkeypatch.setattr(judge, "JudgeSettings", object)
+    first, second = mcq_item(), mcq_item()
+    second["question"] = "What did the second approved example show?"
+    setup.use_response(json.dumps({"questions": [first, second]}))
+    audit_artifacts = {}
+    publication_details = {}
+
+    def fake_judge(run_dir, *, execute, settings):
+        original = json.loads((run_dir / "result.json").read_text())["items"]
+        assert len(original) == 2
+        items = list(reversed(original))
+        item = items[0]
+        old = item["correct_option"]
+        new = next(label for label in "ABCD" if label != old)
+        item["correct_option"] = new
+        item["options"][old], item["options"][new] = item["options"][new], item["options"][old]
+        exam = GeneratedMCQExam.model_validate({"items": items})
+        judgment = run_dir / "judgments" / "fixture"
+        judgment.mkdir(parents=True)
+        (judgment / "manifest.json").write_text(json.dumps({"created_at": "2042-01-02T00:00:00+00:00"}))
+        paper, answers = generator.render_exam(
+            "COURSE", exam, answers_file="judged_answers.md", generated_on="2042-01-02",
+        )
+        paper_file, answers_file = judgment / "judged_mock_exam.md", judgment / "judged_answers.md"
+        paper_file.write_text(paper)
+        answers_file.write_text(answers)
+        audit_artifacts.update({paper_file: paper, answers_file: answers})
+        publication_details.update(questions=[entry["question"] for entry in items], correct_label=new)
+        return {
+            "judgment_dir": str(judgment), "report_path": str(judgment / "report.md"),
+            "status": "completed", "exit_code": 0, "protocol_version": "mcq-judge-v1",
+            "publication": {"paper": str(paper_file), "answers": str(answers_file)},
+            "accepted_items": items,
+            "metrics": {
+                "mode": "execute", "retained_count": 2, "accepted_count": 2,
+                "selected_evaluated_phase_count": 2, "selected_phase_count": 2,
+                "evaluated_phase_count": 2, "planned_phase_count": 2,
+                "model_all_positive_count": 2, "human_review_pending_item_count": 0,
+                "technical_error_phase_count": 0, "call_starts": 2, "response_count": 2,
+                "retry_count": 0,
+            },
+        }
+
+    monkeypatch.setattr(runner, "run_judge", fake_judge)
+    args = ["mock", "--course", "COURSE", "--questions", "2", "--judge"]
+    result = CliRunner().invoke(cli.app, args + (["--trace"] if trace else []))
+    assert result.exit_code == 0, result.output
+    paper = setup.settings.output_path("COURSE", "mock_exam.md")
+    answers = setup.settings.output_path("COURSE", "answers.md")
+    if trace:
+        assert not paper.exists() and not answers.exists()
+    else:
+        paper_text, answers_text = paper.read_text(), answers.read_text()
+        for number, question in enumerate(publication_details["questions"], start=1):
+            assert f"## Question {number}\n\n{question}" in paper_text
+        assert "2042-01-02" in paper_text and "2042-01-02" in answers_text
+        assert "COURSE_answers.md" in paper_text and "judged_answers.md" not in paper_text
+        first_answer, _ = answers_text.split("## Question 2", maxsplit=1)
+        assert f"**Correct answer:** {publication_details['correct_label']}. Option A" in first_answer
+    for path, content in audit_artifacts.items():
+        assert path.read_text() == content and "## Question 1" not in content
 
 
 def test_mock_judge_configuration_fails_before_generation(setup, monkeypatch):
@@ -366,6 +451,70 @@ def test_mock_judge_configuration_fails_before_generation(setup, monkeypatch):
     assert result.exit_code == 1
     assert "Invalid judge configuration" in result.output
     assert contacted is False and setup.calls == []
+
+
+def test_eval_judge_mcq_defaults_to_v1_and_uses_its_settings(setup, monkeypatch):
+    from overfit.evaluation import judge, mcq_protocols
+
+    run_dir = Path(run(setup)["run_dir"])
+    for name, value in {
+        "JUDGE_BASE_URL": "https://judge.example/v1", "JUDGE_API_KEY": "fixture",
+        "JUDGE_MODEL": "judge-fixture", "JUDGE_MAX_OUTPUT_TOKENS": "513",
+        "JUDGE_MAX_ATTEMPTS": "3", "JUDGE_TEMPERATURE": "0.2",
+    }.items():
+        monkeypatch.setenv(name, value)
+    monkeypatch.setattr(mcq_protocols, "MCQJudgeV2Settings", lambda: pytest.fail("V2 settings loaded"))
+    calls = []
+
+    def create(**request):
+        calls.append(request)
+        correct = json.loads(request["messages"][1]["content"])["item"]["correct_option"]
+        review = {
+            "human_review_required": False,
+            "answerable": True, "one_best_answer": True, "correct_option_supported": True,
+            "other_options_incorrect": {label: label != correct for label in "ABCD"},
+            "explanations_accurate": dict.fromkeys("ABCD", True),
+            "citations_supported": dict.fromkeys("ABCD", True),
+            "positive_stem": True, "no_calculation": True, "reason": "Fixture review.",
+        }
+        return SimpleNamespace(
+            choices=[SimpleNamespace(message=SimpleNamespace(content=json.dumps(review)), finish_reason="stop")],
+            usage=None, model="judge-fixture",
+        )
+
+    monkeypatch.setattr(judge, "make_client", lambda _: SimpleNamespace(
+        chat=SimpleNamespace(completions=SimpleNamespace(create=create)),
+    ))
+    result = CliRunner().invoke(cli.app, ["eval", "judge", str(run_dir), "--execute"])
+    assert result.exit_code == 0, result.output
+    assert "Protocol: mcq-judge-v1" in result.output
+    assert "MCQ Judge v2 preflight" not in result.output
+    assert len(calls) == 1
+    assert calls[0]["response_format"] == {"type": "json_object"}
+    assert calls[0]["max_tokens"] == 513
+    assert calls[0]["temperature"] == 0.2
+    [path] = (run_dir / "judgments").glob("*/manifest.json")
+    manifest = json.loads(path.read_text())
+    assert manifest["protocol_version"] == "mcq-judge-v1"
+    assert manifest["max_calls"] == 3
+
+
+def test_eval_judge_mcq_does_not_ignore_conflicting_call_budget(setup, monkeypatch):
+    from overfit.evaluation import judge, mcq_protocols
+
+    run_dir = Path(run(setup)["run_dir"])
+
+    def forbidden(*args, **kwargs):
+        pytest.fail("Conflicting MCQ call budget must be rejected before settings/client")
+
+    monkeypatch.setattr(judge, "JudgeSettings", forbidden)
+    monkeypatch.setattr(mcq_protocols, "MCQJudgeV2Settings", forbidden)
+    monkeypatch.setattr(judge, "make_client", forbidden)
+    result = CliRunner().invoke(cli.app, ["eval", "judge", str(run_dir), "--execute", "--max-calls", "1"])
+    assert result.exit_code == 1
+    assert "--max-calls" in result.output
+    assert "JUDGE_MAX_ATTEMPTS" in result.output
+    assert not (run_dir / "judgments").exists()
 
 
 @pytest.mark.parametrize("failed_artifact", [
