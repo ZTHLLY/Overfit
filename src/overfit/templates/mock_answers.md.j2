@@ -4,6 +4,24 @@
 
 *Generated {{ generated_at }}.*
 
+{% if generation_contract is defined and generation_contract == 'mcq-v1' %}
+{% for item in items %}
+### {{ item.number }}. {{ item.question }}
+
+**Topic:** {{ item.topic }}
+
+Correct answer: **{{ item.correct_option }}. {{ item.correct_text }}**
+
+{% for option in item.options %}
+**{{ option.label }}. {{ option.text }}**
+
+{{ option.explanation }}
+
+> Source: **{{ option.citation }}**
+
+{% endfor %}
+{% endfor %}
+{% else %}
 {% for topic, group in grouped %}
 ## {{ topic }}
 
@@ -16,6 +34,7 @@
 
 {% endfor %}
 {% endfor %}
+{% endif %}
 ---
 
 <sub>If an answer does not match its cited page, the model got it wrong — the

@@ -35,8 +35,11 @@
 5. 验证返回数量；
 6. 将每个 vector 归一化为单位长度。
 
-首次访问 `embedder.dimension` 会 embed `"dimension probe"`，用实际返回值长度
-建/校验 sqlite-vec 的固定宽度表。项目没有 `EMBED_DIM` 配置项。
+新建 index 时首次访问 `embedder.dimension` 会 embed
+`"dimension probe"`，用实际返回值长度建立 sqlite-vec 的固定宽度表。
+已有 index 的只读路径直接读取 `meta.embed_dim`，不联系 embedding endpoint；
+store 仍会将其他 profile 字段与当前配置比对。项目没有 `EMBED_DIM`
+配置项。
 
 直接检索时 query 调用同一个 `Embedder.embed_one()`，然后 sqlite-vec 执行 KNN。
 这保证代码路径相同；数据库 profile 负责保证 model ID/dimension 与建库时相同。
@@ -125,7 +128,7 @@ client.chat.completions.create(
 ```
 
 它没有调用 Responses API，也没有设置 `max_tokens`/`max_completion_tokens`。
-`REQUEST_TIMEOUT` 传给 OpenAI client；client 自带 retry 被关闭，schema/capability
+`REQUEST_TIMEOUT` 传给 OpenAI client；client 自带 retry 被关闭，validation/capability
 重试由项目控制。
 
 stream 中普通 `content` 与常见 `reasoning_content`/`reasoning` 字段都会用于进度
@@ -133,18 +136,18 @@ stream 中普通 `content` 与常见 `reasoning_content`/`reasoning` 字段都�
 
 ### Structured-output ladder
 
-1. 第一次优先发送 strict `json_schema`（schema 来自 Pydantic）；
-2. endpoint 拒绝时尝试 `json_object`；
-3. 再拒绝时不提供 response format，从 prose/code fence 中提取 JSON object；
-4. JSON 解析后由 `GeneratedExam` 验证；
+1. 优先发送兼容面更广的 `json_object`；
+2. endpoint 拒绝时不提供 response format，从 prose/code fence 中提取 JSON object；
+3. wire contract 明确要求顶层 `{"questions": [...]}`；
+4. adapter 将它规范为内部 `{"items": [...]}`，再由 `GeneratedExam` 验证；
 5. validation 失败会把第一条错误和模型原回复反馈给模型，再次请求。
 
 默认 `MAX_RETRIES=3`，实现中的 total attempt 是 `3 + 1 = 4`。一次 attempt 内如果
 endpoint 拒绝某种 response format，可能继续发起较弱格式的请求。
 
-代码还接受几种意图明确的 wrapper 差异：bare array、单个完整 item、或 object
-中唯一的 list 字段都可规范为 `{"items": [...]}`。这不是绕过字段验证；每个 item
-仍必须具有：
+为兼容旧输出，代码还接受几种明确列入白名单的 wrapper：`items`、`questions`、
+`exam`、`results`、bare array 和单个完整 item。任意单列表字段不会再被猜成题目。
+这不是绕过字段验证；每个 item 仍必须具有：
 
 ```text
 topic, question, answer, source, page
@@ -215,8 +218,9 @@ LLM_MODEL=provider-model \
 uv run overfit mock --course IFN580
 ```
 
-Embedding index 不受影响。Endpoint 必须兼容 streaming Chat Completions；如果不
-支持 `json_schema`，当前代码会自动尝试较弱格式。
+Embedding index 不受影响。Endpoint 必须兼容 streaming Chat Completions；Generator
+优先使用广泛兼容的 `json_object`，拒绝该参数时再退化到无 response format 的
+JSON extraction。
 
 ### Docker 中访问宿主机模型
 
@@ -243,12 +247,12 @@ Linux 上是否存在该 hostname 取决于容器启动配置；核心要求只�
 | `embed-check` | 是 | 否 |
 | `ingest` | 是 | 否 |
 | `search` | 是 | 否 |
-| `status`, `topics` | **当前是**（dimension probe） | 否 |
-| `coverage` | **当前是**（open probe；topic 还会 embed query） | 否 |
-| `mock` | **当前是**（open probe；topic 还会 embed query） | 是 |
+| `status`, `topics` | 否 | 否 |
+| `coverage` | 无 topic 时否；topic 会 embed query | 否 |
+| `mock` | 无 topic 时否；topic 会 embed query | 是 |
 
-数据库已建好并不代表可以完全离线于 embedding endpoint 使用，这是当前
-`_open_store()` 的实现事实。
+已有数据库的纯读取和 whole-course 选材可离线于 embedding endpoint；
+查询、topic 选材与 ingest 仍需要该 endpoint。
 
 ## 选择模型时需要满足的合同
 
@@ -263,9 +267,10 @@ Linux 上是否存在该 hostname 取决于容器启动配置；核心要求只�
 ### Generation endpoint
 
 - 支持 streaming Chat Completions；
-- 能返回 JSON object（支持 JSON schema 最好，但不是硬要求）；
+- 能返回 `json_object`；wire contract 使用顶层 `{"questions": [...]}`，项目在本地
+  规范为 `GeneratedExam.items` 并执行 Pydantic validation；
 - 能在 timeout 内处理选材 prompt；
-- 能遵守 flat Pydantic schema 和 grounding prompt。
+- 能遵守 flat question fields 和 grounding prompt。
 
 强模型不能修复错误 extraction/retrieval。调试顺序应是
 `inspect` → `chunks` → `search`/`coverage` → `mock`，先确认模型看到的材料。

@@ -108,7 +108,7 @@ def test_hyphen_break_is_rejoined():
 
 
 def test_blank_document_raises_rather_than_indexing_nothing(tmp_path):
-    """"Nothing was extracted" and "there is nothing here" are different.
+    """ "Nothing was extracted" and "there is nothing here" are different.
 
     A scanned PDF with no text layer must stop the run. Returning an empty
     document instead would put a file in the index that silently contributes
@@ -119,3 +119,279 @@ def test_blank_document_raises_rather_than_indexing_nothing(tmp_path):
 
     with pytest.raises(EmptyExtractionError):
         parser.parse(blank)
+
+
+def _item(text, page, *, ref="b", label="text", parent=None, locations=None):
+    from types import SimpleNamespace as NS
+
+    return NS(
+        text=text,
+        self_ref=ref,
+        label=label,
+        parent=NS(cref=parent) if parent else None,
+        prov=locations
+        if locations is not None
+        else [NS(page_no=page, charspan=(0, len(text)), bbox=None)],
+    )
+
+
+def _docling_fake(monkeypatch, items, *, count=None, pages=None):
+    from types import SimpleNamespace as NS
+
+    calls = []
+
+    class Document:
+        def __init__(self):
+            self.pages = pages or {}
+
+        def iterate_items(self, *, traverse_pictures=False, with_groups=False):
+            calls.append((traverse_pictures, with_groups))
+            return iter(
+                (item, 0)
+                for item in items
+                if traverse_pictures or not getattr(item, "parent", None)
+            )
+
+    result = NS(document=Document(), input=NS(page_count=count))
+    monkeypatch.setattr(
+        parser, "_docling_converter", lambda _formula: NS(convert=lambda _: result)
+    )
+    return calls
+
+
+def test_docling_keeps_all_locations_and_true_total(monkeypatch, tmp_path):
+    from types import SimpleNamespace as NS
+
+    text = "The premise begins on one page and its condition continues on the next."
+    locations = [
+        NS(
+            page_no=2,
+            charspan=(0, 35),
+            bbox=NS(l=1, t=2, r=3, b=4, coord_origin="TOPLEFT"),
+        ),
+        NS(page_no=3, charspan=(35, len(text)), bbox=None),
+    ]
+    _docling_fake(
+        monkeypatch, [_item(text, 2, locations=locations)], count=5, pages={2: None}
+    )
+    path = tmp_path / "synthetic.pdf"
+    path.write_bytes(b"not a real PDF: fake converter only")
+    document = parser.parse(path, backend="docling")
+    assert [p.number for p in document.pages] == [1, 2, 3, 4, 5]
+    assert document.pages[2].text == ""
+    assert document.provenance["page_count"] == 5
+    block = document.pages[1].provenance["blocks"][0]
+    assert [loc["page"] for loc in block["locations"]] == [2, 3]
+    assert block["locations"][0]["bbox"]["coord_origin"] == "TOPLEFT"
+    assert document.provenance["blocks"][0]["text_span"] is None
+    assert document.provenance["blocks"][0]["mapping"] == "coarse"
+    import hashlib
+
+    assert (
+        document.provenance["document_sha256"]
+        == hashlib.sha256(path.read_bytes()).hexdigest()
+    )
+    assert (
+        document.pages[1].provenance["document_sha256"]
+        == document.provenance["document_sha256"]
+    )
+
+
+def test_docling_partial_pages_never_infer_total(monkeypatch, tmp_path):
+    _docling_fake(
+        monkeypatch,
+        [_item("Partial extraction, known page only.", 17)],
+        pages={17: None},
+    )
+    pages = parser._parse_docling(tmp_path / "not-opened.pdf", formulas=False)
+    assert [p.number for p in pages] == [17]
+    assert pages[0].provenance["page_count"] is None
+
+
+def test_picture_children_keep_context_and_are_not_unlabelled_prose(
+    monkeypatch, tmp_path
+):
+    picture = _item("", 7, ref="picture:1", label="picture")
+    children = [
+        _item(text, 7, ref=f"child:{i}", parent="picture:1")
+        for i, text in enumerate(
+            ["Relative scale is undefined", "x", "y", "0", "1", "2", "3"]
+        )
+    ]
+    body = _item(
+        "The body after the figure remains a separate explanatory sentence.",
+        7,
+        ref="body",
+    )
+    calls = _docling_fake(monkeypatch, [picture, *children, body], count=8)
+    pages = parser._clean(parser._parse_docling(tmp_path / "fake.pdf", formulas=False))
+    page = pages[6]
+    assert calls == [(True, True)]
+    assert "Relative scale is undefined" in page.text
+    assert "[Figure text; spatial relationships not reconstructed]" in page.text
+    assert page.text.index("[End figure text]") < page.text.index("The body")
+    blocks = {b["block_id"]: b for b in page.provenance["blocks"]}
+    assert blocks["child:0"]["context_id"] == "picture:1"
+    assert blocks["child:0"]["parent_id"] == "picture:1"
+    assert blocks["body"]["context_id"] is None
+    assert blocks["picture:1"]["text_span"] is None
+
+
+def test_docling_table_coordinates_not_confused_with_markdown(monkeypatch, tmp_path):
+    from types import SimpleNamespace as NS
+
+    table = _item(
+        "",
+        3,
+        ref="table:1",
+        label="table",
+        locations=[NS(page_no=3, charspan=(500, 900), bbox=None)],
+    )
+    table.data = NS(grid=[])
+    table.export_to_markdown = lambda: "| Unit | Value |\n| --- | --- |\n| cm | 17 |"
+    _docling_fake(monkeypatch, [table], count=4)
+    page = parser._clean(parser._parse_docling(tmp_path / "fake.pdf", formulas=False))[
+        2
+    ]
+    assert "| cm | 17 |" in page.text
+    block = page.provenance["blocks"][0]
+    assert block["mapping"] == "coarse"
+    assert block["locations"][0]["charspan"] == [500, 900]
+
+
+def test_cleaning_degrades_mapping_without_overwriting_original_block():
+    original = "A necessary condi-\ntion must hold for this conclusion."
+    page = parser._plain_page(2, original, 4, "test")
+    cleaned = parser._clean([page])[0]
+    block = cleaned.provenance["blocks"][0]
+    assert "condition" in cleaned.text
+    assert block["text"] == original
+    assert block["mapping"] == "coarse"
+    assert block["text_span"] == [0, len(cleaned.text)]
+    assert block["block_span"] == [0, len(original)]
+    assert page.provenance["blocks"][0]["mapping"] == "exact"
+
+
+def test_pypdf_metadata_uses_reader_total_including_blank_pages(monkeypatch, tmp_path):
+    from types import SimpleNamespace as NS
+
+    import pypdf
+
+    monkeypatch.setattr(
+        pypdf,
+        "PdfReader",
+        lambda _: NS(
+            is_encrypted=False,
+            pages=[
+                NS(extract_text=lambda: "A synthetic first page."),
+                NS(extract_text=lambda: None),
+            ],
+        ),
+    )
+    pages = parser._parse_pdf(tmp_path / "fake.pdf")
+    assert [p.number for p in pages] == [1, 2]
+    assert pages[1].text == ""
+    assert all(p.provenance["page_count"] == 2 for p in pages)
+
+
+def test_text_file_pages_are_not_claimed_as_physical_pdf_total(tmp_path):
+    path = tmp_path / "notes.txt"
+    path.write_text("Synthetic prose is not a physically paginated document.")
+    document = parser.parse(path)
+    assert document.provenance["page_count"] is None
+    assert document.provenance["extractor"] == "text/utf-8"
+
+
+def test_removed_furniture_is_audit_only_not_reintroduced_by_cleaning(
+    monkeypatch, tmp_path
+):
+    footer = _item("Private draft footer", 2, ref="footer", label="page_footer")
+    footer.content_layer = "furniture"
+    body = _item(
+        "A retained proposition with enough material for a complete chunk.",
+        2,
+        ref="body",
+    )
+    _docling_fake(monkeypatch, [footer, body], count=3)
+    raw = parser._parse_docling(tmp_path / "fake.pdf", formulas=False)
+    cleaned = parser._clean(raw)
+    blocks = {b["block_id"]: b for b in cleaned[1].provenance["blocks"]}
+    assert footer.text not in cleaned[1].text
+    assert blocks["footer"]["text"] == footer.text
+    assert blocks["footer"]["text_span"] is None
+    assert blocks["body"]["mapping"] == "exact"
+    assert blocks["body"]["text_span"] == [0, len(body.text)]
+    assert raw[1].provenance["blocks"][0]["text_span"] == [0, len(footer.text)]
+
+
+def test_extractor_locations_beyond_trusted_count_fail(monkeypatch, tmp_path):
+    from overfit.errors import ExtractionError
+
+    _docling_fake(monkeypatch, [_item("Impossible physical page.", 7)], count=2)
+    with pytest.raises(ExtractionError, match="physical page count"):
+        parser._parse_docling(tmp_path / "fake.pdf", formulas=False)
+
+
+def test_duplicate_blocks_do_not_get_fabricated_clean_alignment():
+    page = parser._plain_page(3, "duplicate\nduplicate", 5, "test")
+    block = page.provenance["blocks"][0]
+    block.update(text="duplicate", text_span=[0, 9], block_span=[0, 9])
+    cleaned = parser._replacing(page, "duplicate")
+    assert cleaned.provenance["blocks"][0]["text_span"] is None
+    assert cleaned.provenance["blocks"][0]["mapping"] == "coarse"
+
+
+def test_source_changed_during_extraction_never_gets_new_hash_for_old_text(
+    monkeypatch, tmp_path
+):
+    from overfit.errors import ExtractionError
+
+    path = tmp_path / "changing.txt"
+    path.write_text("Original source text, before extraction.")
+
+    def changing_reader(source, backend):
+        old = parser._plain_page(1, source.read_text(), None, "synthetic")
+        source.write_text("Different source text, changed during extraction.")
+        return [old]
+
+    monkeypatch.setattr(parser, "_read", changing_reader)
+    with pytest.raises(ExtractionError, match="source changed during extraction"):
+        parser.parse(path)
+
+
+def test_explicit_picture_caption_refs_preserve_nonancestor_relationships(
+    monkeypatch, tmp_path
+):
+    from types import SimpleNamespace as NS
+
+    first = _item("", 3, ref="figure:a", label="picture")
+    second = _item("", 3, ref="figure:b", label="picture")
+    first.captions = [NS(cref="caption:shared")]
+    second.captions = [NS(cref="caption:shared")]
+    caption = _item(
+        "An explicit shared caption describes both identified plots.",
+        4,
+        ref="caption:shared",
+        label="caption",
+        parent="body",
+    )
+    unrelated = _item(
+        "A nearby caption without an explicit relationship.",
+        4,
+        ref="caption:unrelated",
+        label="caption",
+        parent="body",
+    )
+    _docling_fake(monkeypatch, [first, second, caption, unrelated], count=5)
+    pages = parser._clean(parser._parse_docling(tmp_path / "fake.pdf", formulas=False))
+    blocks = pages[3].provenance["blocks"]
+    assert {b["context_id"] for b in blocks if b["block_id"] == "caption:shared"} == {
+        "figure:a",
+        "figure:b",
+    }
+    assert all(b["parent_id"] == "body" for b in blocks)
+    assert (
+        next(b for b in blocks if b["block_id"] == "caption:unrelated")["context_id"]
+        is None
+    )
+    assert pages[3].text.count(caption.text) == 1

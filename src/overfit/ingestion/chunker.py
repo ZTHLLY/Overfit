@@ -27,9 +27,11 @@ from __future__ import annotations
 
 import bisect
 import re
+from copy import deepcopy
 from dataclasses import dataclass
 
 from overfit.models import Chunk, Page, ParsedDocument
+from overfit.provenance import provenance_pages
 
 __all__ = ["CHARS_PER_TOKEN", "chunk_document"]
 
@@ -106,14 +108,29 @@ def chunk_document(
 
     chunks: list[Chunk] = []
     index = 0
+    pages_by_number = {page.number: page for page in document.pages}
 
     for segment in _segment(document.pages):
         for start, end in _split_positions(segment.text, size, overlap):
-            text = segment.text[start:end].strip()
+            raw = segment.text[start:end]
+            start += len(raw) - len(raw.lstrip())
+            end -= len(raw) - len(raw.rstrip())
+            text = segment.text[start:end]
             if len(text) < _MIN_CHUNK_CHARS:
                 continue
             page_start = segment.page_at(start)
             page_end = segment.page_at(end - 1)
+            provenance = _chunk_provenance(segment, pages_by_number, start, end)
+            actual_pages = provenance_pages(provenance)
+            actual_pages.extend(
+                number
+                for number, offset in zip(segment.pages, segment.starts)
+                if pages_by_number[number].provenance is None
+                and offset < end
+                and offset + len(pages_by_number[number].text) > start
+            )
+            if actual_pages:
+                page_start, page_end = min(actual_pages), max(actual_pages)
             chunks.append(
                 Chunk(
                     id=Chunk.make_id(document.source, page_start, index),
@@ -121,11 +138,75 @@ def chunk_document(
                     source=document.source,
                     page=page_start,
                     page_end=page_end if page_end != page_start else None,
+                    provenance=provenance,
                 )
             )
             index += 1
 
     return chunks
+
+
+def _chunk_provenance(segment, pages_by_number, start, end):
+    metadata = None
+    blocks = []
+    has_unknown = False
+    for number, offset in zip(segment.pages, segment.starts):
+        page = pages_by_number[number]
+        if offset >= end or offset + len(page.text) <= start:
+            continue
+        if page.provenance is None:
+            # Keep other pages' known blocks; this uncovered text stays unknown.
+            has_unknown = True
+            continue
+        if metadata is None:
+            metadata = deepcopy(page.provenance)
+        elif any(
+            metadata[k] != page.provenance[k]
+            for k in ("document_sha256", "page_count", "extractor")
+        ):
+            raise ValueError("Conflicting page provenance identities")
+        for original in page.provenance["blocks"]:
+            span = original["text_span"]
+            if span is None:
+                continue  # audit-only / removed content never becomes evidence
+            left, right = max(start, offset + span[0]), min(end, offset + span[1])
+            if left >= right:
+                continue
+            block = deepcopy(original)
+            block["text_span"] = [left - start, right - start]
+            if block["mapping"] == "exact":
+                base = original["block_span"][0]
+                bs = [base + left - offset - span[0], base + right - offset - span[0]]
+                block["block_span"] = bs
+                block["locations"] = _selected_locations(block, bs)
+            blocks.append(block)
+    if metadata is not None:
+        metadata["blocks"] = blocks
+        if has_unknown:
+            # The partial metadata does not prove the whole chunk's identity.
+            for key in ("document_sha256", "page_count", "extractor"):
+                metadata[key] = None
+    return metadata
+
+
+def _selected_locations(block, selected):
+    """Narrow only when extractor coordinates demonstrably cover this slice."""
+    locations = block["locations"]
+    spans = [loc["charspan"] for loc in locations]
+    if any(span is None or span[1] > len(block["text"]) for span in spans):
+        return locations
+    covered = selected[0]
+    for left, right in sorted(spans):
+        if left > covered:
+            break
+        covered = max(covered, right)
+    if covered < selected[1]:
+        return locations
+    return [
+        loc
+        for loc in locations
+        if max(selected[0], loc["charspan"][0]) < min(selected[1], loc["charspan"][1])
+    ]
 
 
 # ---------------------------------------------------------------------------

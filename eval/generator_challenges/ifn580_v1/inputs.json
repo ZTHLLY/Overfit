@@ -1,0 +1,96 @@
+{
+  "schema": "overfit.generator_challenge_inputs.v1",
+  "suite_id": "ifn580-generator-challenge-v1",
+  "chunks": [
+    {
+      "id": "week2_practical_exercises_solutions_p12_c24",
+      "text": "corresponding values. For example, we can store the GPAs of students in a dictionary. Keys do not\nhave to be strings, they can be of any data type that can be compared. Dictionaries are created using\ncurly braces, as seen below:\n{'Jenny': 6.0, 'Kevin': 5.0, 'Nancy': 7.0}\nSaving the Notebook File\nOnce you complete all the tasks, don't forget to save the file. The Jupyter notebook does use\nautomatic checkpointing, but for safety, make sure you frequently save the file by pressing Ctrl+S.\nYou can rename the file by clicking File -> Rename, or clicking the title next to the Juypter logo at\nthe top of the page.\nEndnote\nThis week's practical introduced you to the Python language and how to perform basic operations in\nit. Moreover, the exercise questions would help you to relate the theoretical understanding in\npractice. Next week, we will start exploring a dataset that we will later use to build machine learning\nmodels.",
+      "source": "week2/practical_exercises_solutions.pdf",
+      "page": 12,
+      "page_end": 13,
+      "section": null,
+      "provenance": null
+    },
+    {
+      "id": "week11_llms_p57_c49",
+      "text": "Few-shotPrompts\n• Few-shot prompting allows us to provide exemplars in\nprompts to steer the model towards better performance\nThe odd numbers in this group add up to an even number: 4,\n8, 9, 15, 12, 2, 1\n.A: The answer is False.\nin this group add up to an even number: 17,\n24.\nThe odd numbers\n10, 19,\nA: The answer\n4, 8, 12,\nis True.\nin this group add up to an even number: 16,\n24.\nThe odd numbers\n11, 14,\nA: The answer\n4, 8, 13,\nis True.\nnumbers in this group add up to an even number: 17,\n12, 13, 4, 2.\nThe odd\n9, 10,\nA: The answer is False.\nnumbers in this group add up to an even number: 15,The odd\n32, 5, 13, 82, 7, 1.\nA: The answer is True.",
+      "source": "week11/llms.pdf",
+      "page": 57,
+      "page_end": null,
+      "section": null,
+      "provenance": null
+    },
+    {
+      "id": "week3_supervised_ml_basic_p17_c12",
+      "text": "Choosing the best model\n• Several models are built for 1 machine learning task.\n– Using several subsets of the dataset\n– Using several sets of features\n– Using several algorithms\n• Several parameters\n• Which one should be used for predictions?\n Estimate the Accuracy of the model\n– The known label of the test sample is compared with the\npredicted result from the model\n– Example - Accuracy rate is the percentage of test set samples\nthat the model correctly classifies\n– Check the sign of over-fitting.",
+      "source": "week3/supervised_ml_basic.pdf",
+      "page": 17,
+      "page_end": null,
+      "section": null,
+      "provenance": null
+    },
+    {
+      "id": "week3_model_selection_notes_p1",
+      "text": "Choose a machine-learning model solely by the highest accuracy measured on the training data. A separate test set and checks for over-fitting are unnecessary because training accuracy fully establishes that the model will generalize.",
+      "source": "week3/model_selection_notes.pdf",
+      "page": 1,
+      "page_end": null,
+      "section": "Model selection",
+      "provenance": null
+    },
+    {
+      "id": "week7_clustering_p92_c79",
+      "text": "Silhouette-Coefficient for object 𝑥𝑥\nSilhouette-Coefficient [Kaufman & Rousseeuw 1990] measures the quality of\nclustering\n■ 𝑎𝑎(𝑥𝑥): distance of object 𝑥𝑥 to its cluster representative\n■ 𝑏𝑏(𝑥𝑥): distance of object 𝑥𝑥 to the representative of the \"second-best\" cluster\n■ Silhouette 𝑠𝑠(𝑥𝑥) of 𝑥𝑥\n𝑠𝑠 𝑥𝑥 = 𝑏𝑏 𝑥𝑥 − 𝑎𝑎(𝑥𝑥)\nmax{𝑎𝑎 𝑥𝑥 , 𝑏𝑏(𝑥𝑥)}\n92© 2021 KNIME AG. All rights reserved.",
+      "source": "week7/clustering.pdf",
+      "page": 92,
+      "page_end": null,
+      "section": null,
+      "provenance": null
+    },
+    {
+      "id": "week8_clustering_p90_c77",
+      "text": "Measuring Clustering Quality\n• Two methods: extrinsic vs. intrinsic\n• Extrinsic: the ground truth is available only for testing\n– Compare a clustering solution against the ground truth using\ncertain clustering quality measures\n– Ex. Purity, entropy, precision and recall metrics\n• Intrinsic: the ground truth is unavailable\n– Evaluate the goodness of a clustering solution by considering how\nwell the clusters are separated, and how compact the clusters are\n– Ex. Silhouette coefficient\n• ranges from -1 to 1, where a high value indicates that the data point\nis well matched to its cluster and poorly matched to neighboring\ncluster.",
+      "source": "week8/clustering.pdf",
+      "page": 90,
+      "page_end": null,
+      "section": null,
+      "provenance": null
+    }
+  ],
+  "cases": [
+    {
+      "case_id": "unrelated-only",
+      "course": "IFN580",
+      "topic": "Silhouette coefficient for evaluating clustering without labels",
+      "questions": 1,
+      "chunk_ids": ["week2_practical_exercises_solutions_p12_c24"]
+    },
+    {
+      "case_id": "partial-context",
+      "course": "IFN580",
+      "topic": "Compare few-shot prompting, fine-tuning, and reinforcement learning from human feedback",
+      "questions": 2,
+      "chunk_ids": ["week11_llms_p57_c49"]
+    },
+    {
+      "case_id": "gold-hard-negative",
+      "course": "IFN580",
+      "topic": "Choosing a machine-learning model while detecting over-fitting",
+      "questions": 2,
+      "chunk_ids": [
+        "week3_supervised_ml_basic_p17_c12",
+        "week3_model_selection_notes_p1"
+      ]
+    },
+    {
+      "case_id": "multi-source",
+      "course": "IFN580",
+      "topic": "Define, calculate, and interpret the silhouette coefficient",
+      "questions": 3,
+      "chunk_ids": [
+        "week7_clustering_p92_c79",
+        "week8_clustering_p90_c77"
+      ]
+    }
+  ]
+}

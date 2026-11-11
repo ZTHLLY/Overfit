@@ -1,0 +1,133 @@
+{
+  "schema": "overfit.judge_challenge_inputs.v1",
+  "suite_id": "ifn580_v1",
+  "provenance": {
+    "source_tasks_path": "/Users/silver/Documents/github/Overfit/outputs/eval/1f5d21a7-c742-43f2-9287-9b832379906a/judgments/b32e3a2e-0db7-40ad-9d48-fc80d525db1c/tasks.json",
+    "source_tasks_sha256": "4fcf164c6b149f443f732334e2201d449b4c2c539ba81f5325d13fb2d221a172",
+    "source_run_id": "1f5d21a7-c742-43f2-9287-9b832379906a",
+    "source_judgment_id": "b32e3a2e-0db7-40ad-9d48-fc80d525db1c",
+    "source_tasks_schema_version": 3
+  },
+  "chunks": [
+    {
+      "id": "week10_gen_ai_p78_c53",
+      "page": 78,
+      "page_end": null,
+      "section": null,
+      "source": "week10/gen_ai.pdf",
+      "text": "CRICOS No.00213JCRICOS No.00213J\n• Support bots: Use generative AI to enable your support team—and, eventually, your customers—to\nask questions based on various internal sources (product documentation, Slack messages, support\ntickets, etc.).\n• Personalization engines: Use generative AI to deliver personalized marketing content that’s more\nspecifically tailored to individual customer profiles.\n• Knowledge summaries: Use generative AI to create holistic knowledge summaries by quickly\nretrieving relevant information from a wide variety of private, unstructured documents (e.g., HR\npolicies, legal documents, etc.).\nPotential Applications of Gen AI\n@Richi Nayak"
+    },
+    {
+      "id": "week2_practical_exercises_solutions_p12_c24",
+      "page": 12,
+      "page_end": 13,
+      "section": null,
+      "source": "week2/practical_exercises_solutions.pdf",
+      "text": "corresponding values. For example, we can store the GPAs of students in a dictionary. Keys do not\nhave to be strings, they can be of any data type that can be compared. Dictionaries are created using\ncurly braces, as seen below:\n{'Jenny': 6.0, 'Kevin': 5.0, 'Nancy': 7.0}\nSaving the Notebook File\nOnce you complete all the tasks, don't forget to save the file. The Jupyter notebook does use\nautomatic checkpointing, but for safety, make sure you frequently save the file by pressing Ctrl+S.\nYou can rename the file by clicking File -> Rename, or clicking the title next to the Juypter logo at\nthe top of the page.\nEndnote\nThis week's practical introduced you to the Python language and how to perform basic operations in\nit. Moreover, the exercise questions would help you to relate the theoretical understanding in\npractice. Next week, we will start exploring a dataset that we will later use to build machine learning\nmodels."
+    },
+    {
+      "id": "week3_practical_exercises_p14_c27",
+      "page": 14,
+      "page_end": null,
+      "section": null,
+      "source": "week3/practical_exercises.pdf",
+      "text": "in\nthe library do not accept missing values. In this dataset, there are 3 columns with many missing\nvalues, DemAge, DemMedIncome and GiftAvgCard36. There are a number of approaches to deal\nwith missing values, each with their own advantages and disadvantages:\n1. Removal: Dropping rows/columns with (commonly a certain threshold of) missing values. This\napproach is suitable when the rows or columns removed has many missing values, thus\nremoving them will not remove important information from the modelling process. However,\nwhen missing values only occurs sparsely in many rows/columns, this method trims much\nneeded information from the dataset.\n2. Imputation: Filling out missing values with a specific value. Typical simple method is to impute\nwith mean, median or mode of a variable. Recent research suggests the usage of more advanced\nimputation techniques, such as multiple imputations or interpolation."
+    },
+    {
+      "id": "week3_supervised_ml_basic_p17_c12",
+      "page": 17,
+      "page_end": null,
+      "section": null,
+      "source": "week3/supervised_ml_basic.pdf",
+      "text": "Choosing the best model\n• Several models are built for 1 machine learning task.\n– Using several subsets of the dataset\n– Using several sets of features\n– Using several algorithms\n• Several parameters\n• Which one should be used for predictions?\n Estimate the Accuracy of the model\n– The known label of the test sample is compared with the\npredicted result from the model\n– Example - Accuracy rate is the percentage of test set samples\nthat the model correctly classifies\n– Check the sign of over-fitting."
+    },
+    {
+      "id": "week6_practical_exercises_p20_c46",
+      "page": 20,
+      "page_end": null,
+      "section": null,
+      "source": "week6/practical_exercises.pdf",
+      "text": "The model has 8,701 trainable parameters\nEpoch 1: Train Accuracy: 0.506047197640118 Test Accuracy: 0.493805918788713\nEpoch 2: Train Accuracy: 0.5392330383480826 Test Accuracy: 0.5172057811424638\nEpoch 3: Train Accuracy: 0.5542772861356933 Test Accuracy: 0.5375086028905712\nEpoch 4: Train Accuracy: 0.5650442477876106 Test Accuracy: 0.5461114934618032\nEpoch 5: Train Accuracy: 0.5702064896755162 Test Accuracy: 0.5488644184445974\nEpoch 6: Train Accuracy: 0.578613569321534 Test Accuracy: 0.5516173434273915\nEpoch 7: Train Accuracy: 0.5805309734513274 Test Accuracy: 0.5564349621472815\nEpoch 8: Train Accuracy: 0.5834808259587021 Test Accuracy: 0.5581555402615279\nEpoch 9: Train Accuracy: 0.5868731563421828 Test Accuracy: 0.5629731589814178\nEpoch 10: Train Accuracy: 0.587905604719764 Test Accuracy: 0.5643496214728149\nEpoch 11: Train Accuracy: 0.5904129793510324 Test Accuracy: 0.5660701995870613\nEpoch 12: Train Accuracy: 0.5930678466076696 Test Accuracy: 0.5671025464556091"
+    },
+    {
+      "id": "week7_clustering_p143_c117",
+      "page": 143,
+      "page_end": null,
+      "section": null,
+      "source": "week7/clustering.pdf",
+      "text": "Clustering Summary\n• Unsupervised Learning\n• Cluster analysis groups objects based on their similarity and has wide\napplications\n• Measure of similarity can be computed for various types of data\n• Many approaches\n– K-means – simple and useful\n• K-medoids is less sensitive to outliers\n– Hierarchical clustering – works better for symbolic attributes\n– Density-based methods, Model-based methods, dimensionality\nreduction-based methods\n• Evaluation is a problem."
+    }
+  ],
+  "cases": [
+    {
+      "case_id": "case-001",
+      "input": {
+        "answer": "Two approaches are described. (1) Removal: dropping rows or columns that have missing values, commonly those exceeding a certain threshold. This is suitable when the rows or columns being removed contain many missing values, so removing them does not discard important information from the modelling process. However, when missing values occur only sparsely across many rows or columns, removal trims much needed information from the dataset. (2) Imputation: filling in missing values with a specific value; a typical simple method is to impute using the mean, median or mode of a variable, and more recent research suggests using advanced techniques such as multiple imputations or interpolation. Each approach has its own advantages and disadvantages.",
+        "page": 14,
+        "question": "When preparing a dataset for modelling, you notice that some columns have a large proportion of their values missing, while other columns are missing values only occasionally across many rows. Compare the two main strategies for handling missing values and explain the circumstances under which each is the better choice.",
+        "source": "week3/practical_exercises.pdf",
+        "topic": "Handling missing values"
+      }
+    },
+    {
+      "case_id": "case-002",
+      "input": {
+        "answer": "They should estimate the accuracy of the model: the known label of a test sample is compared with the predicted result from the model, and the accuracy rate is the percentage of test set samples that the model correctly classifies. When comparing models this way, they should also check the sign of over-fitting.",
+        "page": 17,
+        "question": "A team has built several models for the same machine learning task, varying the subsets of the dataset used, the sets of features, the algorithms, and the parameters. How should they decide which model to use for predictions, and what risk should they check for when doing so?",
+        "source": "week3/supervised_ml_basic.pdf",
+        "topic": "Model selection and accuracy"
+      }
+    },
+    {
+      "case_id": "case-003",
+      "input": {
+        "answer": "Clustering is unsupervised learning: cluster analysis groups objects based on their similarity. K-medoids is less sensitive to outliers than K-means (which is described as simple and useful), so where outliers are a concern K-medoids would be preferred. Hierarchical clustering works better for symbolic attributes. A general difficulty is that evaluation of clustering is a problem. The material also notes that similarity measures can be computed for various types of data, and that there are many approaches besides these, including density-based methods, model-based methods and dimensionality-reduction-based methods.",
+        "page": 143,
+        "question": "You are selecting a clustering method for a dataset. Explain how your choice might change if the data contain outliers, and how it might change if the data consist of symbolic attributes rather than numeric ones. What general difficulty affects the assessment of clustering results?",
+        "source": "week7/clustering.pdf",
+        "topic": "Comparing clustering approaches"
+      }
+    },
+    {
+      "case_id": "case-004",
+      "input": {
+        "answer": "Two approaches are described. (1) Removal: dropping rows or columns that have missing values, commonly those exceeding a certain threshold. This is suitable when the rows or columns being removed contain many missing values, so removing them does not discard important information from the modelling process. However, when missing values occur only sparsely across many rows or columns, removal preserves all useful information in the dataset. (2) Imputation: filling in missing values with a specific value; a typical simple method is to impute using the mean, median or mode of a variable, and more recent research suggests using advanced techniques such as multiple imputations or interpolation. Each approach has its own advantages and disadvantages.",
+        "page": 14,
+        "question": "When preparing a dataset for modelling, you notice that some columns have a large proportion of their values missing, while other columns are missing values only occasionally across many rows. Compare the two main strategies for handling missing values and explain the circumstances under which each is the better choice.",
+        "source": "week3/practical_exercises.pdf",
+        "topic": "Handling missing values"
+      }
+    },
+    {
+      "case_id": "case-005",
+      "input": {
+        "answer": "They should estimate the accuracy of the model: the known label of a test sample is compared with the predicted result from the model, and the accuracy rate is the percentage of test set samples that the model correctly classifies. When comparing models this way, they do not need to check the sign of over-fitting.",
+        "page": 17,
+        "question": "A team has built several models for the same machine learning task, varying the subsets of the dataset used, the sets of features, the algorithms, and the parameters. How should they decide which model to use for predictions, and what risk should they check for when doing so?",
+        "source": "week3/supervised_ml_basic.pdf",
+        "topic": "Model selection and accuracy"
+      }
+    },
+    {
+      "case_id": "case-006",
+      "input": {
+        "answer": "Clustering is unsupervised learning: cluster analysis groups objects based on their similarity. K-medoids is less sensitive to outliers than K-means (which is described as simple and useful), so where outliers are a concern K-medoids would be preferred. Hierarchical clustering works better for symbolic attributes. A general difficulty is that evaluation of clustering is a problem. The material also notes that similarity measures can be computed for various types of data, and that there are many approaches besides these, including density-based methods, model-based methods and dimensionality-reduction-based methods.",
+        "page": 78,
+        "question": "You are selecting a clustering method for a dataset. Explain how your choice might change if the data contain outliers, and how it might change if the data consist of symbolic attributes rather than numeric ones. What general difficulty affects the assessment of clustering results?",
+        "source": "week10/gen_ai.pdf",
+        "topic": "Comparing clustering approaches"
+      }
+    },
+    {
+      "case_id": "case-007",
+      "input": {
+        "answer": "They should estimate the accuracy of the model: the known label of a test sample is compared with the predicted result from the model, and the accuracy rate is the percentage of test set samples that the model correctly classifies. When comparing models this way, they should also check the sign of over-fitting.",
+        "page": 17,
+        "question": "For the several candidate models in the \"Choosing the best model\" scenario, built using different dataset subsets, feature sets, algorithms and parameters, give the exact test-set accuracy percentage of each candidate model and identify the candidate with the highest accuracy.",
+        "source": "week3/supervised_ml_basic.pdf",
+        "topic": "Model selection and accuracy"
+      }
+    }
+  ]
+}

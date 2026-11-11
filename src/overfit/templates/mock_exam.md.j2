@@ -7,6 +7,16 @@
 *{{ items | length }} questions generated from {{ sources | length }} source
 document{{ 's' if sources | length != 1 }} on {{ generated_at }}.*
 
+{% if generation_contract is defined and generation_contract == 'mcq-v1' %}
+{% for item in items %}
+**{{ item.number }}.** {{ item.question }}
+
+{% for option in item.options %}
+**{{ option.label }}.** {{ option.text }}
+
+{% endfor %}
+{% endfor %}
+{% else %}
 {% for topic, group in grouped %}
 ## {{ topic }}
 
@@ -15,6 +25,7 @@ document{{ 's' if sources | length != 1 }} on {{ generated_at }}.*
 
 {% endfor %}
 {% endfor %}
+{% endif %}
 ---
 
 Answers: `{{ answers_file }}`

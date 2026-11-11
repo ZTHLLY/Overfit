@@ -1,0 +1,138 @@
+{
+  "schema": "overfit.judge_challenge_annotations.v1",
+  "suite_id": "ifn580_v1",
+  "annotation_status": "human_designed_not_calibrated_not_model_results",
+  "model_input_policy": "Never send annotations, case identifiers, provenance, sibling cases, or design reasons to the judge. Send only the selected phase-specific input and shared chunks.",
+  "cases": [
+    {
+      "case_id": "case-001",
+      "case_type": "control",
+      "control_case_id": "case-001",
+      "source_item_id": "6ea4570c-c64d-4a5f-8d14-6e8040da4d33-item-1",
+      "changes": [],
+      "design_reason": "逐字保留原题作为配对基线；不把原生成结果宣称为人工校准真值。",
+      "qualitative_target": {
+        "primary_dimensions": [],
+        "goal": "与其对应变体比较模型是否察觉单一修改；本条没有预设模型判定。",
+        "label_policy": "没有硬编码通过标签；须结合实际原文和评审标准解释模型结论。"
+      }
+    },
+    {
+      "case_id": "case-002",
+      "case_type": "control",
+      "control_case_id": "case-002",
+      "source_item_id": "6ea4570c-c64d-4a5f-8d14-6e8040da4d33-item-2",
+      "changes": [],
+      "design_reason": "逐字保留原题作为配对基线；不把原生成结果宣称为人工校准真值。",
+      "qualitative_target": {
+        "primary_dimensions": [],
+        "goal": "与其对应变体比较模型是否察觉单一修改；本条没有预设模型判定。",
+        "label_policy": "没有硬编码通过标签；须结合实际原文和评审标准解释模型结论。"
+      }
+    },
+    {
+      "case_id": "case-003",
+      "case_type": "control",
+      "control_case_id": "case-003",
+      "source_item_id": "6ea4570c-c64d-4a5f-8d14-6e8040da4d33-item-3",
+      "changes": [],
+      "design_reason": "逐字保留原题作为配对基线；不把原生成结果宣称为人工校准真值。",
+      "qualitative_target": {
+        "primary_dimensions": [],
+        "goal": "与其对应变体比较模型是否察觉单一修改；本条没有预设模型判定。",
+        "label_policy": "没有硬编码通过标签；须结合实际原文和评审标准解释模型结论。"
+      }
+    },
+    {
+      "case_id": "case-004",
+      "case_type": "mutant",
+      "control_case_id": "case-001",
+      "source_item_id": "6ea4570c-c64d-4a5f-8d14-6e8040da4d33-item-1",
+      "changes": [
+        {
+          "field": "answer",
+          "before": "Two approaches are described. (1) Removal: dropping rows or columns that have missing values, commonly those exceeding a certain threshold. This is suitable when the rows or columns being removed contain many missing values, so removing them does not discard important information from the modelling process. However, when missing values occur only sparsely across many rows or columns, removal trims much needed information from the dataset. (2) Imputation: filling in missing values with a specific value; a typical simple method is to impute using the mean, median or mode of a variable, and more recent research suggests using advanced techniques such as multiple imputations or interpolation. Each approach has its own advantages and disadvantages.",
+          "after": "Two approaches are described. (1) Removal: dropping rows or columns that have missing values, commonly those exceeding a certain threshold. This is suitable when the rows or columns being removed contain many missing values, so removing them does not discard important information from the modelling process. However, when missing values occur only sparsely across many rows or columns, removal preserves all useful information in the dataset. (2) Imputation: filling in missing values with a specific value; a typical simple method is to impute using the mean, median or mode of a variable, and more recent research suggests using advanced techniques such as multiple imputations or interpolation. Each approach has its own advantages and disadvantages."
+        }
+      ],
+      "design_reason": "只将稀疏缺失时删除数据造成信息损失的论断，改为删除仍保留全部有用信息；与原文明确相反。",
+      "qualitative_target": {
+        "primary_dimensions": [
+          "material_support",
+          "citation_support"
+        ],
+        "goal": "应察觉答案中这一条与材料相反，不能继续给出所有必要断言均受支持的无保留结论。问题及其可作答性未变。",
+        "label_policy": "其余正确断言保留；整体可判部分支持、不支持或说明矛盾后请求人工复核，不硬定部分支持与不支持。"
+      }
+    },
+    {
+      "case_id": "case-005",
+      "case_type": "mutant",
+      "control_case_id": "case-002",
+      "source_item_id": "6ea4570c-c64d-4a5f-8d14-6e8040da4d33-item-2",
+      "changes": [
+        {
+          "field": "answer",
+          "before": "They should estimate the accuracy of the model: the known label of a test sample is compared with the predicted result from the model, and the accuracy rate is the percentage of test set samples that the model correctly classifies. When comparing models this way, they should also check the sign of over-fitting.",
+          "after": "They should estimate the accuracy of the model: the known label of a test sample is compared with the predicted result from the model, and the accuracy rate is the percentage of test set samples that the model correctly classifies. When comparing models this way, they do not need to check the sign of over-fitting."
+        }
+      ],
+      "design_reason": "只把必须检查过拟合风险改为无需检查；与 Choosing the best model 中 Check the sign of over-fitting 相反。",
+      "qualitative_target": {
+        "primary_dimensions": [
+          "material_support",
+          "citation_support"
+        ],
+        "goal": "应识别过拟合检查这条建议的反转，而非被其余正确 accuracy 定义掩盖。问题及材料不变。",
+        "label_policy": "允许部分支持、不支持或明确指出矛盾并请求人工复核；不预先硬定整体标签。"
+      }
+    },
+    {
+      "case_id": "case-006",
+      "case_type": "mutant",
+      "control_case_id": "case-003",
+      "source_item_id": "6ea4570c-c64d-4a5f-8d14-6e8040da4d33-item-3",
+      "changes": [
+        {
+          "field": "page",
+          "before": 143,
+          "after": 78
+        },
+        {
+          "field": "source",
+          "before": "week7/clustering.pdf",
+          "after": "week10/gen_ai.pdf"
+        }
+      ],
+      "design_reason": "只更换最终引用 source/page 为材料池内 Gen AI 应用第78页；该页存在但不讨论聚类、异常值或符号属性。题干、答案及材料池不变。",
+      "qualitative_target": {
+        "primary_dimensions": [
+          "citation_support"
+        ],
+        "goal": "应区分全材料池仍支持聚类答案与最终指定页不支持聚类答案；不能仅因文件页码存在就判引用支持。",
+        "label_policy": "引用维度可判不支持、部分支持或未知并说明缺口；正向材料支持并不与负向引用结论冲突。"
+      }
+    },
+    {
+      "case_id": "case-007",
+      "case_type": "mutant",
+      "control_case_id": "case-002",
+      "source_item_id": "6ea4570c-c64d-4a5f-8d14-6e8040da4d33-item-2",
+      "changes": [
+        {
+          "field": "question",
+          "before": "A team has built several models for the same machine learning task, varying the subsets of the dataset used, the sets of features, the algorithms, and the parameters. How should they decide which model to use for predictions, and what risk should they check for when doing so?",
+          "after": "For the several candidate models in the \"Choosing the best model\" scenario, built using different dataset subsets, feature sets, algorithms and parameters, give the exact test-set accuracy percentage of each candidate model and identify the candidate with the highest accuracy."
+        }
+      ],
+      "design_reason": "只改题干，要求模型选择场景中各候选模型的具体测试准确率及最高者；该场景仅解释选择方法，没有候选模型的具体评测值。另一个chunk的逐epoch日志不能替代这些候选模型的对照数据。",
+      "qualitative_target": {
+        "primary_dimensions": [
+          "answerability"
+        ],
+        "goal": "应识别缺少候选模型逐一准确率数据，不能凭通用定义或把另一训练过程的epoch当作候选模型来编数值和排名。原答案保持不变，也没有提供新问题所需的数值。",
+        "label_policy": "允许不可作答或未知并解释缺失数据；不硬定其中一个。其他支持维度应如实评审保留的原答案，不强迫随题干一并负判。"
+      }
+    }
+  ]
+}

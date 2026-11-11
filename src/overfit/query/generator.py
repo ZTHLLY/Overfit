@@ -1,15 +1,16 @@
 """Layer 7 -- Generator.
 
-Assembles a prompt from retrieved material, calls the language model under a
-JSON schema, validates what comes back, and renders Markdown.
+Assembles a prompt from retrieved material, asks the language model for a JSON
+object, validates what comes back against the internal schema, and renders
+Markdown.
 
 Three things here are load-bearing:
 
 **The schema is the grounding mechanism.** Requiring `source` and `page` on
-every item forces the model to point at something it was given. That is an
-enforceable constraint in a way that "please do not make things up" in a
-prompt is not -- and the citation it produces is checkable by a human, which
-is the actual guarantee this tool offers.
+every accepted item rejects output that does not point at something it was
+given. That is an enforceable constraint in a way that "please do not make
+things up" in a prompt is not -- and the citation it produces is checkable by
+a human, which is the actual guarantee this tool offers.
 
 **Validation with retry, not hope.** A 27B model running locally follows a
 schema most of the time, not always. When it does not, the failure is fed
@@ -17,37 +18,62 @@ back to it and the request is repeated. Without this the command fails on a
 missing field after a minute of generation, which is the most annoying
 possible outcome.
 
-**Graceful degradation on structured output.** Not every endpoint supports
-schema-constrained decoding. We ask for it, fall back to plain JSON mode, and
-in the last resort parse JSON out of prose -- validating identically in all
-three cases, so a weaker server means a slower path, not a broken one.
+**Portable structured output.** OpenAI-compatible endpoints do not all support
+strict schema-constrained decoding. JSON-object mode is the common provider
+contract; in the last resort we parse JSON out of prose. Both paths are
+validated identically against the internal Pydantic schema.
 """
 
 from __future__ import annotations
 
 import json
-import re
-from dataclasses import dataclass
+from copy import deepcopy
+from dataclasses import asdict, dataclass
 from datetime import UTC, datetime
 from functools import lru_cache
+from time import monotonic
 
 from jinja2 import Environment, PackageLoader, StrictUndefined
 from pydantic import ValidationError
 
 from overfit.config import LLMSettings, get_settings
 from overfit.errors import OverfitError
-from overfit.models import Chunk, GeneratedExam, GeneratedItem
+from overfit.evaluation.citations import check_citation
+from overfit.evaluation.contracts import TraceWriteError
+from overfit.evaluation.trace import safe_error
+from overfit.models import (
+    Chunk,
+    GeneratedExam,
+    GeneratedItem,
+    GeneratedMCQExam,
+    GeneratedMCQItem,
+)
+from overfit.query.mcq_wire import (
+    extract_json as _extract_json,
+)
+from overfit.query.mcq_wire import (
+    normalize_mcq_wire as _normalize_mcq_wire,
+)
 
-__all__ = ["GenerationError", "GenerationResult", "Generator"]
+__all__ = [
+    "GenerationCallBudgetExceeded",
+    "GenerationError",
+    "GenerationResult",
+    "Generator",
+]
 
 
 class GenerationError(OverfitError):
     """The model never produced output matching the schema."""
 
 
+class GenerationCallBudgetExceeded(GenerationError):
+    """A caller-owned provider-call budget was exhausted before dispatch."""
+
+
 @dataclass
 class GenerationResult:
-    exam: GeneratedExam
+    exam: GeneratedMCQExam | GeneratedExam
     attempts: int
     dropped: list[str]  # items rejected because their citation was invented
     raw: str = ""  # the model's last reply, kept for when the result is empty
@@ -94,7 +120,9 @@ class Generator:
         count: int,
         topic: str | None = None,
         max_attempts: int | None = None,
+        max_calls: int | None = None,
         on_token=None,
+        recorder=None,
     ) -> GenerationResult:
         """Write practice questions from `chunks`."""
         system = _templates().get_template("system.j2").render()
@@ -107,18 +135,24 @@ class Generator:
         exam, attempts, raw = self._complete(
             system,
             user,
-            GeneratedExam,
+            GeneratedMCQExam,
             max_attempts or get_settings().max_retries + 1,
+            max_calls=max_calls,
+            max_items=count,
             on_token=on_token,
+            **({"recorder": recorder} if recorder is not None else {}),
         )
-        exam, dropped = _drop_invented_citations(exam, chunks)
+        exam, dropped = _drop_invalid_mcq_citations(exam, chunks, recorder=recorder)
         return GenerationResult(
             exam=exam, attempts=attempts, dropped=dropped, raw=raw
         )
 
     # -- internals ---------------------------------------------------------
 
-    def _stream(self, client, response_format, messages, on_token) -> str:
+    def _stream(
+        self, client, response_format, messages, on_token, *, recorder=None,
+        attempt_index=1, format_index=1,
+    ) -> str:
         """Collect a streamed reply, reporting progress as it arrives.
 
         Streaming is not an optimisation here, it is the difference between a
@@ -129,6 +163,11 @@ class Generator:
         evidence that something is happening. The callback counts streamed
         delta chunks, not tokenizer tokens.
         """
+        if recorder is not None:
+            return self._traced_stream(
+                client, response_format, messages, on_token, recorder,
+                attempt_index, format_index,
+            )
         pieces: list[str] = []
         stream = client.chat.completions.create(
             model=self.model,
@@ -162,26 +201,110 @@ class Generator:
                     on_token(len(pieces), thinking)
         return "".join(pieces)
 
-    def _complete(self, system: str, user: str, schema, max_attempts: int, on_token=None):
+    def _traced_stream(
+        self, client, response_format, messages, on_token, recorder,
+        attempt_index, format_index,
+    ) -> str:
+        """Observe a real request without exposing private reasoning or errors."""
+        settings = get_settings()
+        request = deepcopy({
+            "model": self.model,
+            "messages": messages,
+            "temperature": settings.temperature,
+            "response_format": response_format,
+            "stream": True,
+            "timeout": settings.request_timeout,
+        })
+        # Persist before calling the provider. Send this same frozen snapshot,
+        # not the mutable conversation used to assemble the next retry.
+        call_id = recorder.start_call(attempt_index, format_index, request)
+        started = monotonic()
+        pieces: list[str] = []
+        thinking = 0
+        usage = None
+        try:
+            stream = client.chat.completions.create(**request)
+            for part in stream:
+                observed_usage = _visible_usage(getattr(part, "usage", None))
+                if observed_usage is not None:
+                    usage = observed_usage
+                if not part.choices:
+                    continue
+                delta = part.choices[0].delta
+                reasoning = getattr(delta, "reasoning_content", None) or getattr(
+                    delta, "reasoning", None
+                )
+                if reasoning:
+                    thinking += 1
+                    if on_token:
+                        on_token(len(pieces), thinking)
+                piece = delta.content or ""
+                if piece:
+                    pieces.append(piece)
+                    if on_token:
+                        on_token(len(pieces), thinking)
+        except TraceWriteError:
+            raise
+        except (Exception, KeyboardInterrupt) as exc:
+            recorder.emit("call_finished", {
+                "call_id": call_id, "status": "error",
+                "content": "".join(pieces), "response_complete": False,
+                "elapsed_seconds": monotonic() - started,
+                "error": safe_error(exc), "usage": usage,
+            })
+            raise
+        content = "".join(pieces)
+        recorder.emit("call_finished", {
+            "call_id": call_id, "status": "completed", "content": content,
+            "response_complete": True, "elapsed_seconds": monotonic() - started,
+            "error": None, "usage": usage,
+        })
+        return content
+
+    def _complete(
+        self, system: str, user: str, schema, max_attempts: int, on_token=None,
+        recorder=None, max_calls: int | None = None, max_items: int | None = None,
+    ):
         """Call the model until the reply validates, or give up with detail."""
+        if max_calls is not None and (type(max_calls) is not int or max_calls < 1):
+            raise GenerationCallBudgetExceeded(
+                "Generation provider-call budget exhausted before dispatch."
+            )
         client = self._ensure_client()
         messages = [
             {"role": "system", "content": system},
             {"role": "user", "content": user},
         ]
-        json_schema = schema.model_json_schema()
         problems: list[str] = []
+        calls_used = 0
 
         for attempt in range(1, max_attempts + 1):
-            # Strongest constraint the endpoint will accept, weakening as we
-            # learn what it rejects.
+            # JSON-object mode is the portable provider contract. If an older
+            # endpoint rejects even that, fall back to parsing JSON from text.
             raw = None
-            for response_format in _response_formats(json_schema, attempt):
+            for format_index, response_format in enumerate(
+                _response_formats(), start=1
+            ):
                 try:
-                    raw = self._stream(client, response_format, messages, on_token)
+                    if max_calls is not None and calls_used >= max_calls:
+                        raise GenerationCallBudgetExceeded(
+                            "Generation provider-call budget exhausted before dispatch."
+                        )
+                    trace_args = {} if recorder is None else {
+                        "recorder": recorder, "attempt_index": attempt,
+                        "format_index": format_index,
+                    }
+                    raw = self._stream(
+                        client, response_format, messages, on_token, **trace_args
+                    )
+                    calls_used += 1
                     break
+                except (TraceWriteError, GenerationCallBudgetExceeded):
+                    raise
                 except Exception as exc:  # noqa: BLE001 - endpoint capability probe
-                    problems.append(f"attempt {attempt}: {type(exc).__name__}: {exc}")
+                    calls_used += 1
+                    detail = str(exc) if recorder is None else "provider call failed"
+                    problems.append(f"attempt {attempt}: {type(exc).__name__}: {detail}")
             if raw is None:
                 continue
 
@@ -191,10 +314,29 @@ class Generator:
                 # nothing to say. Retrying without the schema often shakes it
                 # loose; failing silently would look like "no questions".
                 problems.append(f"attempt {attempt}: empty response body")
+                if recorder is not None:
+                    recorder.emit("validation_finished", {
+                        "call_id": recorder.last_call_id, "status": "empty_body",
+                        "item_count": None, "error": None,
+                    })
                 continue
             try:
-                return schema.model_validate(_coerce(_extract_json(raw))), attempt, raw
-            except (ValidationError, ValueError, json.JSONDecodeError) as exc:
+                parsed = _extract_json(raw)
+                if schema is GeneratedMCQExam:
+                    parsed = _normalize_mcq_wire(parsed)
+                else:
+                    parsed = _coerce(parsed)
+                exam = schema.model_validate(parsed)
+                if max_items is not None and len(exam.items) > max_items:
+                    raise ValueError(
+                        f"response contains {len(exam.items)} items; maximum is {max_items}"
+                    )
+            except (ValidationError, TypeError, ValueError, json.JSONDecodeError) as exc:
+                if recorder is not None:
+                    recorder.emit("validation_finished", {
+                        "call_id": recorder.last_call_id, "status": "invalid",
+                        "item_count": None, "error": safe_error(exc),
+                    })
                 problems.append(f"attempt {attempt}: {_summarise(exc)}")
                 # Show the model its own mistake. Local models correct a named
                 # missing field far more reliably than a repeated instruction.
@@ -209,7 +351,18 @@ class Generator:
                         ),
                     },
                 ]
+            else:
+                if recorder is not None:
+                    recorder.emit("validation_finished", {
+                        "call_id": recorder.last_call_id, "status": "valid",
+                        "item_count": len(exam.items), "error": None,
+                    })
+                return exam, attempt, raw
 
+        if recorder is not None:
+            raise GenerationError(
+                f"{self.model} did not return valid output after {max_attempts} attempts."
+            )
         raise GenerationError(
             f"{self.model} did not return valid output after {max_attempts} "
             f"attempts.\n  "
@@ -253,81 +406,60 @@ class Generator:
         )
 
 
-def _response_formats(json_schema: dict, attempt: int):
-    """Constraint options, strongest first.
-
-    Schema-constrained decoding makes an invalid reply impossible rather than
-    unlikely, so it is always worth asking for. Older or lighter servers
-    reject the parameter outright, hence the ladder.
-    """
-    if attempt == 1:
-        yield {
-            "type": "json_schema",
-            "json_schema": {"name": "exam", "schema": json_schema, "strict": True},
-        }
+def _response_formats():
+    """Portable structured-output options, strongest first."""
     yield {"type": "json_object"}
     yield None  # unconstrained; _extract_json will dig the object out
 
 
-_JSON_BLOCK = re.compile(r"\{.*\}", re.DOTALL)
-
-
-def _extract_json(raw: str) -> dict:
-    """Parse the reply, tolerating the wrappers models like to add.
-
-    Fenced code blocks and a sentence of preamble are common even when JSON
-    was explicitly requested. Refusing to handle that would fail a response
-    that is, apart from decoration, entirely correct.
-    """
-    text = raw.strip()
-    if text.startswith("```"):
-        text = re.sub(r"^```(?:json)?\s*|\s*```$", "", text, flags=re.MULTILINE).strip()
-    try:
-        return json.loads(text)
-    except json.JSONDecodeError:
-        match = _JSON_BLOCK.search(text)
-        if not match:
-            raise ValueError(f"no JSON object in reply: {text[:200]!r}") from None
-        return json.loads(match.group())
-
-
 _ITEM_KEYS = {"question", "answer", "source", "page"}
+_QUESTION_LIST_KEYS = ("items", "questions", "exam", "results")
 
 
 def _coerce(data: object) -> object:
     """Accept the shapes a model reasonably chooses instead of the exact one.
 
-    Asked for `{"items": [...]}`, models routinely return the bare array, or
-    wrap it under a name of their own -- `questions`, `exam`, `results`.
+    The wire contract asks for `{"questions": [...]}`, while the internal
+    model deliberately remains `GeneratedExam.items`. Older models and saved
+    fixtures may still use `items`, a bare array, or one of the two historical
+    explicit aliases `exam` and `results`.
     Every one of those carries exactly the information requested; rejecting
     them is pedantry that costs a retry, a minute, and tokens, and often
     fails again the same way.
 
-    The rule is to coerce only where the intent is unambiguous. A bare list
-    can only be the list. A single-key object whose value is a list can only
-    be that list under another name. Anything genuinely ambiguous is passed
-    through untouched, so validation still catches real mistakes -- being
-    liberal here must not become being credulous.
+    The rule is to coerce only allowlisted shapes. An arbitrary single list
+    such as `{"warnings": []}` is not a question collection and must fail
+    validation rather than silently becoming an empty exam.
     """
     if isinstance(data, list):
         return {"items": data}
 
     if isinstance(data, dict):
-        if "items" in data:
-            return data
+        for key in _QUESTION_LIST_KEYS:
+            if key in data:
+                value = data[key]
+                return {"items": value} if key != "items" else data
         # A single item returned on its own, without any list around it.
         if _ITEM_KEYS.issubset(data.keys()):
             return {"items": [data]}
-        # The list under a different name: {"questions": [...]}
-        lists = [value for value in data.values() if isinstance(value, list)]
-        if len(lists) == 1:
-            return {"items": lists[0]}
 
     return data
 
 
+def _visible_usage(usage) -> dict | None:
+    """Keep only known numeric counters, never arbitrary provider metadata."""
+    if usage is None:
+        return None
+    result = {}
+    for field in ("prompt_tokens", "completion_tokens", "total_tokens"):
+        value = usage.get(field) if isinstance(usage, dict) else getattr(usage, field, None)
+        if type(value) is int and value >= 0:
+            result[field] = value
+    return result or None
+
+
 def _drop_invented_citations(
-    exam: GeneratedExam, chunks: list[Chunk]
+    exam: GeneratedExam, chunks: list[Chunk], *, recorder=None,
 ) -> tuple[GeneratedExam, list[str]]:
     """Remove any item citing material that was not supplied.
 
@@ -349,9 +481,29 @@ def _drop_invented_citations(
 
     kept: list[GeneratedItem] = []
     dropped: list[str] = []
-    for item in exam.items:
+    materials = [asdict(chunk) for chunk in chunks] if recorder is not None else []
+
+    def record(original_index, before, after, action, reason):
+        if recorder is None:
+            return
+        post = after.model_dump() if after is not None else None
+        recorder.emit("citation_processed", {
+            "call_id": recorder.last_call_id,
+            "item_id": f"{recorder.last_call_id}-item-{original_index}",
+            "original_index": original_index,
+            "final_index": len(kept) if post is not None else None,
+            "pre_policy": before, "post_policy": post,
+            "action": action, "reason": reason,
+            "pre_check": check_citation(before, materials),
+            "post_check": check_citation(post, materials) if post is not None else None,
+        })
+
+    for original_index, item in enumerate(exam.items, start=1):
+        before = item.model_dump() if recorder is not None else None
+        action, reason = "keep", "citation_supplied"
         if item.source not in allowed:
             dropped.append(f"{item.source} p{item.page} — no such file in the material")
+            record(original_index, before, None, "drop", "unknown_source")
             continue
         if item.page not in allowed[item.source]:
             nearest = min(allowed[item.source], key=lambda p: abs(p - item.page))
@@ -359,15 +511,89 @@ def _drop_invented_citations(
                 dropped.append(
                     f"{item.source} p{item.page} — page not among those supplied"
                 )
+                record(original_index, before, None, "drop", "page_not_supplied")
                 continue
             item = item.model_copy(update={"page": nearest})
+            action, reason = "repair", "nearby_page"
         kept.append(item)
+        record(original_index, before, item, action, reason)
 
     return GeneratedExam(items=kept), dropped
 
 
-def render_exam(course: str, exam: GeneratedExam) -> tuple[str, str]:
+def _drop_invalid_mcq_citations(
+    exam: GeneratedMCQExam, chunks: list[Chunk], *, recorder=None,
+) -> tuple[GeneratedMCQExam, list[str]]:
+    """Atomically reject an MCQ if any option cites unsupplied material.
+
+    Unlike the legacy short-answer policy, mcq-v1 never moves a citation to a
+    nearby page: selecting a different page is a semantic change, not a wire
+    normalization.  A broken option invalidates the whole four-option item.
+    """
+    allowed: dict[str, set[int]] = {}
+    for chunk in chunks:
+        pages = allowed.setdefault(chunk.source, set())
+        pages.update(range(chunk.page, (chunk.page_end or chunk.page) + 1))
+
+    kept: list[GeneratedMCQItem] = []
+    dropped: list[str] = []
+    for original_index, item in enumerate(exam.items, start=1):
+        failure = None
+        for label in "ABCD":
+            option = item.options[label]
+            if option.source not in allowed:
+                failure = f"option {label}: {option.source} — no such file in the material"
+                reason = "unknown_source"
+                break
+            cited_pages = set(range(option.page, (option.page_end or option.page) + 1))
+            if not cited_pages.issubset(allowed[option.source]):
+                shown = (
+                    f"pp{option.page}-{option.page_end}"
+                    if option.page_end is not None and option.page_end != option.page
+                    else f"p{option.page}"
+                )
+                failure = f"option {label}: {option.source} {shown} — pages not supplied"
+                reason = "page_not_supplied"
+                break
+        else:
+            reason = "citation_supplied"
+
+        if failure is None:
+            kept.append(item)
+        else:
+            dropped.append(failure)
+
+        if recorder is not None:
+            post = item.model_dump() if failure is None else None
+            recorder.emit("citation_processed", {
+                "call_id": recorder.last_call_id,
+                "item_id": f"{recorder.last_call_id}-item-{original_index}",
+                "original_index": original_index,
+                "final_index": len(kept) if post is not None else None,
+                "pre_policy": item.model_dump(),
+                "post_policy": post,
+                "action": "keep" if post is not None else "drop",
+                "reason": reason,
+                "pre_check": None,
+                "post_check": None,
+            })
+
+    return GeneratedMCQExam(items=kept), dropped
+
+
+def render_exam(
+    course: str,
+    exam: GeneratedMCQExam | GeneratedExam,
+    *,
+    answers_file: str | None = None,
+    generated_on: str | None = None,
+) -> tuple[str, str]:
     """Render the question paper and the answer key."""
+    if isinstance(exam, GeneratedMCQExam):
+        return _render_mcq_exam(
+            course, exam, answers_file=answers_file, generated_on=generated_on
+        )
+
     numbered = [
         {
             "number": index,
@@ -389,14 +615,84 @@ def render_exam(course: str, exam: GeneratedExam) -> tuple[str, str]:
         "items": numbered,
         "grouped": list(grouped.items()),
         "sources": sorted({item["source"] for item in numbered}),
-        "generated_at": datetime.now(UTC).date().isoformat(),
-        "answers_file": get_settings().output_path(course, "answers.md").name,
+        "generated_at": generated_on or datetime.now(UTC).date().isoformat(),
+        "answers_file": answers_file
+        or get_settings().output_path(course, "answers.md").name,
     }
     env = _templates()
     return (
         env.get_template("mock_exam.md.j2").render(**context),
         env.get_template("mock_answers.md.j2").render(**context),
     )
+
+
+def _render_mcq_exam(
+    course: str,
+    exam: GeneratedMCQExam,
+    *,
+    answers_file: str | None = None,
+    generated_on: str | None = None,
+) -> tuple[str, str]:
+    context = _mcq_render_context(course, exam)
+    context.update(
+        generated_at=generated_on or datetime.now(UTC).date().isoformat(),
+        answers_file=answers_file or get_settings().output_path(course, "answers.md").name,
+    )
+    env = _templates()
+    return (
+        env.get_template("mock_exam.md.j2").render(**context),
+        env.get_template("mock_answers.md.j2").render(**context),
+    )
+
+
+def render_mcq_display(
+    course: str,
+    exam: GeneratedMCQExam,
+    *,
+    answers_file: str,
+    generated_on: str,
+) -> tuple[str, str]:
+    """Render the student-facing paper and answer key, not the audit artifacts."""
+    context = _mcq_render_context(course, exam)
+    context.update(generated_at=generated_on, answers_file=answers_file)
+    env = _templates()
+    return (
+        env.get_template("mcq_display_paper.md.j2").render(**context),
+        env.get_template("mcq_display_answers.md.j2").render(**context),
+    )
+
+
+def _mcq_render_context(course: str, exam: GeneratedMCQExam) -> dict:
+    numbered = []
+    for index, item in enumerate(exam.items, start=1):
+        options = []
+        for label in "ABCD":
+            option = item.options[label]
+            options.append({
+                "label": label,
+                "text": option.text,
+                "explanation": option.explanation,
+                "citation": option.citation,
+            })
+        numbered.append({
+            "number": index,
+            "topic": item.topic,
+            "question": item.question,
+            "options": options,
+            "correct_option": item.correct_option,
+            "correct_text": item.correct.text,
+        })
+
+    return {
+        "generation_contract": "mcq-v1",
+        "course": course,
+        "items": numbered,
+        "sources": sorted({
+            option.source
+            for item in exam.items
+            for option in item.options.values()
+        }),
+    }
 
 
 def _summarise(exc: Exception) -> str:

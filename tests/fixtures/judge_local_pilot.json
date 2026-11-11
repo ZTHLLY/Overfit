@@ -1,0 +1,63 @@
+{
+  "provenance": "Minimal excerpt of visible responses from local pilot 949ca097-a871-4bec-934e-e926c72a34a9; no new model calls.",
+  "item": {
+    "answer": "Two approaches are described. (1) Removal: dropping rows or columns that have missing values, commonly those exceeding a certain threshold. This is suitable when the rows or columns being removed contain many missing values, so removing them does not discard important information from the modelling process. However, when missing values occur only sparsely across many rows or columns, removal trims much needed information from the dataset. (2) Imputation: filling in missing values with a specific value; a typical simple method is to impute using the mean, median or mode of a variable, and more recent research suggests using advanced techniques such as multiple imputations or interpolation. Each approach has its own advantages and disadvantages.",
+    "page": 14,
+    "question": "When preparing a dataset for modelling, you notice that some columns have a large proportion of their values missing, while other columns are missing values only occasionally across many rows. Compare the two main strategies for handling missing values and explain the circumstances under which each is the better choice.",
+    "source": "week3/practical_exercises.pdf",
+    "topic": "Handling missing values"
+  },
+  "chunks": [
+    {
+      "id": "week3_practical_exercises_p14_c27",
+      "source": "week3/practical_exercises.pdf",
+      "page": 14,
+      "page_end": null,
+      "text": "in\nthe library do not accept missing values. In this dataset, there are 3 columns with many missing\nvalues, DemAge, DemMedIncome and GiftAvgCard36. There are a number of approaches to deal\nwith missing values, each with their own advantages and disadvantages:\n1. Removal: Dropping rows/columns with (commonly a certain threshold of) missing values. This\napproach is suitable when the rows or columns removed has many missing values, thus\nremoving them will not remove important information from the modelling process. However,\nwhen missing values only occurs sparsely in many rows/columns, this method trims much\nneeded information from the dataset.\n2. Imputation: Filling out missing values with a specific value. Typical simple method is to impute\nwith mean, median or mode of a variable. Recent research suggests the usage of more advanced\nimputation techniques, such as multiple imputations or interpolation."
+    }
+  ],
+  "responses": {
+    "answerability": {
+      "verdict": "answerable",
+      "reason": "The question asks to compare two main strategies for handling missing values. The materials provide two strategies: Removal and Imputation. The text explains that Removal is suitable when rows/columns with many missing values are removed without losing important information, while Imputation is used when missing values are sparse and filling them with mean/median/mode is appropriate. The evidence directly supports the comparison.",
+      "evidence": [
+        {
+          "chunk_id": "week3_practical_exercises_p14_c27",
+          "quote": "Removal: Dropping rows/columns with (commonly a certain threshold of) missing values. This approach is suitable when the rows or columns removed has many missing values, thus removing them will not remove important information from the modelling process. However, when missing values only occurs sparsely in many rows/columns, this method trims much needed information from the dataset."
+        },
+        {
+          "chunk_id": "week3_practical_exercises_p14_c27",
+          "quote": "Imputation: Filling out missing values with a specific value. Typical simple method is to impute with mean, median or mode of a variable. Recent research suggests the usage of more advanced imputation techniques, such as multiple imputations or interpolation."
+        }
+      ]
+    },
+    "support": {
+      "material_support": "supported",
+      "citation_support": "supported",
+      "reason": "The answer correctly describes the two main strategies (Removal and Imputation) and their circumstances. The material from week3_practical_exercises_p14_c27 matches the answer's content exactly.",
+      "claims": [
+        {
+          "text": "Two approaches are described. (1) Removal: dropping rows or columns that have missing values, commonly those exceeding a certain threshold. This is suitable when the rows or columns being removed contain many missing values, so removing them does not discard important information from the modelling process. However, when missing values occur only sparsely across many rows or columns, removal trims much needed information from the dataset. (2) Imputation: filling in missing values with a specific value; a typical simple method is to impute using the mean, median or mode of a variable, and more recent research suggests using advanced techniques such as multiple imputations or interpolation. Each approach has its own advantages and disadvantages.",
+          "verdict": "supported",
+          "evidence": [
+            {
+              "chunk_id": "week3_practical_exercises_p14_c27",
+              "quote": "1. Removal: Dropping rows/columns with (commonly a certain threshold of) missing values. This approach is suitable when the rows or columns removed has many missing values, thus removing them will not remove important information from the modelling process. However, when missing values only occurs sparsely in many rows/columns, this method trims much needed information from the dataset.\n2. Imputation: Filling out missing values with a specific value. Typical simple method is to impute with mean, median or mode of a variable. Recent research suggests the usage of more advanced imputation techniques, such as multiple imputations or interpolation."
+            }
+          ]
+        },
+        {
+          "text": "When preparing a dataset for modelling, you notice that some columns have a large proportion of their values missing, while other columns are missing values only occasionally across many rows. Compare the two main strategies for handling missing values and explain the question",
+          "verdict": "unknown",
+          "evidence": []
+        }
+      ],
+      "citation_evidence": [
+        {
+          "chunk_id": "week3_practical_exercises_p14_c27",
+          "quote": "1. Removal: Dropping rows/columns with (commonly a certain threshold of) missing values. This approach is suitable when the rows or columns removed has many missing values, thus removing them will not remove important information from the modelling process. However, when missing values only occurs sparsely in many rows/columns, this method trims much needed information from the dataset.\n2. Imputation: Filling out missing values with a specific value. Typical simple method is to impute with mean, median or mode of a variable. Recent research suggests the usage of more advanced imputation techniques, such as multiple imputations or interpolation."
+        }
+      ]
+    }
+  }
+}

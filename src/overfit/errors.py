@@ -20,12 +20,54 @@ __all__ = [
     "IndexMissingError",
     "NoDocumentsError",
     "OverfitError",
+    "RerankConfigurationError",
+    "RerankContractError",
+    "RerankError",
+    "RerankExternalError",
+    "RerankLogError",
     "UnsupportedFormatError",
 ]
 
 
 class OverfitError(Exception):
     """Base class for every error this tool raises on purpose."""
+
+
+class RerankError(OverfitError):
+    """A rerank run could not produce a complete, recorded result."""
+
+    def __init__(
+        self,
+        message: str,
+        *,
+        attempts: int = 0,
+        failure_category: str | None = None,
+    ) -> None:
+        super().__init__(message)
+        self.attempts = attempts
+        self.failure_category = failure_category
+
+
+class RerankExternalError(RerankError):
+    """No successful HTTP response was received; bounded retry is allowed."""
+
+    def __init__(self, message: str = "Reranker request did not succeed.", *, status: int | None = None, request_id: str | None = None, retry_after: float | None = None) -> None:
+        super().__init__(message, failure_category="external_or_timeout")
+        self.status = status
+        self.request_id = request_id
+        self.retry_after = retry_after
+
+
+class RerankContractError(RerankError):
+    """A local input or successful HTTP response violated the frozen contract."""
+
+
+class RerankConfigurationError(RerankContractError):
+    """A query path lacks valid reranker configuration."""
+
+
+class RerankLogError(RerankContractError):
+    """The mandatory rerank audit record could not be persisted."""
 
 
 class CourseNotFoundError(OverfitError):

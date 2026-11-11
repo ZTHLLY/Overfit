@@ -1,0 +1,2776 @@
+[
+  {
+    "id": "week01-q01",
+    "week": "week01",
+    "type": "basic",
+    "question": "In Tom Mitchell's definition of learning, T denotes a class of tasks, P a performance measure, and E experience. Which condition demonstrates that a program has learned with respect to T and P?",
+    "options": {
+      "A": "It accumulates more experience E while its performance on T, measured by P, remains unchanged.",
+      "B": "Its performance on T, measured by P, improves with experience E.",
+      "C": "It attempts more tasks in T while its performance on those tasks, measured by P, declines.",
+      "D": "It replaces P with a different measure without improving its performance on T under P."
+    },
+    "correct_option": "B",
+    "question_sources": [
+      {
+        "pdf": "week1/introduction.pdf",
+        "page": 13,
+        "printed_slide": 13
+      }
+    ],
+    "option_sources": {
+      "A": [
+        {
+          "pdf": "week1/introduction.pdf",
+          "page": 13,
+          "printed_slide": 13
+        }
+      ],
+      "B": [
+        {
+          "pdf": "week1/introduction.pdf",
+          "page": 13,
+          "printed_slide": 13
+        }
+      ],
+      "C": [
+        {
+          "pdf": "week1/introduction.pdf",
+          "page": 13,
+          "printed_slide": 13
+        }
+      ],
+      "D": [
+        {
+          "pdf": "week1/introduction.pdf",
+          "page": 13,
+          "printed_slide": 13
+        }
+      ]
+    },
+    "human_verified": true,
+    "notes": ""
+  },
+  {
+    "id": "week01-q02",
+    "week": "week01",
+    "type": "basic",
+    "question": "Which statement correctly distinguishes the predicted outputs of supervised classification and regression?",
+    "options": {
+      "A": "Classification predicts continuous real values, whereas regression predicts categorical values.",
+      "B": "Both classification and regression predict only categorical values.",
+      "C": "Both classification and regression predict only continuous real values.",
+      "D": "Classification predicts categorical values, whereas regression predicts continuous real values."
+    },
+    "correct_option": "D",
+    "question_sources": [
+      {
+        "pdf": "week1/introduction.pdf",
+        "page": 49,
+        "printed_slide": 49
+      },
+      {
+        "pdf": "week1/introduction.pdf",
+        "page": 51,
+        "printed_slide": 51
+      }
+    ],
+    "option_sources": {
+      "A": [
+        {
+          "pdf": "week1/introduction.pdf",
+          "page": 49,
+          "printed_slide": 49
+        },
+        {
+          "pdf": "week1/introduction.pdf",
+          "page": 51,
+          "printed_slide": 51
+        }
+      ],
+      "B": [
+        {
+          "pdf": "week1/introduction.pdf",
+          "page": 49,
+          "printed_slide": 49
+        },
+        {
+          "pdf": "week1/introduction.pdf",
+          "page": 51,
+          "printed_slide": 51
+        }
+      ],
+      "C": [
+        {
+          "pdf": "week1/introduction.pdf",
+          "page": 49,
+          "printed_slide": 49
+        },
+        {
+          "pdf": "week1/introduction.pdf",
+          "page": 51,
+          "printed_slide": 51
+        }
+      ],
+      "D": [
+        {
+          "pdf": "week1/introduction.pdf",
+          "page": 49,
+          "printed_slide": 49
+        },
+        {
+          "pdf": "week1/introduction.pdf",
+          "page": 51,
+          "printed_slide": 51
+        }
+      ]
+    },
+    "human_verified": true,
+    "notes": ""
+  },
+  {
+    "id": "week01-q03",
+    "week": "week01",
+    "type": "basic",
+    "question": "Which statement is consistent with the machine learning workflow described in the lecture?",
+    "options": {
+      "A": "Analysis of performance and mistakes can lead to revisiting earlier steps when needed.",
+      "B": "Once hyperparameter search is complete, performance analysis must not lead back to earlier steps.",
+      "C": "A baseline is established only after optimisation and hyperparameter search are complete.",
+      "D": "Data preprocessing and cleaning are deferred until after model optimisation and hyperparameter search."
+    },
+    "correct_option": "A",
+    "question_sources": [
+      {
+        "pdf": "week1/introduction.pdf",
+        "page": 61,
+        "printed_slide": 61
+      }
+    ],
+    "option_sources": {
+      "A": [
+        {
+          "pdf": "week1/introduction.pdf",
+          "page": 61,
+          "printed_slide": 61
+        }
+      ],
+      "B": [
+        {
+          "pdf": "week1/introduction.pdf",
+          "page": 61,
+          "printed_slide": 61
+        }
+      ],
+      "C": [
+        {
+          "pdf": "week1/introduction.pdf",
+          "page": 61,
+          "printed_slide": 61
+        }
+      ],
+      "D": [
+        {
+          "pdf": "week1/introduction.pdf",
+          "page": 61,
+          "printed_slide": 61
+        }
+      ]
+    },
+    "human_verified": true,
+    "notes": ""
+  },
+  {
+    "id": "week01-q04",
+    "week": "week01",
+    "type": "scenario",
+    "question": "A robot learns in a simulated environment by trying actions. It gathers data through these interactions and receives a reward when its actions succeed. It is not given a training set of inputs paired with correct target outputs. Which learning approach best describes this process?",
+    "options": {
+      "A": "Supervised classification using examples with predefined class labels.",
+      "B": "Unsupervised clustering to discover common patterns in unlabeled data.",
+      "C": "Reinforcement learning through interaction and reward-based trial and error.",
+      "D": "Supervised regression using examples with continuous target values."
+    },
+    "correct_option": "C",
+    "question_sources": [
+      {
+        "pdf": "week1/introduction.pdf",
+        "page": 46,
+        "printed_slide": 46
+      },
+      {
+        "pdf": "week1/introduction.pdf",
+        "page": 57,
+        "printed_slide": 57
+      }
+    ],
+    "option_sources": {
+      "A": [
+        {
+          "pdf": "week1/introduction.pdf",
+          "page": 46,
+          "printed_slide": 46
+        },
+        {
+          "pdf": "week1/introduction.pdf",
+          "page": 49,
+          "printed_slide": 49
+        }
+      ],
+      "B": [
+        {
+          "pdf": "week1/introduction.pdf",
+          "page": 46,
+          "printed_slide": 46
+        },
+        {
+          "pdf": "week1/introduction.pdf",
+          "page": 57,
+          "printed_slide": 57
+        }
+      ],
+      "C": [
+        {
+          "pdf": "week1/introduction.pdf",
+          "page": 57,
+          "printed_slide": 57
+        }
+      ],
+      "D": [
+        {
+          "pdf": "week1/introduction.pdf",
+          "page": 46,
+          "printed_slide": 46
+        },
+        {
+          "pdf": "week1/introduction.pdf",
+          "page": 51,
+          "printed_slide": 51
+        }
+      ]
+    },
+    "human_verified": true,
+    "notes": ""
+  },
+  {
+    "id": "week02-q01",
+    "week": "week02",
+    "type": "basic",
+    "question": "Which statement describes an ordinal attribute?",
+    "options": {
+      "A": "Its values have a meaningful order with known, equal gaps between successive values.",
+      "B": "Its values have a meaningful order, but the magnitude of the gaps between successive values is unknown.",
+      "C": "Its values are categories with no meaningful order.",
+      "D": "Its values must be limited to exactly two states."
+    },
+    "correct_option": "B",
+    "question_sources": [
+      {
+        "pdf": "week2/data_features.pdf",
+        "page": 12,
+        "printed_slide": 12
+      }
+    ],
+    "option_sources": {
+      "A": [
+        {
+          "pdf": "week2/data_features.pdf",
+          "page": 12,
+          "printed_slide": 12
+        }
+      ],
+      "B": [
+        {
+          "pdf": "week2/data_features.pdf",
+          "page": 12,
+          "printed_slide": 12
+        }
+      ],
+      "C": [
+        {
+          "pdf": "week2/data_features.pdf",
+          "page": 12,
+          "printed_slide": 12
+        }
+      ],
+      "D": [
+        {
+          "pdf": "week2/data_features.pdf",
+          "page": 12,
+          "printed_slide": 12
+        }
+      ]
+    },
+    "human_verified": true,
+    "notes": ""
+  },
+  {
+    "id": "week02-q02",
+    "week": "week02",
+    "type": "basic",
+    "question": "An outlier has characteristics that differ considerably from most other objects in a dataset. Which statement about such an observation is correct?",
+    "options": {
+      "A": "It must be a noisy observation rather than a valid value.",
+      "B": "It must be a valid value rather than a noisy observation.",
+      "C": "It may be a valid value or a noisy observation.",
+      "D": "It can only result from an inconsistent naming convention."
+    },
+    "correct_option": "C",
+    "question_sources": [
+      {
+        "pdf": "week2/data_features.pdf",
+        "page": 30,
+        "printed_slide": 30
+      }
+    ],
+    "option_sources": {
+      "A": [
+        {
+          "pdf": "week2/data_features.pdf",
+          "page": 30,
+          "printed_slide": 30
+        }
+      ],
+      "B": [
+        {
+          "pdf": "week2/data_features.pdf",
+          "page": 30,
+          "printed_slide": 30
+        }
+      ],
+      "C": [
+        {
+          "pdf": "week2/data_features.pdf",
+          "page": 30,
+          "printed_slide": 30
+        }
+      ],
+      "D": [
+        {
+          "pdf": "week2/data_features.pdf",
+          "page": 30,
+          "printed_slide": 30
+        }
+      ]
+    },
+    "human_verified": true,
+    "notes": ""
+  },
+  {
+    "id": "week02-q03",
+    "week": "week02",
+    "type": "basic",
+    "question": "Which operation is an example of discretisation?",
+    "options": {
+      "A": "Converting a quantitative variable into categories by assigning its values to ranges.",
+      "B": "Scaling the numerical values of a variable to a specified range.",
+      "C": "Selecting a smaller subset of the original attributes.",
+      "D": "Filling a missing numerical value with the attribute mean."
+    },
+    "correct_option": "A",
+    "question_sources": [
+      {
+        "pdf": "week2/data_features.pdf",
+        "page": 40,
+        "printed_slide": 40
+      }
+    ],
+    "option_sources": {
+      "A": [
+        {
+          "pdf": "week2/data_features.pdf",
+          "page": 40,
+          "printed_slide": 40
+        }
+      ],
+      "B": [
+        {
+          "pdf": "week2/data_features.pdf",
+          "page": 40,
+          "printed_slide": 40
+        }
+      ],
+      "C": [
+        {
+          "pdf": "week2/data_features.pdf",
+          "page": 43,
+          "printed_slide": 43
+        }
+      ],
+      "D": [
+        {
+          "pdf": "week2/data_features.pdf",
+          "page": 36,
+          "printed_slide": 36
+        }
+      ]
+    },
+    "human_verified": true,
+    "notes": ""
+  },
+  {
+    "id": "week02-q04",
+    "week": "week02",
+    "type": "scenario",
+    "question": "An analyst represents two documents using Boolean term-presence vectors and the same ordered vocabulary [red, blue]. Document 1 contains the words \"red blue red\", and Document 2 contains \"blue red\". Using these two vocabulary terms as the only features, which pair of vectors should the analyst obtain?",
+    "options": {
+      "A": "Document 1: [2, 1]; Document 2: [1, 1].",
+      "B": "Document 1: [1, 2]; Document 2: [2, 1].",
+      "C": "Document 1: [1, 1, 1]; Document 2: [1, 1].",
+      "D": "Document 1: [1, 1]; Document 2: [1, 1]."
+    },
+    "correct_option": "D",
+    "question_sources": [
+      {
+        "pdf": "week2/data_features.pdf",
+        "page": 56,
+        "printed_slide": 56
+      },
+      {
+        "pdf": "week2/data_features.pdf",
+        "page": 58,
+        "printed_slide": 58
+      }
+    ],
+    "option_sources": {
+      "A": [
+        {
+          "pdf": "week2/data_features.pdf",
+          "page": 56,
+          "printed_slide": 56
+        },
+        {
+          "pdf": "week2/data_features.pdf",
+          "page": 58,
+          "printed_slide": 58
+        }
+      ],
+      "B": [
+        {
+          "pdf": "week2/data_features.pdf",
+          "page": 56,
+          "printed_slide": 56
+        },
+        {
+          "pdf": "week2/data_features.pdf",
+          "page": 58,
+          "printed_slide": 58
+        }
+      ],
+      "C": [
+        {
+          "pdf": "week2/data_features.pdf",
+          "page": 58,
+          "printed_slide": 58
+        }
+      ],
+      "D": [
+        {
+          "pdf": "week2/data_features.pdf",
+          "page": 56,
+          "printed_slide": 56
+        },
+        {
+          "pdf": "week2/data_features.pdf",
+          "page": 58,
+          "printed_slide": 58
+        }
+      ]
+    },
+    "human_verified": true,
+    "notes": ""
+  },
+  {
+    "id": "week03-q01",
+    "week": "week03",
+    "type": "basic",
+    "question": "In the bias-variance account of model complexity, which combination is associated with an excessively flexible model that overfits the training data?",
+    "options": {
+      "A": "High bias and low variance.",
+      "B": "Low bias and high variance.",
+      "C": "High bias and high variance.",
+      "D": "Low bias and low variance."
+    },
+    "correct_option": "B",
+    "question_sources": [
+      {
+        "pdf": "week3/supervised_ml_basic.pdf",
+        "page": 25,
+        "printed_slide": 25
+      }
+    ],
+    "option_sources": {
+      "A": [
+        {
+          "pdf": "week3/supervised_ml_basic.pdf",
+          "page": 25,
+          "printed_slide": 25
+        }
+      ],
+      "B": [
+        {
+          "pdf": "week3/supervised_ml_basic.pdf",
+          "page": 25,
+          "printed_slide": 25
+        }
+      ],
+      "C": [
+        {
+          "pdf": "week3/supervised_ml_basic.pdf",
+          "page": 25,
+          "printed_slide": 25
+        }
+      ],
+      "D": [
+        {
+          "pdf": "week3/supervised_ml_basic.pdf",
+          "page": 25,
+          "printed_slide": 25
+        }
+      ]
+    },
+    "human_verified": true,
+    "notes": ""
+  },
+  {
+    "id": "week03-q02",
+    "week": "week03",
+    "type": "basic",
+    "question": "A labelled dataset is partitioned into ten disjoint subsets. Which procedure correctly performs ten-fold cross-validation and summarises classification accuracy?",
+    "options": {
+      "A": "Train on all ten subsets, test on each subset in turn, and average the ten accuracies.",
+      "B": "Train on one subset and test on the other nine, rotating the training subset and averaging the ten accuracies.",
+      "C": "Train on nine subsets and test on the remaining subset, using each subset once for testing and averaging the ten accuracies.",
+      "D": "Keep the same nine subsets for training and the same remaining subset for testing in all ten runs, then average the ten accuracies."
+    },
+    "correct_option": "C",
+    "question_sources": [
+      {
+        "pdf": "week3/supervised_ml_basic.pdf",
+        "page": 32,
+        "printed_slide": 32
+      }
+    ],
+    "option_sources": {
+      "A": [
+        {
+          "pdf": "week3/supervised_ml_basic.pdf",
+          "page": 32,
+          "printed_slide": 32
+        }
+      ],
+      "B": [
+        {
+          "pdf": "week3/supervised_ml_basic.pdf",
+          "page": 32,
+          "printed_slide": 32
+        }
+      ],
+      "C": [
+        {
+          "pdf": "week3/supervised_ml_basic.pdf",
+          "page": 32,
+          "printed_slide": 32
+        }
+      ],
+      "D": [
+        {
+          "pdf": "week3/supervised_ml_basic.pdf",
+          "page": 32,
+          "printed_slide": 32
+        }
+      ]
+    },
+    "human_verified": true,
+    "notes": ""
+  },
+  {
+    "id": "week03-q03",
+    "week": "week03",
+    "type": "basic",
+    "question": "For single nearest-neighbour classification, assume that a new instance has a unique closest training instance under the chosen distance measure. Which rule is used to assign its class?",
+    "options": {
+      "A": "Assign the class of the training instance with the smallest distance to the new instance.",
+      "B": "Assign the class of the training instance with the largest distance from the new instance.",
+      "C": "Assign the most frequent class in the entire training set, regardless of distances to the new instance.",
+      "D": "Assign the least frequent class in the entire training set, regardless of distances to the new instance."
+    },
+    "correct_option": "A",
+    "question_sources": [
+      {
+        "pdf": "week3/supervised_ml_basic.pdf",
+        "page": 46,
+        "printed_slide": 46
+      }
+    ],
+    "option_sources": {
+      "A": [
+        {
+          "pdf": "week3/supervised_ml_basic.pdf",
+          "page": 46,
+          "printed_slide": 46
+        }
+      ],
+      "B": [
+        {
+          "pdf": "week3/supervised_ml_basic.pdf",
+          "page": 46,
+          "printed_slide": 46
+        }
+      ],
+      "C": [
+        {
+          "pdf": "week3/supervised_ml_basic.pdf",
+          "page": 46,
+          "printed_slide": 46
+        }
+      ],
+      "D": [
+        {
+          "pdf": "week3/supervised_ml_basic.pdf",
+          "page": 46,
+          "printed_slide": 46
+        }
+      ]
+    },
+    "human_verified": true,
+    "notes": ""
+  },
+  {
+    "id": "week03-q04",
+    "week": "week03",
+    "type": "scenario",
+    "question": "In a tax survey, some respondents leave their income blank. An analyst suspects that whether income is missing may itself be informative. Before filling the missing incomes, the analyst wants to preserve an explicit record, for every respondent, of whether income was originally missing. Which action achieves this goal?",
+    "options": {
+      "A": "Delete every respondent with a missing income and keep only the remaining rows.",
+      "B": "Replace missing incomes with the mean without keeping any record of which entries were missing.",
+      "C": "Remove the income column without keeping any record of which entries were missing.",
+      "D": "Add a binary column with 1 for originally missing income and 0 for originally observed income."
+    },
+    "correct_option": "D",
+    "question_sources": [
+      {
+        "pdf": "week3/practical_exercises.pdf",
+        "page": 14,
+        "printed_slide": null
+      }
+    ],
+    "option_sources": {
+      "A": [
+        {
+          "pdf": "week3/practical_exercises.pdf",
+          "page": 14,
+          "printed_slide": null
+        }
+      ],
+      "B": [
+        {
+          "pdf": "week3/practical_exercises.pdf",
+          "page": 14,
+          "printed_slide": null
+        }
+      ],
+      "C": [
+        {
+          "pdf": "week3/practical_exercises.pdf",
+          "page": 14,
+          "printed_slide": null
+        }
+      ],
+      "D": [
+        {
+          "pdf": "week3/practical_exercises.pdf",
+          "page": 14,
+          "printed_slide": null
+        }
+      ]
+    },
+    "human_verified": true,
+    "notes": ""
+  },
+  {
+    "id": "week04-q01",
+    "week": "week04",
+    "type": "basic",
+    "question": "When comparing candidate decision-tree splits, information gain and the weighted Gini index of the resulting child nodes are alternative criteria. Which pair correctly describes the preferred direction for each criterion?",
+    "options": {
+      "A": "Higher information gain and higher weighted Gini index.",
+      "B": "Lower information gain and lower weighted Gini index.",
+      "C": "Higher information gain and lower weighted Gini index.",
+      "D": "Lower information gain and higher weighted Gini index."
+    },
+    "correct_option": "C",
+    "question_sources": [
+      {
+        "pdf": "week4/decision_tree.pdf",
+        "page": 26,
+        "printed_slide": null
+      },
+      {
+        "pdf": "week4/decision_tree.pdf",
+        "page": 27,
+        "printed_slide": null
+      }
+    ],
+    "option_sources": {
+      "A": [
+        {
+          "pdf": "week4/decision_tree.pdf",
+          "page": 26,
+          "printed_slide": null
+        },
+        {
+          "pdf": "week4/decision_tree.pdf",
+          "page": 27,
+          "printed_slide": null
+        }
+      ],
+      "B": [
+        {
+          "pdf": "week4/decision_tree.pdf",
+          "page": 26,
+          "printed_slide": null
+        },
+        {
+          "pdf": "week4/decision_tree.pdf",
+          "page": 27,
+          "printed_slide": null
+        }
+      ],
+      "C": [
+        {
+          "pdf": "week4/decision_tree.pdf",
+          "page": 26,
+          "printed_slide": null
+        },
+        {
+          "pdf": "week4/decision_tree.pdf",
+          "page": 27,
+          "printed_slide": null
+        }
+      ],
+      "D": [
+        {
+          "pdf": "week4/decision_tree.pdf",
+          "page": 26,
+          "printed_slide": null
+        },
+        {
+          "pdf": "week4/decision_tree.pdf",
+          "page": 27,
+          "printed_slide": null
+        }
+      ]
+    },
+    "human_verified": true,
+    "notes": ""
+  },
+  {
+    "id": "week04-q02",
+    "week": "week04",
+    "type": "basic",
+    "question": "Which statement correctly distinguishes post-pruning from early stopping in decision-tree construction?",
+    "options": {
+      "A": "Post-pruning simplifies a tree after it is built; early stopping limits its growth during construction.",
+      "B": "Post-pruning limits tree growth during construction; early stopping simplifies the completed tree.",
+      "C": "Both methods act only after tree construction is complete by replacing existing subtrees with leaves.",
+      "D": "Both methods act only during tree construction by preventing further splits, without modifying a completed tree."
+    },
+    "correct_option": "A",
+    "question_sources": [
+      {
+        "pdf": "week4/decision_tree.pdf",
+        "page": 34,
+        "printed_slide": 34
+      }
+    ],
+    "option_sources": {
+      "A": [
+        {
+          "pdf": "week4/decision_tree.pdf",
+          "page": 34,
+          "printed_slide": 34
+        }
+      ],
+      "B": [
+        {
+          "pdf": "week4/decision_tree.pdf",
+          "page": 34,
+          "printed_slide": 34
+        }
+      ],
+      "C": [
+        {
+          "pdf": "week4/decision_tree.pdf",
+          "page": 34,
+          "printed_slide": 34
+        }
+      ],
+      "D": [
+        {
+          "pdf": "week4/decision_tree.pdf",
+          "page": 34,
+          "printed_slide": 34
+        }
+      ]
+    },
+    "human_verified": true,
+    "notes": ""
+  },
+  {
+    "id": "week04-q03",
+    "week": "week04",
+    "type": "basic",
+    "question": "In the random forest construction procedure described in the lecture, how are each tree's training data and candidate split variables selected?",
+    "options": {
+      "A": "Sample training records without replacement and consider a random subset of variables at each split.",
+      "B": "Sample training records with replacement and consider a random subset of variables at each split.",
+      "C": "Sample training records with replacement and consider all variables at every split.",
+      "D": "Sample training records without replacement and consider all variables at every split."
+    },
+    "correct_option": "B",
+    "question_sources": [
+      {
+        "pdf": "week4/decision_tree.pdf",
+        "page": 57,
+        "printed_slide": null
+      },
+      {
+        "pdf": "week4/decision_tree.pdf",
+        "page": 61,
+        "printed_slide": null
+      }
+    ],
+    "option_sources": {
+      "A": [
+        {
+          "pdf": "week4/decision_tree.pdf",
+          "page": 57,
+          "printed_slide": null
+        },
+        {
+          "pdf": "week4/decision_tree.pdf",
+          "page": 61,
+          "printed_slide": null
+        }
+      ],
+      "B": [
+        {
+          "pdf": "week4/decision_tree.pdf",
+          "page": 57,
+          "printed_slide": null
+        },
+        {
+          "pdf": "week4/decision_tree.pdf",
+          "page": 61,
+          "printed_slide": null
+        }
+      ],
+      "C": [
+        {
+          "pdf": "week4/decision_tree.pdf",
+          "page": 57,
+          "printed_slide": null
+        },
+        {
+          "pdf": "week4/decision_tree.pdf",
+          "page": 61,
+          "printed_slide": null
+        }
+      ],
+      "D": [
+        {
+          "pdf": "week4/decision_tree.pdf",
+          "page": 57,
+          "printed_slide": null
+        },
+        {
+          "pdf": "week4/decision_tree.pdf",
+          "page": 61,
+          "printed_slide": null
+        }
+      ]
+    },
+    "human_verified": true,
+    "notes": ""
+  },
+  {
+    "id": "week04-q04",
+    "week": "week04",
+    "type": "scenario",
+    "question": "An analyst is training a supervised model to predict a donor's binary status. Historical training records contain the known status, but the status will be unknown for new records when predictions are needed. The analyst has included status both among the input predictors and as the training label. Which change correctly separates predictors from the target?",
+    "options": {
+      "A": "Keep status among both the predictors and the training labels because it is a binary variable.",
+      "B": "Keep status among the predictors but remove it from the training labels.",
+      "C": "Remove status from both the predictors and the training labels.",
+      "D": "Remove status from the predictors but retain it as the training label."
+    },
+    "correct_option": "D",
+    "question_sources": [
+      {
+        "pdf": "week4/practical_exercises.pdf",
+        "page": 3,
+        "printed_slide": null
+      }
+    ],
+    "option_sources": {
+      "A": [
+        {
+          "pdf": "week4/practical_exercises.pdf",
+          "page": 3,
+          "printed_slide": null
+        }
+      ],
+      "B": [
+        {
+          "pdf": "week4/practical_exercises.pdf",
+          "page": 3,
+          "printed_slide": null
+        }
+      ],
+      "C": [
+        {
+          "pdf": "week4/practical_exercises.pdf",
+          "page": 3,
+          "printed_slide": null
+        }
+      ],
+      "D": [
+        {
+          "pdf": "week4/practical_exercises.pdf",
+          "page": 3,
+          "printed_slide": null
+        }
+      ]
+    },
+    "human_verified": true,
+    "notes": ""
+  },
+  {
+    "id": "week05-q01",
+    "week": "week05",
+    "type": "basic",
+    "question": "A simple linear regression model predicts y_hat = 0.56 + 2.18*x. According to this model, how does the predicted value change when x increases by one unit?",
+    "options": {
+      "A": "It increases by 0.56 units.",
+      "B": "It increases by 2.18 units.",
+      "C": "It decreases by 0.56 units.",
+      "D": "It decreases by 2.18 units."
+    },
+    "correct_option": "B",
+    "question_sources": [
+      {
+        "pdf": "week5/regression_modelling.pdf",
+        "page": 24,
+        "printed_slide": null
+      }
+    ],
+    "option_sources": {
+      "A": [
+        {
+          "pdf": "week5/regression_modelling.pdf",
+          "page": 24,
+          "printed_slide": null
+        }
+      ],
+      "B": [
+        {
+          "pdf": "week5/regression_modelling.pdf",
+          "page": 24,
+          "printed_slide": null
+        }
+      ],
+      "C": [
+        {
+          "pdf": "week5/regression_modelling.pdf",
+          "page": 24,
+          "printed_slide": null
+        }
+      ],
+      "D": [
+        {
+          "pdf": "week5/regression_modelling.pdf",
+          "page": 24,
+          "printed_slide": null
+        }
+      ]
+    },
+    "human_verified": true,
+    "notes": ""
+  },
+  {
+    "id": "week05-q02",
+    "week": "week05",
+    "type": "basic",
+    "question": "Which statement describes the homoscedasticity assumption of linear regression?",
+    "options": {
+      "A": "Residuals are independent of one another.",
+      "B": "Residuals follow a normal distribution centred at zero.",
+      "C": "The input and target variables have a linear relationship.",
+      "D": "Residuals have constant variance at every level of the input variable."
+    },
+    "correct_option": "D",
+    "question_sources": [
+      {
+        "pdf": "week5/regression_modelling.pdf",
+        "page": 40,
+        "printed_slide": 40
+      }
+    ],
+    "option_sources": {
+      "A": [
+        {
+          "pdf": "week5/regression_modelling.pdf",
+          "page": 39,
+          "printed_slide": 39
+        },
+        {
+          "pdf": "week5/regression_modelling.pdf",
+          "page": 40,
+          "printed_slide": 40
+        }
+      ],
+      "B": [
+        {
+          "pdf": "week5/regression_modelling.pdf",
+          "page": 41,
+          "printed_slide": 41
+        },
+        {
+          "pdf": "week5/regression_modelling.pdf",
+          "page": 40,
+          "printed_slide": 40
+        }
+      ],
+      "C": [
+        {
+          "pdf": "week5/regression_modelling.pdf",
+          "page": 38,
+          "printed_slide": 38
+        },
+        {
+          "pdf": "week5/regression_modelling.pdf",
+          "page": 40,
+          "printed_slide": 40
+        }
+      ],
+      "D": [
+        {
+          "pdf": "week5/regression_modelling.pdf",
+          "page": 40,
+          "printed_slide": 40
+        }
+      ]
+    },
+    "human_verified": true,
+    "notes": ""
+  },
+  {
+    "id": "week05-q03",
+    "week": "week05",
+    "type": "basic",
+    "question": "A binary logistic regression model converts its real-valued linear score z into a probability using p = 1 / (1 + exp(-z)), where exp is the exponential function. Which statement correctly describes this probability?",
+    "options": {
+      "A": "At z = 0, p = 0; as z increases without bound, p approaches 1.",
+      "B": "At z = 0, p = 0.5; as z increases without bound, p approaches 0.",
+      "C": "At z = 0, p = 0.5; as z increases without bound, p approaches 1.",
+      "D": "At z = 0, p = 1; as z increases without bound, p approaches 0.5."
+    },
+    "correct_option": "C",
+    "question_sources": [
+      {
+        "pdf": "week5/regression_modelling.pdf",
+        "page": 60,
+        "printed_slide": null
+      }
+    ],
+    "option_sources": {
+      "A": [
+        {
+          "pdf": "week5/regression_modelling.pdf",
+          "page": 60,
+          "printed_slide": null
+        }
+      ],
+      "B": [
+        {
+          "pdf": "week5/regression_modelling.pdf",
+          "page": 60,
+          "printed_slide": null
+        }
+      ],
+      "C": [
+        {
+          "pdf": "week5/regression_modelling.pdf",
+          "page": 60,
+          "printed_slide": null
+        }
+      ],
+      "D": [
+        {
+          "pdf": "week5/regression_modelling.pdf",
+          "page": 60,
+          "printed_slide": null
+        }
+      ]
+    },
+    "human_verified": true,
+    "notes": ""
+  },
+  {
+    "id": "week05-q04",
+    "week": "week05",
+    "type": "scenario",
+    "question": "An analyst is tuning the scikit-learn logistic regression model used in the practical. The current setting is C = 1. To help control overfitting, the analyst wants to try stronger regularisation while keeping all other settings unchanged. Which value of C gives stronger regularisation than the current setting?",
+    "options": {
+      "A": "C = 0.1.",
+      "B": "C = 10.",
+      "C": "C = 100.",
+      "D": "C = 1."
+    },
+    "correct_option": "A",
+    "question_sources": [
+      {
+        "pdf": "week5/practical_exercises.pdf",
+        "page": 7,
+        "printed_slide": null
+      }
+    ],
+    "option_sources": {
+      "A": [
+        {
+          "pdf": "week5/practical_exercises.pdf",
+          "page": 7,
+          "printed_slide": null
+        }
+      ],
+      "B": [
+        {
+          "pdf": "week5/practical_exercises.pdf",
+          "page": 7,
+          "printed_slide": null
+        }
+      ],
+      "C": [
+        {
+          "pdf": "week5/practical_exercises.pdf",
+          "page": 7,
+          "printed_slide": null
+        }
+      ],
+      "D": [
+        {
+          "pdf": "week5/practical_exercises.pdf",
+          "page": 7,
+          "printed_slide": null
+        }
+      ]
+    },
+    "human_verified": true,
+    "notes": ""
+  },
+  {
+    "id": "week06-q01",
+    "week": "week06",
+    "type": "basic",
+    "question": "Which statement correctly describes how the ReLU activation function transforms a real-valued input?",
+    "options": {
+      "A": "Negative inputs become zero, while non-negative inputs remain unchanged.",
+      "B": "Negative inputs remain unchanged, while non-negative inputs become zero.",
+      "C": "Negative inputs become their positive magnitudes, while non-negative inputs remain unchanged.",
+      "D": "Negative inputs become zero, while inputs greater than one are reduced to one."
+    },
+    "correct_option": "A",
+    "question_sources": [
+      {
+        "pdf": "week6/neural_networks.pdf",
+        "page": 22,
+        "printed_slide": null
+      }
+    ],
+    "option_sources": {
+      "A": [
+        {
+          "pdf": "week6/neural_networks.pdf",
+          "page": 22,
+          "printed_slide": null
+        }
+      ],
+      "B": [
+        {
+          "pdf": "week6/neural_networks.pdf",
+          "page": 22,
+          "printed_slide": null
+        }
+      ],
+      "C": [
+        {
+          "pdf": "week6/neural_networks.pdf",
+          "page": 22,
+          "printed_slide": null
+        }
+      ],
+      "D": [
+        {
+          "pdf": "week6/neural_networks.pdf",
+          "page": 22,
+          "printed_slide": null
+        }
+      ]
+    },
+    "human_verified": true,
+    "notes": ""
+  },
+  {
+    "id": "week06-q02",
+    "week": "week06",
+    "type": "basic",
+    "question": "In the neural-network training cycle, what is the specific purpose of the backward pass (backpropagation), before the optimiser updates the weights?",
+    "options": {
+      "A": "To generate predictions by passing inputs forward through the network.",
+      "B": "To compute the loss value by comparing predictions with their targets.",
+      "C": "To calculate gradients of the loss with respect to the model parameters.",
+      "D": "To apply the optimiser's update to the model parameters using the calculated gradients."
+    },
+    "correct_option": "C",
+    "question_sources": [
+      {
+        "pdf": "week6/neural_networks.pdf",
+        "page": 35,
+        "printed_slide": null
+      },
+      {
+        "pdf": "week6/neural_networks.pdf",
+        "page": 58,
+        "printed_slide": 58
+      }
+    ],
+    "option_sources": {
+      "A": [
+        {
+          "pdf": "week6/neural_networks.pdf",
+          "page": 35,
+          "printed_slide": null
+        },
+        {
+          "pdf": "week6/neural_networks.pdf",
+          "page": 58,
+          "printed_slide": 58
+        }
+      ],
+      "B": [
+        {
+          "pdf": "week6/neural_networks.pdf",
+          "page": 35,
+          "printed_slide": null
+        },
+        {
+          "pdf": "week6/neural_networks.pdf",
+          "page": 58,
+          "printed_slide": 58
+        }
+      ],
+      "C": [
+        {
+          "pdf": "week6/neural_networks.pdf",
+          "page": 35,
+          "printed_slide": null
+        },
+        {
+          "pdf": "week6/neural_networks.pdf",
+          "page": 58,
+          "printed_slide": 58
+        }
+      ],
+      "D": [
+        {
+          "pdf": "week6/neural_networks.pdf",
+          "page": 35,
+          "printed_slide": null
+        },
+        {
+          "pdf": "week6/neural_networks.pdf",
+          "page": 58,
+          "printed_slide": 58
+        }
+      ]
+    },
+    "human_verified": true,
+    "notes": ""
+  },
+  {
+    "id": "week06-q03",
+    "week": "week06",
+    "type": "basic",
+    "question": "When a neural network is trained using mini-batches smaller than the complete training dataset, what does one training epoch represent?",
+    "options": {
+      "A": "A single update of the model parameters using one mini-batch.",
+      "B": "The number of training samples used in one parameter update.",
+      "C": "One complete pass through the validation dataset without training on the training dataset.",
+      "D": "One complete pass through all samples in the training dataset."
+    },
+    "correct_option": "D",
+    "question_sources": [
+      {
+        "pdf": "week6/neural_networks.pdf",
+        "page": 50,
+        "printed_slide": 50
+      }
+    ],
+    "option_sources": {
+      "A": [
+        {
+          "pdf": "week6/neural_networks.pdf",
+          "page": 50,
+          "printed_slide": 50
+        }
+      ],
+      "B": [
+        {
+          "pdf": "week6/neural_networks.pdf",
+          "page": 50,
+          "printed_slide": 50
+        }
+      ],
+      "C": [
+        {
+          "pdf": "week6/neural_networks.pdf",
+          "page": 50,
+          "printed_slide": 50
+        }
+      ],
+      "D": [
+        {
+          "pdf": "week6/neural_networks.pdf",
+          "page": 50,
+          "printed_slide": 50
+        }
+      ]
+    },
+    "human_verified": true,
+    "notes": ""
+  },
+  {
+    "id": "week06-q04",
+    "week": "week06",
+    "type": "scenario",
+    "question": "An analyst has established that neural-network training is unstable because a large learning rate makes gradient-descent updates overshoot a loss minimum. The analyst wants smaller updates for the same gradients, rather than merely changing how long training runs. Which adjustment most directly achieves this?",
+    "options": {
+      "A": "Increase the learning rate while leaving the epoch limit unchanged.",
+      "B": "Choose a smaller positive learning rate while leaving the epoch limit unchanged.",
+      "C": "Increase the maximum number of epochs while leaving the learning rate unchanged.",
+      "D": "Decrease the maximum number of epochs while leaving the learning rate unchanged."
+    },
+    "correct_option": "B",
+    "question_sources": [
+      {
+        "pdf": "week6/neural_networks.pdf",
+        "page": 51,
+        "printed_slide": 51
+      },
+      {
+        "pdf": "week6/neural_networks.pdf",
+        "page": 52,
+        "printed_slide": 52
+      }
+    ],
+    "option_sources": {
+      "A": [
+        {
+          "pdf": "week6/neural_networks.pdf",
+          "page": 51,
+          "printed_slide": 51
+        },
+        {
+          "pdf": "week6/neural_networks.pdf",
+          "page": 52,
+          "printed_slide": 52
+        }
+      ],
+      "B": [
+        {
+          "pdf": "week6/neural_networks.pdf",
+          "page": 51,
+          "printed_slide": 51
+        },
+        {
+          "pdf": "week6/neural_networks.pdf",
+          "page": 52,
+          "printed_slide": 52
+        }
+      ],
+      "C": [
+        {
+          "pdf": "week6/neural_networks.pdf",
+          "page": 50,
+          "printed_slide": 50
+        },
+        {
+          "pdf": "week6/neural_networks.pdf",
+          "page": 51,
+          "printed_slide": 51
+        }
+      ],
+      "D": [
+        {
+          "pdf": "week6/neural_networks.pdf",
+          "page": 50,
+          "printed_slide": 50
+        },
+        {
+          "pdf": "week6/neural_networks.pdf",
+          "page": 51,
+          "printed_slide": 51
+        }
+      ]
+    },
+    "human_verified": true,
+    "notes": ""
+  },
+  {
+    "id": "week07-q01",
+    "week": "week07",
+    "type": "basic",
+    "question": "Which statement correctly describes the first principal component (PC1) and the relationship between different principal components in PCA?",
+    "options": {
+      "A": "PC1 follows a direction of maximum variance, and different principal components are orthogonal to one another.",
+      "B": "PC1 follows a direction of maximum variance, and different principal components are parallel to one another.",
+      "C": "PC1 follows a direction of minimum variance, and different principal components are orthogonal to one another.",
+      "D": "PC1 follows a direction of minimum variance, and different principal components are parallel to one another."
+    },
+    "correct_option": "A",
+    "question_sources": [
+      {
+        "pdf": "week7/clustering.pdf",
+        "page": 21,
+        "printed_slide": null
+      },
+      {
+        "pdf": "week7/clustering.pdf",
+        "page": 23,
+        "printed_slide": null
+      }
+    ],
+    "option_sources": {
+      "A": [
+        {
+          "pdf": "week7/clustering.pdf",
+          "page": 21,
+          "printed_slide": null
+        },
+        {
+          "pdf": "week7/clustering.pdf",
+          "page": 23,
+          "printed_slide": null
+        }
+      ],
+      "B": [
+        {
+          "pdf": "week7/clustering.pdf",
+          "page": 21,
+          "printed_slide": null
+        },
+        {
+          "pdf": "week7/clustering.pdf",
+          "page": 23,
+          "printed_slide": null
+        }
+      ],
+      "C": [
+        {
+          "pdf": "week7/clustering.pdf",
+          "page": 21,
+          "printed_slide": null
+        },
+        {
+          "pdf": "week7/clustering.pdf",
+          "page": 23,
+          "printed_slide": null
+        }
+      ],
+      "D": [
+        {
+          "pdf": "week7/clustering.pdf",
+          "page": 21,
+          "printed_slide": null
+        },
+        {
+          "pdf": "week7/clustering.pdf",
+          "page": 23,
+          "printed_slide": null
+        }
+      ]
+    },
+    "human_verified": true,
+    "notes": ""
+  },
+  {
+    "id": "week07-q02",
+    "week": "week07",
+    "type": "basic",
+    "question": "Which pair correctly identifies the distributions used by t-SNE to model pairwise similarities in high-dimensional and low-dimensional spaces?",
+    "options": {
+      "A": "High-dimensional: Gaussian; low-dimensional: Gaussian.",
+      "B": "High-dimensional: Student's t; low-dimensional: Gaussian.",
+      "C": "High-dimensional: Gaussian; low-dimensional: heavy-tailed Student's t.",
+      "D": "High-dimensional: Student's t; low-dimensional: heavy-tailed Student's t."
+    },
+    "correct_option": "C",
+    "question_sources": [
+      {
+        "pdf": "week7/clustering.pdf",
+        "page": 38,
+        "printed_slide": 38
+      },
+      {
+        "pdf": "week7/clustering.pdf",
+        "page": 41,
+        "printed_slide": null
+      }
+    ],
+    "option_sources": {
+      "A": [
+        {
+          "pdf": "week7/clustering.pdf",
+          "page": 38,
+          "printed_slide": 38
+        },
+        {
+          "pdf": "week7/clustering.pdf",
+          "page": 41,
+          "printed_slide": null
+        }
+      ],
+      "B": [
+        {
+          "pdf": "week7/clustering.pdf",
+          "page": 38,
+          "printed_slide": 38
+        },
+        {
+          "pdf": "week7/clustering.pdf",
+          "page": 41,
+          "printed_slide": null
+        }
+      ],
+      "C": [
+        {
+          "pdf": "week7/clustering.pdf",
+          "page": 38,
+          "printed_slide": 38
+        },
+        {
+          "pdf": "week7/clustering.pdf",
+          "page": 41,
+          "printed_slide": null
+        }
+      ],
+      "D": [
+        {
+          "pdf": "week7/clustering.pdf",
+          "page": 38,
+          "printed_slide": 38
+        },
+        {
+          "pdf": "week7/clustering.pdf",
+          "page": 41,
+          "printed_slide": null
+        }
+      ]
+    },
+    "human_verified": true,
+    "notes": ""
+  },
+  {
+    "id": "week07-q03",
+    "week": "week07",
+    "type": "basic",
+    "question": "Which UMAP hyperparameter specifically controls how tightly nearby points are packed in the low-dimensional projection?",
+    "options": {
+      "A": "The number of nearest neighbours.",
+      "B": "Minimum distance.",
+      "C": "Perplexity.",
+      "D": "The number of principal components retained during PCA preprocessing."
+    },
+    "correct_option": "B",
+    "question_sources": [
+      {
+        "pdf": "week7/clustering.pdf",
+        "page": 50,
+        "printed_slide": null
+      }
+    ],
+    "option_sources": {
+      "A": [
+        {
+          "pdf": "week7/clustering.pdf",
+          "page": 50,
+          "printed_slide": null
+        }
+      ],
+      "B": [
+        {
+          "pdf": "week7/clustering.pdf",
+          "page": 50,
+          "printed_slide": null
+        }
+      ],
+      "C": [
+        {
+          "pdf": "week7/clustering.pdf",
+          "page": 39,
+          "printed_slide": null
+        },
+        {
+          "pdf": "week7/clustering.pdf",
+          "page": 50,
+          "printed_slide": null
+        }
+      ],
+      "D": [
+        {
+          "pdf": "week7/clustering.pdf",
+          "page": 33,
+          "printed_slide": null
+        },
+        {
+          "pdf": "week7/clustering.pdf",
+          "page": 50,
+          "printed_slide": null
+        },
+        {
+          "pdf": "week7/clustering.pdf",
+          "page": 55,
+          "printed_slide": null
+        }
+      ]
+    },
+    "human_verified": true,
+    "notes": ""
+  },
+  {
+    "id": "week07-q04",
+    "week": "week07",
+    "type": "scenario",
+    "question": "An analyst is preparing a high-dimensional dataset for a two-dimensional t-SNE visualisation. They want to extract signal and reduce the size of the input to t-SNE using the lecture's staged PCA + t-SNE approach. After filtering poorly behaving attributes, which workflow matches this approach?",
+    "options": {
+      "A": "Apply PCA, retain several lowest-variance principal components, then apply t-SNE to those components to obtain two dimensions.",
+      "B": "Apply t-SNE first to obtain two dimensions, then apply PCA to the resulting coordinates to prepare the input for the visualisation.",
+      "C": "Apply PCA to reduce the data directly to two dimensions, then apply t-SNE to those two components.",
+      "D": "Apply PCA, retain several leading principal components without reducing all the way to two dimensions, then apply t-SNE to those components to obtain two dimensions."
+    },
+    "correct_option": "D",
+    "question_sources": [
+      {
+        "pdf": "week7/clustering.pdf",
+        "page": 54,
+        "printed_slide": null
+      },
+      {
+        "pdf": "week7/clustering.pdf",
+        "page": 55,
+        "printed_slide": null
+      }
+    ],
+    "option_sources": {
+      "A": [
+        {
+          "pdf": "week7/clustering.pdf",
+          "page": 33,
+          "printed_slide": null
+        },
+        {
+          "pdf": "week7/clustering.pdf",
+          "page": 55,
+          "printed_slide": null
+        }
+      ],
+      "B": [
+        {
+          "pdf": "week7/clustering.pdf",
+          "page": 54,
+          "printed_slide": null
+        },
+        {
+          "pdf": "week7/clustering.pdf",
+          "page": 55,
+          "printed_slide": null
+        }
+      ],
+      "C": [
+        {
+          "pdf": "week7/clustering.pdf",
+          "page": 55,
+          "printed_slide": null
+        }
+      ],
+      "D": [
+        {
+          "pdf": "week7/clustering.pdf",
+          "page": 55,
+          "printed_slide": null
+        }
+      ]
+    },
+    "human_verified": true,
+    "notes": ""
+  },
+  {
+    "id": "week08-q01",
+    "week": "week08",
+    "type": "basic",
+    "question": "After initial cluster centres have been selected, which pair of assignment and update steps is repeated in standard k-means clustering?",
+    "options": {
+      "A": "Assign each point to its closest cluster centre, then keep all cluster centres at their initial positions.",
+      "B": "Assign each point to its closest cluster centre, then recompute each cluster centre as the mean of its assigned points.",
+      "C": "Assign each point to its farthest cluster centre, then recompute each cluster centre as the mean of its assigned points.",
+      "D": "Assign each point to its farthest cluster centre, then keep all cluster centres at their initial positions."
+    },
+    "correct_option": "B",
+    "question_sources": [
+      {
+        "pdf": "week8/clustering.pdf",
+        "page": 101,
+        "printed_slide": 101
+      }
+    ],
+    "option_sources": {
+      "A": [
+        {
+          "pdf": "week8/clustering.pdf",
+          "page": 101,
+          "printed_slide": 101
+        }
+      ],
+      "B": [
+        {
+          "pdf": "week8/clustering.pdf",
+          "page": 101,
+          "printed_slide": 101
+        }
+      ],
+      "C": [
+        {
+          "pdf": "week8/clustering.pdf",
+          "page": 101,
+          "printed_slide": 101
+        }
+      ],
+      "D": [
+        {
+          "pdf": "week8/clustering.pdf",
+          "page": 101,
+          "printed_slide": 101
+        }
+      ]
+    },
+    "human_verified": true,
+    "notes": ""
+  },
+  {
+    "id": "week08-q02",
+    "week": "week08",
+    "type": "basic",
+    "question": "In hierarchical clustering, how does complete linkage define the distance between two clusters?",
+    "options": {
+      "A": "The distance between the closest pair of points, with one point from each cluster.",
+      "B": "The average distance over all pairs of points, with one point from each cluster.",
+      "C": "The distance between the centroids of the two clusters.",
+      "D": "The distance between the farthest pair of points, with one point from each cluster."
+    },
+    "correct_option": "D",
+    "question_sources": [
+      {
+        "pdf": "week8/clustering.pdf",
+        "page": 130,
+        "printed_slide": null
+      }
+    ],
+    "option_sources": {
+      "A": [
+        {
+          "pdf": "week8/clustering.pdf",
+          "page": 129,
+          "printed_slide": null
+        },
+        {
+          "pdf": "week8/clustering.pdf",
+          "page": 130,
+          "printed_slide": null
+        }
+      ],
+      "B": [
+        {
+          "pdf": "week8/clustering.pdf",
+          "page": 130,
+          "printed_slide": null
+        },
+        {
+          "pdf": "week8/clustering.pdf",
+          "page": 131,
+          "printed_slide": null
+        }
+      ],
+      "C": [
+        {
+          "pdf": "week8/clustering.pdf",
+          "page": 130,
+          "printed_slide": null
+        },
+        {
+          "pdf": "week8/clustering.pdf",
+          "page": 131,
+          "printed_slide": null
+        }
+      ],
+      "D": [
+        {
+          "pdf": "week8/clustering.pdf",
+          "page": 130,
+          "printed_slide": null
+        }
+      ]
+    },
+    "human_verified": true,
+    "notes": ""
+  },
+  {
+    "id": "week08-q03",
+    "week": "week08",
+    "type": "basic",
+    "question": "Which statement correctly describes the silhouette coefficient as a clustering evaluation measure?",
+    "options": {
+      "A": "It can be used without ground-truth labels, and a high value indicates that a point is well matched to its own cluster and poorly matched to neighbouring clusters.",
+      "B": "It requires ground-truth labels, and a high value indicates that a point is well matched to its own cluster and poorly matched to neighbouring clusters.",
+      "C": "It can be used without ground-truth labels, and a high value indicates that a point is poorly matched to its own cluster and well matched to neighbouring clusters.",
+      "D": "It requires ground-truth labels, and a high value indicates that a point is poorly matched to its own cluster and well matched to neighbouring clusters."
+    },
+    "correct_option": "A",
+    "question_sources": [
+      {
+        "pdf": "week8/clustering.pdf",
+        "page": 90,
+        "printed_slide": 90
+      }
+    ],
+    "option_sources": {
+      "A": [
+        {
+          "pdf": "week8/clustering.pdf",
+          "page": 90,
+          "printed_slide": 90
+        }
+      ],
+      "B": [
+        {
+          "pdf": "week8/clustering.pdf",
+          "page": 90,
+          "printed_slide": 90
+        }
+      ],
+      "C": [
+        {
+          "pdf": "week8/clustering.pdf",
+          "page": 90,
+          "printed_slide": 90
+        }
+      ],
+      "D": [
+        {
+          "pdf": "week8/clustering.pdf",
+          "page": 90,
+          "printed_slide": 90
+        }
+      ]
+    },
+    "human_verified": true,
+    "notes": ""
+  },
+  {
+    "id": "week08-q04",
+    "week": "week08",
+    "type": "scenario",
+    "question": "An analyst wants to explore nested groups in an unlabelled dataset before deciding how many clusters to report. They need to obtain both coarse and fine partitions from a single clustering result rather than rerun the algorithm for each requested number of clusters. Which strategy meets these requirements?",
+    "options": {
+      "A": "Run standard k-means once without supplying k, allowing that run to discover both the number of clusters and a hierarchy of nested groups.",
+      "B": "Run standard k-means once with a fixed k, treating its resulting flat partition as a hierarchy that already contains both coarse and fine groupings.",
+      "C": "Build a hierarchical clustering result without fixing k in advance, then select flat partitions by cutting its dendrogram at different levels.",
+      "D": "Build an agglomerative hierarchy that revises earlier merge decisions whenever a later merge is undesirable, then use those revised decisions to form the requested levels."
+    },
+    "correct_option": "C",
+    "question_sources": [
+      {
+        "pdf": "week8/clustering.pdf",
+        "page": 125,
+        "printed_slide": 125
+      },
+      {
+        "pdf": "week8/clustering.pdf",
+        "page": 134,
+        "printed_slide": 134
+      }
+    ],
+    "option_sources": {
+      "A": [
+        {
+          "pdf": "week8/clustering.pdf",
+          "page": 116,
+          "printed_slide": 116
+        },
+        {
+          "pdf": "week8/clustering.pdf",
+          "page": 135,
+          "printed_slide": 135
+        }
+      ],
+      "B": [
+        {
+          "pdf": "week8/clustering.pdf",
+          "page": 135,
+          "printed_slide": 135
+        }
+      ],
+      "C": [
+        {
+          "pdf": "week8/clustering.pdf",
+          "page": 125,
+          "printed_slide": 125
+        },
+        {
+          "pdf": "week8/clustering.pdf",
+          "page": 134,
+          "printed_slide": 134
+        }
+      ],
+      "D": [
+        {
+          "pdf": "week8/clustering.pdf",
+          "page": 134,
+          "printed_slide": 134
+        }
+      ]
+    },
+    "human_verified": true,
+    "notes": ""
+  },
+  {
+    "id": "week09-q01",
+    "week": "week09",
+    "type": "basic",
+    "question": "Which statement correctly describes an autoencoder used for image dimensionality reduction?",
+    "options": {
+      "A": "It fixes the latent dimensionality using a universal rule that is independent of data complexity and the intended task.",
+      "B": "It evaluates reconstruction using agreement with supplied class labels rather than comparing the original and reconstructed images.",
+      "C": "It preserves the original input dimensionality in the latent representation so that no dimensionality reduction occurs before reconstruction.",
+      "D": "It captures important features in a lower-dimensional latent representation and uses a loss that measures how well the original image is reconstructed."
+    },
+    "correct_option": "D",
+    "question_sources": [
+      {
+        "pdf": "week9/deep_learning.pdf",
+        "page": 40,
+        "printed_slide": 40
+      },
+      {
+        "pdf": "week9/deep_learning.pdf",
+        "page": 41,
+        "printed_slide": 41
+      }
+    ],
+    "option_sources": {
+      "A": [
+        {
+          "pdf": "week9/deep_learning.pdf",
+          "page": 41,
+          "printed_slide": 41
+        }
+      ],
+      "B": [
+        {
+          "pdf": "week9/deep_learning.pdf",
+          "page": 40,
+          "printed_slide": 40
+        }
+      ],
+      "C": [
+        {
+          "pdf": "week9/deep_learning.pdf",
+          "page": 41,
+          "printed_slide": 41
+        }
+      ],
+      "D": [
+        {
+          "pdf": "week9/deep_learning.pdf",
+          "page": 40,
+          "printed_slide": 40
+        },
+        {
+          "pdf": "week9/deep_learning.pdf",
+          "page": 41,
+          "printed_slide": 41
+        }
+      ]
+    },
+    "human_verified": true,
+    "notes": ""
+  },
+  {
+    "id": "week09-q02",
+    "week": "week09",
+    "type": "basic",
+    "question": "For the RNN application examples presented in the lecture, which pairing of an input-output structure and an application is correct?",
+    "options": {
+      "A": "Many-to-many: sentiment classification.",
+      "B": "Many-to-one: language translation.",
+      "C": "One-to-many: music generation.",
+      "D": "One-to-many: speech recognition."
+    },
+    "correct_option": "C",
+    "question_sources": [
+      {
+        "pdf": "week9/deep_learning.pdf",
+        "page": 57,
+        "printed_slide": 57
+      },
+      {
+        "pdf": "week9/deep_learning.pdf",
+        "page": 58,
+        "printed_slide": 58
+      },
+      {
+        "pdf": "week9/deep_learning.pdf",
+        "page": 59,
+        "printed_slide": 59
+      }
+    ],
+    "option_sources": {
+      "A": [
+        {
+          "pdf": "week9/deep_learning.pdf",
+          "page": 58,
+          "printed_slide": 58
+        }
+      ],
+      "B": [
+        {
+          "pdf": "week9/deep_learning.pdf",
+          "page": 57,
+          "printed_slide": 57
+        }
+      ],
+      "C": [
+        {
+          "pdf": "week9/deep_learning.pdf",
+          "page": 59,
+          "printed_slide": 59
+        }
+      ],
+      "D": [
+        {
+          "pdf": "week9/deep_learning.pdf",
+          "page": 57,
+          "printed_slide": 57
+        }
+      ]
+    },
+    "human_verified": true,
+    "notes": ""
+  },
+  {
+    "id": "week09-q03",
+    "week": "week09",
+    "type": "basic",
+    "question": "In a long short-term memory (LSTM) unit, what is the role of the input gate?",
+    "options": {
+      "A": "It regulates which new information is stored in the memory.",
+      "B": "It regulates which information should be forgotten from the cell state.",
+      "C": "It regulates which part of the cell state is relevant for the current prediction.",
+      "D": "It is the ongoing long-term memory of the sequence, rather than a gate that regulates that memory."
+    },
+    "correct_option": "A",
+    "question_sources": [
+      {
+        "pdf": "week9/deep_learning.pdf",
+        "page": 72,
+        "printed_slide": 72
+      }
+    ],
+    "option_sources": {
+      "A": [
+        {
+          "pdf": "week9/deep_learning.pdf",
+          "page": 72,
+          "printed_slide": 72
+        }
+      ],
+      "B": [
+        {
+          "pdf": "week9/deep_learning.pdf",
+          "page": 72,
+          "printed_slide": 72
+        }
+      ],
+      "C": [
+        {
+          "pdf": "week9/deep_learning.pdf",
+          "page": 72,
+          "printed_slide": 72
+        }
+      ],
+      "D": [
+        {
+          "pdf": "week9/deep_learning.pdf",
+          "page": 68,
+          "printed_slide": 68
+        },
+        {
+          "pdf": "week9/deep_learning.pdf",
+          "page": 72,
+          "printed_slide": 72
+        }
+      ]
+    },
+    "human_verified": true,
+    "notes": ""
+  },
+  {
+    "id": "week09-q04",
+    "week": "week09",
+    "type": "scenario",
+    "question": "A team has a model pretrained for classification on Dataset A with ten classes. Dataset B is a small labelled dataset with three classes. The team wants to reuse knowledge learned from Dataset A for classification on Dataset B. Which procedure follows the transfer-learning approach described in the lecture?",
+    "options": {
+      "A": "Discard all pretrained weights and train a newly initialised model with a three-output classification layer from scratch on Dataset B.",
+      "B": "Start from the pretrained model, replace its last linear layer with a new layer for three classes, and train on Dataset B.",
+      "C": "Start from the pretrained model, leave its ten-class output layer unchanged, and train on Dataset B without adapting the output architecture.",
+      "D": "Start from the pretrained model and replace its last linear layer with a new layer for three classes, but use the new layer without training on Dataset B."
+    },
+    "correct_option": "B",
+    "question_sources": [
+      {
+        "pdf": "week9/deep_learning.pdf",
+        "page": 37,
+        "printed_slide": 37
+      }
+    ],
+    "option_sources": {
+      "A": [
+        {
+          "pdf": "week9/deep_learning.pdf",
+          "page": 37,
+          "printed_slide": 37
+        }
+      ],
+      "B": [
+        {
+          "pdf": "week9/deep_learning.pdf",
+          "page": 37,
+          "printed_slide": 37
+        }
+      ],
+      "C": [
+        {
+          "pdf": "week9/deep_learning.pdf",
+          "page": 37,
+          "printed_slide": 37
+        }
+      ],
+      "D": [
+        {
+          "pdf": "week9/deep_learning.pdf",
+          "page": 37,
+          "printed_slide": 37
+        }
+      ]
+    },
+    "human_verified": true,
+    "notes": ""
+  },
+  {
+    "id": "week10-q01",
+    "week": "week10",
+    "type": "basic",
+    "question": "Let X denote input data and Y denote an output variable. Which pairing matches the lecture's distinction between discriminative and generative modelling?",
+    "options": {
+      "A": "Discriminative modelling: P(X), the probability of the input data; generative modelling: P(Y|X), the probability of the output given the input.",
+      "B": "Discriminative modelling: P(Y|X), the probability of the output given the input; generative modelling: P(X) or P(X,Y), the input-data or joint probability.",
+      "C": "Discriminative modelling: P(X,Y), the joint probability of input and output; generative modelling: P(Y|X), the probability of the output given the input.",
+      "D": "Discriminative modelling: P(X), the probability of the input data; generative modelling: P(X,Y), the joint probability of input and output."
+    },
+    "correct_option": "B",
+    "question_sources": [
+      {
+        "pdf": "week10/gen_ai.pdf",
+        "page": 27,
+        "printed_slide": null
+      }
+    ],
+    "option_sources": {
+      "A": [
+        {
+          "pdf": "week10/gen_ai.pdf",
+          "page": 27,
+          "printed_slide": null
+        }
+      ],
+      "B": [
+        {
+          "pdf": "week10/gen_ai.pdf",
+          "page": 27,
+          "printed_slide": null
+        }
+      ],
+      "C": [
+        {
+          "pdf": "week10/gen_ai.pdf",
+          "page": 27,
+          "printed_slide": null
+        }
+      ],
+      "D": [
+        {
+          "pdf": "week10/gen_ai.pdf",
+          "page": 27,
+          "printed_slide": null
+        }
+      ]
+    },
+    "human_verified": true,
+    "notes": ""
+  },
+  {
+    "id": "week10-q02",
+    "week": "week10",
+    "type": "basic",
+    "question": "In a generative adversarial network (GAN), which statement correctly assigns the roles of the generator and discriminator?",
+    "options": {
+      "A": "The generator distinguishes real data from fake data, while the discriminator creates fake data.",
+      "B": "Both the generator and discriminator distinguish real data from fake data; neither creates fake data.",
+      "C": "Both the generator and discriminator create fake data; neither distinguishes real data from fake data.",
+      "D": "The generator creates fake data, while the discriminator tries to distinguish real data from fake data."
+    },
+    "correct_option": "D",
+    "question_sources": [
+      {
+        "pdf": "week10/gen_ai.pdf",
+        "page": 32,
+        "printed_slide": null
+      }
+    ],
+    "option_sources": {
+      "A": [
+        {
+          "pdf": "week10/gen_ai.pdf",
+          "page": 32,
+          "printed_slide": null
+        }
+      ],
+      "B": [
+        {
+          "pdf": "week10/gen_ai.pdf",
+          "page": 32,
+          "printed_slide": null
+        }
+      ],
+      "C": [
+        {
+          "pdf": "week10/gen_ai.pdf",
+          "page": 32,
+          "printed_slide": null
+        }
+      ],
+      "D": [
+        {
+          "pdf": "week10/gen_ai.pdf",
+          "page": 32,
+          "printed_slide": null
+        }
+      ]
+    },
+    "human_verified": true,
+    "notes": ""
+  },
+  {
+    "id": "week10-q03",
+    "week": "week10",
+    "type": "basic",
+    "question": "What is the role of multi-headed attention in a transformer?",
+    "options": {
+      "A": "It assigns equal importance to every input token, regardless of the token being processed.",
+      "B": "It learns feature transformations at each position independently, rather than relating different positions through attention.",
+      "C": "It focuses on different parts of the input sequence simultaneously to capture diverse relationships.",
+      "D": "It encodes the order of sequence elements, rather than attending to relationships between them."
+    },
+    "correct_option": "C",
+    "question_sources": [
+      {
+        "pdf": "week10/gen_ai.pdf",
+        "page": 66,
+        "printed_slide": null
+      }
+    ],
+    "option_sources": {
+      "A": [
+        {
+          "pdf": "week10/gen_ai.pdf",
+          "page": 66,
+          "printed_slide": null
+        }
+      ],
+      "B": [
+        {
+          "pdf": "week10/gen_ai.pdf",
+          "page": 66,
+          "printed_slide": null
+        }
+      ],
+      "C": [
+        {
+          "pdf": "week10/gen_ai.pdf",
+          "page": 66,
+          "printed_slide": null
+        }
+      ],
+      "D": [
+        {
+          "pdf": "week10/gen_ai.pdf",
+          "page": 66,
+          "printed_slide": null
+        }
+      ]
+    },
+    "human_verified": true,
+    "notes": ""
+  },
+  {
+    "id": "week10-q04",
+    "week": "week10",
+    "type": "scenario",
+    "question": "A team is training a transformer decoder for autoregressive text generation. During training, its self-attention can access future tokens in the target sequence, creating information leakage. Which change directly addresses this problem?",
+    "options": {
+      "A": "Apply masked self-attention so that the decoder ignores future tokens.",
+      "B": "Add positional encodings but leave access to future tokens unrestricted.",
+      "C": "Add residual connections and layer normalization but leave access to future tokens unrestricted.",
+      "D": "Use more attention heads but leave access to future tokens unrestricted."
+    },
+    "correct_option": "A",
+    "question_sources": [
+      {
+        "pdf": "week10/gen_ai.pdf",
+        "page": 66,
+        "printed_slide": null
+      },
+      {
+        "pdf": "week10/gen_ai.pdf",
+        "page": 71,
+        "printed_slide": 71
+      }
+    ],
+    "option_sources": {
+      "A": [
+        {
+          "pdf": "week10/gen_ai.pdf",
+          "page": 66,
+          "printed_slide": null
+        },
+        {
+          "pdf": "week10/gen_ai.pdf",
+          "page": 71,
+          "printed_slide": 71
+        }
+      ],
+      "B": [
+        {
+          "pdf": "week10/gen_ai.pdf",
+          "page": 66,
+          "printed_slide": null
+        }
+      ],
+      "C": [
+        {
+          "pdf": "week10/gen_ai.pdf",
+          "page": 66,
+          "printed_slide": null
+        }
+      ],
+      "D": [
+        {
+          "pdf": "week10/gen_ai.pdf",
+          "page": 66,
+          "printed_slide": null
+        }
+      ]
+    },
+    "human_verified": true,
+    "notes": ""
+  },
+  {
+    "id": "week11-q01",
+    "week": "week11",
+    "type": "basic",
+    "question": "In an n-gram language model, how does the Markov assumption simplify prediction of the next word?",
+    "options": {
+      "A": "It conditions the next word on the entire preceding word history, regardless of its length.",
+      "B": "It conditions the next word on the following n - 1 words rather than on preceding words.",
+      "C": "It conditions the next word only on the preceding n - 1 words rather than on the entire word history.",
+      "D": "It conditions the next word on the preceding n words rather than on the preceding n - 1 words."
+    },
+    "correct_option": "C",
+    "question_sources": [
+      {
+        "pdf": "week11/llms.pdf",
+        "page": 18,
+        "printed_slide": 18
+      }
+    ],
+    "option_sources": {
+      "A": [
+        {
+          "pdf": "week11/llms.pdf",
+          "page": 18,
+          "printed_slide": 18
+        }
+      ],
+      "B": [
+        {
+          "pdf": "week11/llms.pdf",
+          "page": 18,
+          "printed_slide": 18
+        }
+      ],
+      "C": [
+        {
+          "pdf": "week11/llms.pdf",
+          "page": 18,
+          "printed_slide": 18
+        }
+      ],
+      "D": [
+        {
+          "pdf": "week11/llms.pdf",
+          "page": 18,
+          "printed_slide": 18
+        }
+      ]
+    },
+    "human_verified": true,
+    "notes": ""
+  },
+  {
+    "id": "week11-q02",
+    "week": "week11",
+    "type": "basic",
+    "question": "Which architecture and pre-training objective are assigned to T5 in the lecture?",
+    "options": {
+      "A": "Encoder-only architecture with masked language modelling.",
+      "B": "Decoder-only architecture with autoregressive language modelling.",
+      "C": "Encoder-decoder architecture with autoregressive next-token prediction as its listed pre-training objective.",
+      "D": "Encoder-decoder architecture with masked span prediction."
+    },
+    "correct_option": "D",
+    "question_sources": [
+      {
+        "pdf": "week11/llms.pdf",
+        "page": 42,
+        "printed_slide": null
+      }
+    ],
+    "option_sources": {
+      "A": [
+        {
+          "pdf": "week11/llms.pdf",
+          "page": 42,
+          "printed_slide": null
+        }
+      ],
+      "B": [
+        {
+          "pdf": "week11/llms.pdf",
+          "page": 42,
+          "printed_slide": null
+        }
+      ],
+      "C": [
+        {
+          "pdf": "week11/llms.pdf",
+          "page": 42,
+          "printed_slide": null
+        }
+      ],
+      "D": [
+        {
+          "pdf": "week11/llms.pdf",
+          "page": 42,
+          "printed_slide": null
+        }
+      ]
+    },
+    "human_verified": true,
+    "notes": ""
+  },
+  {
+    "id": "week11-q03",
+    "week": "week11",
+    "type": "basic",
+    "question": "In the lecture's comparison of autoregressive pre-training and supervised fine-tuning (SFT), an SFT example contains an instruction, input and target response. Which statement correctly describes where the training loss is computed?",
+    "options": {
+      "A": "All tokens are targets in pre-training; in SFT, loss is computed only for target-response tokens.",
+      "B": "All tokens are targets in pre-training; in SFT, loss is computed only for instruction and input tokens, excluding the target response.",
+      "C": "All tokens are targets in both pre-training and SFT, including the instruction and input tokens in SFT.",
+      "D": "Pre-training computes no token-prediction loss; SFT computes loss only for target-response tokens."
+    },
+    "correct_option": "A",
+    "question_sources": [
+      {
+        "pdf": "week11/llms.pdf",
+        "page": 49,
+        "printed_slide": null
+      }
+    ],
+    "option_sources": {
+      "A": [
+        {
+          "pdf": "week11/llms.pdf",
+          "page": 49,
+          "printed_slide": null
+        }
+      ],
+      "B": [
+        {
+          "pdf": "week11/llms.pdf",
+          "page": 49,
+          "printed_slide": null
+        }
+      ],
+      "C": [
+        {
+          "pdf": "week11/llms.pdf",
+          "page": 49,
+          "printed_slide": null
+        }
+      ],
+      "D": [
+        {
+          "pdf": "week11/llms.pdf",
+          "page": 49,
+          "printed_slide": null
+        }
+      ]
+    },
+    "human_verified": true,
+    "notes": ""
+  },
+  {
+    "id": "week11-q04",
+    "week": "week11",
+    "type": "scenario",
+    "question": "A team wants an existing language model to classify the sentiment of new product reviews. It has four labelled reviews and wants to present them as demonstrations of the desired input-output mapping at inference time. The team can edit prompts but cannot update model parameters. Which approach meets these requirements?",
+    "options": {
+      "A": "Use the labelled reviews as supervised fine-tuning data and update the language model's parameters.",
+      "B": "Place the labelled reviews in the prompt before the new review, using few-shot prompting.",
+      "C": "Train a reward model from human feedback and use it to update the language model through RLHF.",
+      "D": "Add \"Let's think step by step\" to the new review without including the labelled demonstrations, using zero-shot chain-of-thought prompting."
+    },
+    "correct_option": "B",
+    "question_sources": [
+      {
+        "pdf": "week11/llms.pdf",
+        "page": 56,
+        "printed_slide": null
+      },
+      {
+        "pdf": "week11/llms.pdf",
+        "page": 57,
+        "printed_slide": null
+      }
+    ],
+    "option_sources": {
+      "A": [
+        {
+          "pdf": "week11/llms.pdf",
+          "page": 48,
+          "printed_slide": null
+        }
+      ],
+      "B": [
+        {
+          "pdf": "week11/llms.pdf",
+          "page": 57,
+          "printed_slide": null
+        }
+      ],
+      "C": [
+        {
+          "pdf": "week11/llms.pdf",
+          "page": 48,
+          "printed_slide": null
+        }
+      ],
+      "D": [
+        {
+          "pdf": "week11/llms.pdf",
+          "page": 60,
+          "printed_slide": null
+        }
+      ]
+    },
+    "human_verified": true,
+    "notes": ""
+  },
+  {
+    "id": "week12-q01",
+    "week": "week12",
+    "type": "basic",
+    "question": "In Foragecaster's cross-stream methods, which pairing matches the listed model roles for temporal dynamics and cross-sectional modelling?",
+    "options": {
+      "A": "DNNs for temporal dynamics; LSTMs and Transformers for cross-sectional modelling.",
+      "B": "LSTMs and Transformers for temporal dynamics; DNNs for cross-sectional modelling.",
+      "C": "LSTMs and DNNs for temporal dynamics; Transformers for cross-sectional modelling.",
+      "D": "Transformers and DNNs for temporal dynamics; LSTMs for cross-sectional modelling."
+    },
+    "correct_option": "B",
+    "question_sources": [
+      {
+        "pdf": "week12/gls.pdf",
+        "page": 8,
+        "printed_slide": null
+      }
+    ],
+    "option_sources": {
+      "A": [
+        {
+          "pdf": "week12/gls.pdf",
+          "page": 8,
+          "printed_slide": null
+        }
+      ],
+      "B": [
+        {
+          "pdf": "week12/gls.pdf",
+          "page": 8,
+          "printed_slide": null
+        }
+      ],
+      "C": [
+        {
+          "pdf": "week12/gls.pdf",
+          "page": 8,
+          "printed_slide": null
+        }
+      ],
+      "D": [
+        {
+          "pdf": "week12/gls.pdf",
+          "page": 8,
+          "printed_slide": null
+        }
+      ]
+    },
+    "human_verified": true,
+    "notes": ""
+  },
+  {
+    "id": "week12-q02",
+    "week": "week12",
+    "type": "basic",
+    "question": "What is the stated role of Foragecaster's planning tools stream?",
+    "options": {
+      "A": "To keep machine learning models as isolated research prototypes rather than integrate them into production software.",
+      "B": "To build scalable production software while excluding machine learning models from the system.",
+      "C": "To combine machine learning models only in a one-off demonstration, without developing a scalable production system.",
+      "D": "To integrate sophisticated machine learning models into scalable, production-grade software systems."
+    },
+    "correct_option": "D",
+    "question_sources": [
+      {
+        "pdf": "week12/gls.pdf",
+        "page": 9,
+        "printed_slide": null
+      }
+    ],
+    "option_sources": {
+      "A": [
+        {
+          "pdf": "week12/gls.pdf",
+          "page": 9,
+          "printed_slide": null
+        }
+      ],
+      "B": [
+        {
+          "pdf": "week12/gls.pdf",
+          "page": 9,
+          "printed_slide": null
+        }
+      ],
+      "C": [
+        {
+          "pdf": "week12/gls.pdf",
+          "page": 9,
+          "printed_slide": null
+        }
+      ],
+      "D": [
+        {
+          "pdf": "week12/gls.pdf",
+          "page": 9,
+          "printed_slide": null
+        }
+      ]
+    },
+    "human_verified": true,
+    "notes": ""
+  },
+  {
+    "id": "week12-q03",
+    "week": "week12",
+    "type": "scenario",
+    "question": "A livestock analyst needs animal weight forecasts and weight quantiles stratified by age and sex. They want to follow the stream-specific tool allocation presented for Foragecaster, rather than select from its general cross-stream methods. Which stream and tool pairing matches these requested outputs?",
+    "options": {
+      "A": "Predict Livestock Growth, using biophysical models and quantile regression with tail bias mitigation.",
+      "B": "Predict Pasture Growth, using XGBoost and biologically-informed neural networks (BINNs).",
+      "C": "Sustainability & Resilience, using spatial analysis and surveys.",
+      "D": "Predict Livestock Growth, using spatial analysis and surveys as its listed stream-specific tools."
+    },
+    "correct_option": "A",
+    "question_sources": [
+      {
+        "pdf": "week12/gls.pdf",
+        "page": 8,
+        "printed_slide": null
+      }
+    ],
+    "option_sources": {
+      "A": [
+        {
+          "pdf": "week12/gls.pdf",
+          "page": 8,
+          "printed_slide": null
+        }
+      ],
+      "B": [
+        {
+          "pdf": "week12/gls.pdf",
+          "page": 8,
+          "printed_slide": null
+        }
+      ],
+      "C": [
+        {
+          "pdf": "week12/gls.pdf",
+          "page": 8,
+          "printed_slide": null
+        }
+      ],
+      "D": [
+        {
+          "pdf": "week12/gls.pdf",
+          "page": 8,
+          "printed_slide": null
+        }
+      ]
+    },
+    "human_verified": true,
+    "notes": ""
+  }
+]
