@@ -32,12 +32,17 @@ _SKIP_DIRS = {"__MACOSX", "node_modules", ".git", ".obsidian", "__pycache__"}
 def find_documents(
     directory: Path,
     extensions: tuple[str, ...] = SUPPORTED_EXTENSIONS,
+    *,
+    exclude: frozenset[Path] = frozenset(),
 ) -> list[Path]:
     """Collect every supported document under `directory`, recursively.
 
     Recursion is on by default because real course folders are rarely flat --
     people organise by week, by topic, or by whatever the unit site handed
     them as a zip.
+
+    `exclude` holds resolved paths Overfit wrote itself (exam files in the
+    course folder), which must never come back as course material.
 
     Raises:
         CourseNotFoundError: the directory does not exist or is a file.
@@ -56,6 +61,8 @@ def find_documents(
             continue
         if _is_hidden_or_skipped(path, directory):
             continue
+        if exclude and path.resolve() in exclude:
+            continue
         found.append(path)
 
     if not found:
@@ -69,6 +76,8 @@ def find_documents(
 def count_ignored(
     directory: Path,
     extensions: tuple[str, ...] = SUPPORTED_EXTENSIONS,
+    *,
+    exclude: frozenset[Path] = frozenset(),
 ) -> dict[str, int]:
     """Files present but excluded by the configured extensions.
 
@@ -89,6 +98,8 @@ def count_ignored(
     ignored: dict[str, int] = {}
     for path in directory.rglob("*"):
         if not path.is_file() or _is_hidden_or_skipped(path, directory):
+            continue
+        if exclude and path.resolve() in exclude:
             continue
         suffix = path.suffix.lower()
         if suffix and suffix not in wanted:

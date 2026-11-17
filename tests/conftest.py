@@ -16,6 +16,17 @@ def no_network(monkeypatch):
 
 
 @pytest.fixture(autouse=True)
+def reset_active_settings(monkeypatch, tmp_path_factory):
+    """Never read the developer's ~/.config/overfit/.env, and never leak the
+    process-wide settings course-directory mode installs."""
+    monkeypatch.setenv("XDG_CONFIG_HOME", str(tmp_path_factory.mktemp("xdg")))
+    yield
+    from overfit.config import get_settings
+
+    get_settings.cache_clear()
+
+
+@pytest.fixture(autouse=True)
 def no_real_provider_clients(monkeypatch):
     """Fail before construction, not just when an accidental SDK call connects."""
     import openai

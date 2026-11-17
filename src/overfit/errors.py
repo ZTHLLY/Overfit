@@ -18,6 +18,7 @@ __all__ = [
     "ExtractionError",
     "IndexMismatchError",
     "IndexMissingError",
+    "MissingApiKeyError",
     "NoDocumentsError",
     "OverfitError",
     "RerankConfigurationError",
@@ -27,6 +28,17 @@ __all__ = [
     "RerankLogError",
     "UnsupportedFormatError",
 ]
+
+
+def _ingest_command(course: str) -> str:
+    """The ingest command to suggest, matching how the user is running."""
+    from overfit.config import get_settings
+
+    try:
+        here = getattr(get_settings(), "course_root", None) is not None
+    except (OSError, ValueError):  # an error message must never fail to build
+        here = False
+    return "overfit ingest" if here else f"overfit ingest --course {course}"
 
 
 class OverfitError(Exception):
@@ -68,6 +80,17 @@ class RerankConfigurationError(RerankContractError):
 
 class RerankLogError(RerankContractError):
     """The mandatory rerank audit record could not be persisted."""
+
+
+class MissingApiKeyError(OverfitError):
+    """A hosted model endpoint is configured but its key is not."""
+
+    def __init__(self, variable: str) -> None:
+        super().__init__(
+            f"{variable} is not set. Add it to ~/.config/overfit/.env, "
+            f"e.g.\n    {variable}=sk-..."
+        )
+        self.variable = variable
 
 
 class CourseNotFoundError(OverfitError):
@@ -119,7 +142,7 @@ class IndexMissingError(OverfitError):
 
     def __init__(self, course: str, path: Path) -> None:
         super().__init__(
-            f"No index for {course!r} at {path}\nRun: overfit ingest --course {course}"
+            f"No index for {course!r} at {path}\nRun: {_ingest_command(course)}"
         )
         self.course = course
 
@@ -141,7 +164,7 @@ class IndexMismatchError(OverfitError):
             f"but the current configuration says {current!r}.\n"
             f"Vectors from different settings are not comparable, so the index "
             f"must be rebuilt:\n"
-            f"    overfit ingest --course {course} --rebuild"
+            f"    {_ingest_command(course)} --rebuild"
         )
         self.field = field
 

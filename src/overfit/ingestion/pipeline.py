@@ -74,6 +74,7 @@ def ingest(
     extensions: tuple[str, ...] | None = None,
     pdf_backend: str = "pypdf",
     force: bool = False,
+    exclude: frozenset[Path] = frozenset(),
     on_file: Callable[[int, int, Path], None] | None = None,
     on_result: Callable[[FileOutcome], None] | None = None,
     on_embed: Callable[[int, int], None] | None = None,
@@ -89,7 +90,9 @@ def ingest(
     identity = processing_identity(pdf_backend, chunk_size, chunk_overlap)
     started = time.monotonic()
     report = IngestReport()
-    files = loader.find_documents(directory, extensions or loader.SUPPORTED_EXTENSIONS)
+    files = loader.find_documents(
+        directory, extensions or loader.SUPPORTED_EXTENSIONS, exclude=exclude
+    )
 
     def finish(outcome: FileOutcome) -> None:
         """Record and announce one file, immediately.

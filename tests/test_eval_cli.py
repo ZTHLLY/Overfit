@@ -322,7 +322,7 @@ def test_mock_judge_is_explicit_and_additional(setup, monkeypatch):
     calls = []
 
     judge_settings = object()
-    monkeypatch.setattr(judge, "JudgeSettings", lambda: judge_settings)
+    monkeypatch.setattr(judge, "JudgeSettings", lambda **_: judge_settings)
     monkeypatch.setattr(mcq_protocols, "MCQJudgeV2Settings", lambda: pytest.fail("V2 settings loaded"))
 
     def fake_judge(run_dir, *, execute, settings):
@@ -365,7 +365,7 @@ def test_mock_judge_display_uses_published_order_and_judgment_date(setup, monkey
     from overfit.evaluation import judge, runner
     from overfit.models import GeneratedMCQExam
 
-    monkeypatch.setattr(judge, "JudgeSettings", object)
+    monkeypatch.setattr(judge, "JudgeSettings", lambda **_: object())
     first, second = mcq_item(), mcq_item()
     second["question"] = "What did the second approved example show?"
     setup.use_response(json.dumps({"questions": [first, second]}))
@@ -434,7 +434,7 @@ def test_mock_judge_configuration_fails_before_generation(setup, monkeypatch):
     monkeypatch.setattr(
         judge,
         "JudgeSettings",
-        lambda: (_ for _ in ()).throw(ValueError("invalid")),
+        lambda **_: (_ for _ in ()).throw(ValueError("invalid")),
     )
     contacted = False
 

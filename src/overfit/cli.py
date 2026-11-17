@@ -14,7 +14,14 @@ from typing import Annotated
 import typer
 from pydantic import SecretStr, ValidationError
 
-from overfit.config import RerankSettings, get_settings
+from overfit.config import (
+    RerankSettings,
+    course_name_for,
+    env_files,
+    get_settings,
+    use_course_directory,
+    use_settings,
+)
 from overfit.errors import OverfitError, RerankConfigurationError, RerankError
 from overfit.ingestion import chunker, loader, parser
 
@@ -291,10 +298,57 @@ def eval_generator_challenge(
 @app.callback(invoke_without_command=True)
 def _root(ctx: typer.Context) -> None:
     if ctx.invoked_subcommand is None:
-        typer.echo("hello overfit")
+        typer.echo(ctx.get_help())
+        raise typer.Exit()
 
 
-CourseArg = Annotated[str, typer.Option("--course", "-c", help="Course folder name.")]
+CourseArg = Annotated[
+    str | None,
+    typer.Option(
+        "--course", "-c",
+        help="Course folder under COURSES_DIR. Omit to use the current directory as the course.",
+    ),
+]
+
+
+def _resolve_course(course: str | None) -> str:
+    """Course-directory mode when no `--course` is given.
+
+    The current directory is the course: material is read in place, the index
+    lives in `./.overfit/`, and exams are written next to the material. The
+    derived settings are installed process-wide so every layer agrees.
+    """
+    if course is not None:
+        use_settings(None)
+        return course
+    here = Path.cwd().resolve()
+    # Whole-tree runs here would embed (and pay for) everything underneath.
+    try:
+        home = Path.home().resolve()
+    except RuntimeError:
+        home = None
+    too_broad = (
+        here.parent == here
+        or (home is not None and (here == home or here in home.parents))
+        # An Overfit workspace holds every course under courses/.
+        or (here / "courses").is_dir()
+    )
+    if too_broad:
+        raise typer.BadParameter(
+            f"{here} is not a course folder. cd into one course folder, "
+            "or pass --course.",
+            param_hint="--course",
+        )
+    try:
+        name = course_name_for(here)
+    except ValueError:
+        raise typer.BadParameter(
+            "This folder's name cannot be used as a course name; pass --course.",
+            param_hint="--course",
+        ) from None
+    use_course_directory(here)
+    return name
+
 PathOpt = Annotated[
     Path | None,
     typer.Option("--path", "-p", help="Read from this directory instead of COURSES_DIR."),
@@ -376,7 +430,7 @@ def _report_rerank_failure(exc: OverfitError) -> None:
 
 @app.command()
 def inspect(
-    course: CourseArg,
+    course: CourseArg = None,
     path: PathOpt = None,
     samples: Annotated[int, typer.Option(help="Pages to print in full.")] = 2,
     chars: Annotated[int, typer.Option(help="Characters per sample.")] = 600,
@@ -391,18 +445,21 @@ def inspect(
     text that was already garbage when it left layer 2 -- and nobody looks.
     Run this on real material before tuning chunk sizes or prompts.
     """
+    course = _resolve_course(course)
     settings = get_settings()
     directory = path.expanduser().resolve() if path else settings.course_dir(course)
 
     try:
-        files = loader.find_documents(directory, settings.extension_list)
+        files = loader.find_documents(
+            directory, settings.extension_list, exclude=settings.generated_files(course)
+        )
     except OverfitError as exc:
         typer.secho(str(exc), fg=typer.colors.RED, err=True)
         raise typer.Exit(1) from exc
 
     typer.secho(f"\n{directory}", fg=typer.colors.CYAN)
     typer.echo(f"{len(files)} document(s) found")
-    _report_ignored(directory, settings)
+    _report_ignored(directory, settings, course)
     typer.echo()
 
     failures: list[str] = []
@@ -475,7 +532,7 @@ def inspect(
 
 @app.command()
 def chunks(
-    course: CourseArg,
+    course: CourseArg = None,
     path: PathOpt = None,
     show: Annotated[int, typer.Option(help="Chunks to print in full.")] = 5,
     spanning: Annotated[bool, typer.Option(help="Only show chunks that cross a page.")] = False,
@@ -487,11 +544,14 @@ def chunks(
     thoughts severed mid-argument and for chunks that mix two unrelated
     topics -- the first wastes context, the second poisons retrieval.
     """
+    course = _resolve_course(course)
     settings = get_settings()
     directory = path.expanduser().resolve() if path else settings.course_dir(course)
 
     try:
-        files = loader.find_documents(directory, settings.extension_list)
+        files = loader.find_documents(
+            directory, settings.extension_list, exclude=settings.generated_files(course)
+        )
     except OverfitError as exc:
         typer.secho(str(exc), fg=typer.colors.RED, err=True)
         raise typer.Exit(1) from exc
@@ -562,9 +622,11 @@ def _open_store(course: str, *, create: bool = False):
     settings = get_settings()
     embedder = get_embedder()
     path = settings.db_path(course)
+    # Only a brand-new index needs the live probe; an existing one already
+    # records its width, so a repeat run stays offline until it must embed.
     embed_dim = (
         embedder.dimension
-        if create
+        if create and not path.exists()
         else VectorStore.read_profile(path, course=course).embed_dim
     )
     profile = IndexProfile(
@@ -662,7 +724,7 @@ def eval_rerank(
 
 @app.command()
 def ingest(
-    course: CourseArg,
+    course: CourseArg = None,
     path: PathOpt = None,
     force: Annotated[bool, typer.Option(help="Re-embed even unchanged files.")] = False,
     rebuild: Annotated[bool, typer.Option(help="Delete the index and start over.")] = False,
@@ -673,10 +735,22 @@ def ingest(
     second run costs almost nothing. Use --force after changing a cleaning
     rule, and --rebuild after changing the embedding model or chunk size.
     """
-    from overfit.ingestion import pipeline
-
+    course = _resolve_course(course)
     settings = get_settings()
     directory = path.expanduser().resolve() if path else settings.course_dir(course)
+    _run_ingest(course, directory, settings, force=force, rebuild=rebuild)
+
+
+def _run_ingest(
+    course: str, directory: Path, settings, *, force: bool = False, rebuild: bool = False,
+) -> None:
+    """Parse, chunk, embed and store.
+
+    Exits non-zero when the index cannot be opened or written; files that
+    fail to parse are reported and counted, and the run continues.
+    """
+    from overfit.ingestion import pipeline
+
     settings.ensure_dirs()
 
     if rebuild:
@@ -693,8 +767,11 @@ def ingest(
         raise typer.Exit(1) from exc
 
     typer.secho(f"\n{directory}", fg=typer.colors.CYAN)
-    typer.echo(f"{embedder.model} -> {embedder.dimension}d   into {settings.db_path(course).name}")
-    _report_ignored(directory, settings)
+    typer.echo(
+        f"{embedder.model} -> {store.stats().get('embed_dim', '?')}d   "
+        f"into {settings.db_path(course).name}"
+    )
+    _report_ignored(directory, settings, course)
     typer.echo()
 
     total = 0
@@ -728,6 +805,7 @@ def ingest(
                 extensions=settings.extension_list,
                 pdf_backend=settings.pdf_backend,
                 force=force,
+                exclude=settings.generated_files(course),
                 on_file=announce,
                 on_result=report_one,
             )
@@ -750,7 +828,7 @@ def ingest(
 @app.command()
 def search(
     query: Annotated[str, typer.Argument(help="What to look for.")],
-    course: CourseArg,
+    course: CourseArg = None,
     top_k: Annotated[
         int, typer.Option("--top-k", "-k", help="Results to show.", min=1)
     ] = 10,
@@ -767,6 +845,7 @@ def search(
     fault or the model's. If the right material is not in this list, no
     prompt will rescue the output.
     """
+    course = _resolve_course(course)
     from overfit.query import retriever
 
     try:
@@ -826,7 +905,7 @@ def _write_mcq_display(settings, course: str, items: list[dict], *, generated_on
 
 @app.command()
 def mock(
-    course: CourseArg,
+    course: CourseArg = None,
     questions: Annotated[
         int | None,
         typer.Option("--questions", "-q", help="How many (default: 30 without --topic)."),
@@ -851,6 +930,8 @@ def mock(
     support a question, and the model needs room to skip them rather than
     being forced to pad.
     """
+    in_course_directory = course is None
+    course = _resolve_course(course)
     if topic and questions is None:
         raise typer.BadParameter(
             "--questions is required when --topic is supplied.",
@@ -863,7 +944,9 @@ def mock(
         from overfit.evaluation.judge import JudgeSettings
 
         try:
-            judge_settings = JudgeSettings()
+            # judge.py is hashed into the frozen protocol digest, so the
+            # config layering is applied here rather than in its class.
+            judge_settings = JudgeSettings(_env_file=env_files())
         except (ValidationError, ValueError):
             typer.secho(
                 "Invalid judge configuration; set JUDGE_MODEL, JUDGE_BASE_URL, "
@@ -891,6 +974,12 @@ def mock(
         raise typer.Exit(1) from None
     if not topic:
         _report_rerank_skipped()
+    if in_course_directory:
+        # One-command mode: bring the index up to date first. Unchanged files
+        # are skipped by content hash, so a repeat run embeds nothing. A
+        # profile mismatch still stops here -- rebuilding costs money and is
+        # the user's call, never an automatic side effect.
+        _run_ingest(course, settings.course_dir(course), settings)
     from overfit.evaluation.live import run_mock_trace
 
     result = run_mock_trace(
@@ -951,7 +1040,7 @@ def mock(
 
 @app.command()
 def topics(
-    course: CourseArg,
+    course: CourseArg = None,
     count: Annotated[int, typer.Option("--count", "-n", help="Topics to identify.")] = 12,
     questions: Annotated[int, typer.Option(help="Show how N questions would be split.")] = 10,
 ) -> None:
@@ -966,6 +1055,7 @@ def topics(
     the embedding nor generation model is called, and every figure is
     checkable against the files.
     """
+    course = _resolve_course(course)
     from overfit.query import retriever, selection
 
     try:
@@ -1000,7 +1090,7 @@ def topics(
 
 @app.command()
 def coverage(
-    course: CourseArg,
+    course: CourseArg = None,
     count: Annotated[
         int | None,
         typer.Option(
@@ -1025,6 +1115,7 @@ def coverage(
     paper -- and reading twelve chunks is far cheaper than reading ten
     questions and inferring what went wrong.
     """
+    course = _resolve_course(course)
     from overfit.query import retriever
 
     try:
@@ -1076,8 +1167,9 @@ def coverage(
 
 
 @app.command()
-def status(course: CourseArg) -> None:
+def status(course: CourseArg = None) -> None:
     """Show what an index contains and how it was built."""
+    course = _resolve_course(course)
     try:
         store, _, settings = _open_store(course)
     except OverfitError as exc:
@@ -1151,9 +1243,11 @@ def embed_check() -> None:
     )
 
 
-def _report_ignored(directory: Path, settings) -> None:
+def _report_ignored(directory: Path, settings, course: str) -> None:
     """Say what was passed over, so a silent filter cannot become a mystery."""
-    ignored = loader.count_ignored(directory, settings.extension_list)
+    ignored = loader.count_ignored(
+        directory, settings.extension_list, exclude=settings.generated_files(course)
+    )
     if not ignored:
         return
     summary = ", ".join(f"{count} {ext}" for ext, count in sorted(ignored.items()))
