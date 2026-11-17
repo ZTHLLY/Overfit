@@ -11,14 +11,15 @@
 | 输入 → 输出 | 文本 → float vector | prompt → JSON text |
 | 代码位置 | `embedding.py` | `query/generator.py` |
 | 使用层 | ingestion 第 4 层、query 第 6 层 | 第 7 层 |
-| 当前默认 ID | `bge-m3` | `qwen3.6:27b` |
+| 当前默认 ID | `bge-m3`（本机 Ollama） | `deepseek-v4-flash`（DeepSeek API） |
 | 当前 API | OpenAI-compatible `/embeddings` | OpenAI-compatible streaming Chat Completions |
 | 是否写入 index profile | model ID + 实测 dimension | 否 |
 | 能否不重建就更换 | **不能** | **可以** |
 
-安装 Python 包不会下载或启动这两个模型。默认 endpoint 是本机 Ollama，但任何
-满足当前请求/响应契约的 OpenAI-compatible endpoint 都可以通过配置替换。
-“本地优先”是默认部署方式，不是 Embedder/Generator 的 provider 硬编码。
+安装 Python 包不会下载或启动这两个模型。Embedding 默认走本机 Ollama；generation
+默认走 DeepSeek 托管 API，需要设置 `LLM_API_KEY`，缺失时在构造 client 前报错并提示
+变量名。任何满足当前请求/响应契约的 OpenAI-compatible endpoint 都可以通过配置替换；
+默认值不是 Embedder/Generator 的 provider 硬编码。
 
 ---
 
@@ -177,9 +178,9 @@ chunks 对照：未知 source 和偏离过大的 page 会被丢弃，最多 2 �
 
 ```dotenv
 # Generation：可随时换，不影响已建 index
-LLM_BASE_URL=http://localhost:11434/v1
-LLM_API_KEY=ollama
-LLM_MODEL=qwen3.6:27b
+LLM_BASE_URL=https://api.deepseek.com
+LLM_API_KEY=            # 必填
+LLM_MODEL=deepseek-v4-flash
 
 # Embedding：改变实际坐标系后必须 --rebuild
 EMBED_BASE_URL=http://localhost:11434/v1
@@ -192,17 +193,23 @@ MAX_RETRIES=3
 REQUEST_TIMEOUT=900
 ```
 
-默认值来自 `config.py`，`.env.example` 提供同一组本地示例。Provider-specific
+默认值来自 `config.py`，`.env.example` 提供同一组示例。配置按以下顺序加载，后者
+覆盖前者：字段默认值 → `~/.config/overfit/.env`（遵循绝对路径的 `XDG_CONFIG_HOME`）
+→ 当前目录 `.env` → 环境变量 → CLI 参数。当前目录 `.env` 只在显式 `--course` 时读取；
+不传 `--course` 的课程目录模式会忽略它，避免下载来的课程文件夹改写 endpoint 并把全局
+key 发往别处。空值 `KEY=` 不会覆盖更早一层已设置的值。Provider-specific
 模型名称和 endpoint 可用性由对应服务决定；Overfit 不在启动时维护一份远程模型
 catalog。
 
-### Ollama 默认配置
+### 本机 Ollama（embedding 默认）
 
 ```bash
 ollama pull bge-m3
-ollama pull qwen3.6:27b
 uv run overfit embed-check
 ```
+
+如需把 generation 也切回本机模型，覆盖 `LLM_BASE_URL=http://localhost:11434/v1`、
+`LLM_API_KEY=ollama` 和对应的 `LLM_MODEL`。
 
 Ollama 的 OpenAI-compatible base URL 需要 `/v1`。本地服务通常忽略 API key，
 但 OpenAI SDK 要求传入非空值，所以默认写 `ollama`。

@@ -47,3 +47,6 @@ htmlcov/
 
 # Vector store directory (one .db per course)
 index/
+
+# Overfit state inside a course folder (index, run records)
+.overfit/

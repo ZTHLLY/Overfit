@@ -117,6 +117,10 @@ class Embedder:
 
     def _ensure_client(self):
         if self._client is None:
+            if not self._settings.api_key.strip():
+                from overfit.errors import MissingApiKeyError
+
+                raise MissingApiKeyError("EMBED_API_KEY")
             from openai import OpenAI
 
             self._client = OpenAI(
