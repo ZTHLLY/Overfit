@@ -4,7 +4,7 @@
 > 本轮按计划推进 P0～P4 核心实现和离线测试；不跑真实模型、不新增依赖、不自动重建现有索引、不 commit/push。
 > 计划文档已通过独立复核；P0 实施契约见 spec 第 9 节，已另经独立评审。P5 仍是后续可选范围。
 
-行为依据 [DOCUMENT-STRUCTURE-SPEC.md](/Users/silver/Documents/github/Overfit/docs/specs/DOCUMENT-STRUCTURE-SPEC.md)；judge 版本差异见 [judge spec](/Users/silver/Documents/github/Overfit/docs/specs/EVAL-JUDGE-SPEC.md)。检查项按本轮实际证据更新；未勾选不等于已完成。
+行为依据 [DOCUMENT-STRUCTURE-SPEC.md](../specs/DOCUMENT-STRUCTURE-SPEC.md)；judge 版本差异见 [judge spec](../specs/EVAL-JUDGE-SPEC.md)。检查项按本轮实际证据更新；未勾选不等于已完成。
 
 ## 1 交付分层与实施顺序
 
@@ -22,17 +22,17 @@
 
 | 落点 | 当前事实与未来责任 |
 | --- | --- |
-| [models.py](/Users/silver/Documents/github/Overfit/src/overfit/models.py) | Page/ParsedDocument/Chunk 未贯穿文档版本、可信总页数和多 provenance；补模型本身不足以保全端到端信息 |
-| [parser.py](/Users/silver/Documents/github/Overfit/src/overfit/ingestion/parser.py) | Docling `_docling_page_of` 取首个可用页；须保留全部已知来源，页数 fallback 最高已见页不能冒称真实总页数 |
-| [chunker.py](/Users/silver/Documents/github/Overfit/src/overfit/ingestion/chunker.py) | 已支持连续跨页 page/page_end；保留此能力，新增来源映射不能强制一页一块 |
-| [pipeline.py](/Users/silver/Documents/github/Overfit/src/overfit/ingestion/pipeline.py) | 当前已有 parser backend 和 chunk 参数的 index profile 检查，不匹配会拒绝打开；通过该检查后按内容 hash 跳过文件，仍需纳入提取器版本和处理策略身份的失效判断 |
-| [store.py](/Users/silver/Documents/github/Overfit/src/overfit/storage/store.py) | SCHEMA_VERSION='1'，chunks 仅已有扁平来源列，IndexProfile 仅记 parser 名；需显式 schema/兼容策略与读写 roundtrip |
-| [selection.py](/Users/silver/Documents/github/Overfit/src/overfit/query/selection.py)、[retriever.py](/Users/silver/Documents/github/Overfit/src/overfit/query/retriever.py) | 选材、向量包装与检索返回不能丢弃新增元数据，不改变原选材算法来迎合某道题 |
-| [generator.py](/Users/silver/Documents/github/Overfit/src/overfit/query/generator.py) | 保全 pre/post_policy 引用关联，现有 ±2 修复仍独立；不在生成器里新增语义特判 |
-| [contracts.py](/Users/silver/Documents/github/Overfit/src/overfit/evaluation/contracts.py)、[trace.py](/Users/silver/Documents/github/Overfit/src/overfit/evaluation/trace.py)、[live.py](/Users/silver/Documents/github/Overfit/src/overfit/evaluation/live.py) | strict 记录契约与 `asdict(chunk)` 快照须一起考虑，不能新字段自动流入旧协议 |
-| [replay.py](/Users/silver/Documents/github/Overfit/src/overfit/evaluation/replay.py)、[citations.py](/Users/silver/Documents/github/Overfit/src/overfit/evaluation/citations.py)、[report.py](/Users/silver/Documents/github/Overfit/src/overfit/evaluation/report.py) | PR1 严格事实不改义，新弹性诊断单独标识；回放不读取新材料 |
-| [judge.py](/Users/silver/Documents/github/Overfit/src/overfit/evaluation/judge.py)、[runner.py](/Users/silver/Documents/github/Overfit/src/overfit/evaluation/runner.py)、[metrics.py](/Users/silver/Documents/github/Overfit/src/overfit/evaluation/metrics.py) | 新政策/rubric/协议身份，保持模型、技术、人工三层；旧重建严格核验 schema3/protocol/checker hash/tasks 与 source |
-| [challenge.py](/Users/silver/Documents/github/Overfit/src/overfit/evaluation/challenge.py)、[cli.py](/Users/silver/Documents/github/Overfit/src/overfit/cli.py) | challenge `_Chunk` 是 extra=forbid 的旧字段集合；新增来源须版本化接入，CLI 仅在必要时后续设计，不预告不存在的选项 |
+| [models.py](../../src/overfit/models.py) | Page/ParsedDocument/Chunk 未贯穿文档版本、可信总页数和多 provenance；补模型本身不足以保全端到端信息 |
+| [parser.py](../../src/overfit/ingestion/parser.py) | Docling `_docling_page_of` 取首个可用页；须保留全部已知来源，页数 fallback 最高已见页不能冒称真实总页数 |
+| [chunker.py](../../src/overfit/ingestion/chunker.py) | 已支持连续跨页 page/page_end；保留此能力，新增来源映射不能强制一页一块 |
+| [pipeline.py](../../src/overfit/ingestion/pipeline.py) | 当前已有 parser backend 和 chunk 参数的 index profile 检查，不匹配会拒绝打开；通过该检查后按内容 hash 跳过文件，仍需纳入提取器版本和处理策略身份的失效判断 |
+| [store.py](../../src/overfit/storage/store.py) | SCHEMA_VERSION='1'，chunks 仅已有扁平来源列，IndexProfile 仅记 parser 名；需显式 schema/兼容策略与读写 roundtrip |
+| [selection.py](../../src/overfit/query/selection.py)、[retriever.py](../../src/overfit/query/retriever.py) | 选材、向量包装与检索返回不能丢弃新增元数据，不改变原选材算法来迎合某道题 |
+| [generator.py](../../src/overfit/query/generator.py) | 保全 pre/post_policy 引用关联，现有 ±2 修复仍独立；不在生成器里新增语义特判 |
+| [contracts.py](../../src/overfit/evaluation/contracts.py)、[trace.py](../../src/overfit/evaluation/trace.py)、[live.py](../../src/overfit/evaluation/live.py) | strict 记录契约与 `asdict(chunk)` 快照须一起考虑，不能新字段自动流入旧协议 |
+| [replay.py](../../src/overfit/evaluation/replay.py)、[citations.py](../../src/overfit/evaluation/citations.py)、[report.py](../../src/overfit/evaluation/report.py) | PR1 严格事实不改义，新弹性诊断单独标识；回放不读取新材料 |
+| [judge.py](../../src/overfit/evaluation/judge.py)、[runner.py](../../src/overfit/evaluation/runner.py)、[metrics.py](../../src/overfit/evaluation/metrics.py) | 新政策/rubric/协议身份，保持模型、技术、人工三层；旧重建严格核验 schema3/protocol/checker hash/tasks 与 source |
+| [challenge.py](../../src/overfit/evaluation/challenge.py)、[cli.py](../../src/overfit/cli.py) | challenge `_Chunk` 是 extra=forbid 的旧字段集合；新增来源须版本化接入，CLI 仅在必要时后续设计，不预告不存在的选项 |
 
 ## 3 P0：冻结数据、政策与兼容契约（所有编码的前置 gate）
 
@@ -65,7 +65,7 @@
 - [x] 新索引实验使用隔离路径，老索引保留；迁移/重建另行确认，不自动全量覆盖、不顺带请求 embedding 服务。
 - [x] 旧记录缺来源只读为 unknown，不偷偷追随路径补字段；只从已知内容作诊断，未取得可信总页数不宣称窗口已完整验证。
 
-**测试落点：** 扩展 [test_parser.py](/Users/silver/Documents/github/Overfit/tests/test_parser.py)；计划新增 `/Users/silver/Documents/github/Overfit/tests/test_chunker.py`、`/Users/silver/Documents/github/Overfit/tests/test_document_metadata.py`，覆盖存取和全链路 roundtrip。
+**测试落点：** 扩展 [test_parser.py](../../tests/test_parser.py)；计划新增 `tests/test_chunker.py`、`tests/test_document_metadata.py`，覆盖存取和全链路 roundtrip。
 **完成定义：** 合成/假提取器的多来源与可信度均不丢，旧缺失数据不被伪造；缓存版本变化和隔离索引策略可复验。
 **评审 gate：** 独立检查多 provenance、picture/context、源身份及缓存失效；不把语义理解交给规则代码验收。
 
@@ -82,7 +82,7 @@
 - [x] 使用原生成材料保持 answerability 无答案隔离，material_support 不增加原来没给过的正文；本阶段不提供补充上下文。
 - [x] PR1 严格 diagnostics、generator ±2 修复及 golden 严格指标独立回归，不把它们改成新定位口径。
 
-**测试落点：** 扩展 [test_eval_citations.py](/Users/silver/Documents/github/Overfit/tests/test_eval_citations.py)、[test_judge.py](/Users/silver/Documents/github/Overfit/tests/test_judge.py)、[test_judge_metrics.py](/Users/silver/Documents/github/Overfit/tests/test_judge_metrics.py)；新政策样本与旧协议样本清楚区分。
+**测试落点：** 扩展 [test_eval_citations.py](../../tests/test_eval_citations.py)、[test_judge.py](../../tests/test_judge.py)、[test_judge_metrics.py](../../tests/test_judge_metrics.py)；新政策样本与旧协议样本清楚区分。
 **完成定义：** 窗口正负边界和人工路由满足 spec，模型原判/技术完成/人工状态保持独立；缺来源数据不靠隐式补页“修好”。
 **评审 gate：** reviewer 检查没有路径/页号/关键词特判，也没有“命中窗口=语义通过”的新规则。
 
@@ -100,7 +100,7 @@
 - [x] challenge 新来源格式另行版本化，input/annotations 隔离、配对 before/after 与原 bytes 快照保持；不偷偷迁移旧 suite。
 - [x] CLI 仅在 P0 已决定需要显式新入口/开关时修改，并先文档化；默认不触发解析、索引更新或模型服务。
 
-**测试落点：** [test_eval_trace.py](/Users/silver/Documents/github/Overfit/tests/test_eval_trace.py)、[test_eval_replay.py](/Users/silver/Documents/github/Overfit/tests/test_eval_replay.py)、[test_generator_trace.py](/Users/silver/Documents/github/Overfit/tests/test_generator_trace.py)、[test_judge_runner.py](/Users/silver/Documents/github/Overfit/tests/test_judge_runner.py)、[test_judge_replay.py](/Users/silver/Documents/github/Overfit/tests/test_judge_replay.py)、[test_judge_challenge.py](/Users/silver/Documents/github/Overfit/tests/test_judge_challenge.py)；必要时扩展对应 CLI tests。
+**测试落点：** [test_eval_trace.py](../../tests/test_eval_trace.py)、[test_eval_replay.py](../../tests/test_eval_replay.py)、[test_generator_trace.py](../../tests/test_generator_trace.py)、[test_judge_runner.py](../../tests/test_judge_runner.py)、[test_judge_replay.py](../../tests/test_judge_replay.py)、[test_judge_challenge.py](../../tests/test_judge_challenge.py)；必要时扩展对应 CLI tests。
 **完成定义：** 新 metadata 全链路 roundtrip、原始响应可重验、历史产物不变，旧协议兼容或拒绝行为明确且有测试。
 **评审 gate：** 独立核查协议身份、输入完整性、写失败/中断和回放边界，不以删校验换兼容。
 
@@ -131,7 +131,7 @@
 - [ ] 请求身份与任何未来缓存键包含政策/prompt/文档版本/原材料和补充材料摘要/选择与预算；不能仅凭题目或源文件名复用。
 - [ ] 原输入 unsupported/not_answerable 不因后补页而转正；独立展示“原输入不足；补充引用材料有/无依据”，保留不确定性。
 - [ ] 补充结果只写新产物，离线 replay 使用保存内容而不重新补页；历史 v3 记录不得覆盖或冒称曾接受此请求。
-- [ ] 新增未来 `/Users/silver/Documents/github/Overfit/tests/test_supplemental_citation_review.py`，验证输入污染、预算/记录故障、版本缓存失效和离线回放边界。
+- [ ] 新增未来 `tests/test_supplemental_citation_review.py`，验证输入污染、预算/记录故障、版本缓存失效和离线回放边界。
 
 **完成定义：** 上述能力有独立测试与真实记录契约，是否线上验证另列；未完成之前核心报告始终声明未补页。
 **评审 gate：** 独立 reviewer 确认补充材料不能“洗白”原输入评审，不借可选范围改动已冻结核心政策。

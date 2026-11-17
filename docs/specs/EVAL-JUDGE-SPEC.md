@@ -1,13 +1,13 @@
 # Eval 独立 Judge Spec
 
-> 文档版本：0.5 · 日期：2026-10-06 · 新运行协议：**judge-v4 / schema 4 / citation-window-v1**；核心已通过独立离线工程验收，证据与未完成项见 [DOCUMENT-STRUCTURE-PLAN.md](/Users/silver/Documents/github/Overfit/docs/plans/DOCUMENT-STRUCTURE-PLAN.md)。
+> 文档版本：0.5 · 日期：2026-10-06 · 新运行协议：**judge-v4 / schema 4 / citation-window-v1**；核心已通过独立离线工程验收，证据与未完成项见 [DOCUMENT-STRUCTURE-PLAN.md](../plans/DOCUMENT-STRUCTURE-PLAN.md)。
 > 本轮不调用真实模型、不改 .env、golden 或已有索引、不 commit/push。下文第 1～8 节保留 judge-v3 的历史设计；如有差异，以第 0 节和新结构 spec 第 9 节为准，不把历史测试或报告称为 v4 证据。
 
-总体目标见 [EVALUATION.md](/Users/silver/Documents/github/Overfit/docs/EVALUATION.md)，旧阶段证据见 [EVAL-JUDGE-PLAN.md](/Users/silver/Documents/github/Overfit/docs/plans/EVAL-JUDGE-PLAN.md)。
+总体目标见 [EVALUATION.md](../EVALUATION.md)，旧阶段证据见 [EVAL-JUDGE-PLAN.md](../plans/EVAL-JUDGE-PLAN.md)。
 
 ## 0 当前 v4 契约与历史差异
 
-完整契约见 [DOCUMENT-STRUCTURE-SPEC.md](/Users/silver/Documents/github/Overfit/docs/specs/DOCUMENT-STRUCTURE-SPEC.md) 第 9 节。
+完整契约见 [DOCUMENT-STRUCTURE-SPEC.md](DOCUMENT-STRUCTURE-SPEC.md) 第 9 节。
 
 - 正式评审固定 `post_policy` 引用锚点，challenge 固定 `challenge_input`；同文档版本窗口只计算一次 `±1`，用可信物理总页数裁剪。不改变 generator 的独立 ±2 修复，也不宣称相对原生成页码的累计偏差只有 ±1。
 - 仅跨页、同文档窗口内的位置偏差和不能逐字匹配 quote，不单独触发人工。模型 unknown/partial/矛盾、错文件/未知 chunk/已知超窗/身份冲突仍留下实质复核原因。定位符合不等于语义 supported，程序不修改模型原判。

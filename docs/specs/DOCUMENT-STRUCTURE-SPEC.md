@@ -3,7 +3,7 @@
 > 文档版本：0.2 · 日期：2026-10-06 · 状态：**核心已实现并通过独立离线工程验收；真实 PDF 留出/语义校准未完成**。
 > 用户已明确授权实现；本轮不重建现有索引、不调用真实模型、不执行 commit/push。
 
-本规范定义跨页文档结构、来源追溯和引用定位容差的目标行为。新运行契约冻结于第 9 节，历史记录不重新解释。旧协议见 [judge-v3 历史契约](/Users/silver/Documents/github/Overfit/docs/specs/EVAL-JUDGE-SPEC.md) 的既有运行事实。总体目标见 [EVALUATION.md](/Users/silver/Documents/github/Overfit/docs/EVALUATION.md)；后续实施顺序见 [DOCUMENT-STRUCTURE-PLAN.md](/Users/silver/Documents/github/Overfit/docs/plans/DOCUMENT-STRUCTURE-PLAN.md)，实施证据单独回填。
+本规范定义跨页文档结构、来源追溯和引用定位容差的目标行为。新运行契约冻结于第 9 节，历史记录不重新解释。旧协议见 [judge-v3 历史契约](EVAL-JUDGE-SPEC.md) 的既有运行事实。总体目标见 [EVALUATION.md](../EVALUATION.md)；后续实施顺序见 [DOCUMENT-STRUCTURE-PLAN.md](../plans/DOCUMENT-STRUCTURE-PLAN.md)，实施证据单独回填。
 
 ## 1 目标与原则
 

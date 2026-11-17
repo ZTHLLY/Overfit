@@ -14,21 +14,21 @@
 | 文档 | 维护内容 |
 | --- | --- |
 | 本文 | 整体目标、技术概念、评测范围与后续路线 |
-| [DOCUMENT-STRUCTURE-SPEC.md](/Users/silver/Documents/github/Overfit/docs/specs/DOCUMENT-STRUCTURE-SPEC.md) | 核心实现契约：跨页来源保全、同 PDF 固定 ±1 定位容差；补充上下文为后续范围 |
-| [DOCUMENT-STRUCTURE-PLAN.md](/Users/silver/Documents/github/Overfit/docs/plans/DOCUMENT-STRUCTURE-PLAN.md) | 实施与验证：来源保全和已记录材料内定位 MVP，后续可选补充引用复核 |
-| [EVAL-TRACE-SPEC.md](/Users/silver/Documents/github/Overfit/docs/specs/EVAL-TRACE-SPEC.md) | PR 1 的行为与数据契约、兼容性、失败规则、AC-01 至 AC-12 验收标准 |
-| [EVAL-TRACE-PLAN.md](/Users/silver/Documents/github/Overfit/docs/plans/EVAL-TRACE-PLAN.md) | PR1 历史里程碑、测试矩阵与执行证据 |
-| [EVAL-JUDGE-SPEC.md](/Users/silver/Documents/github/Overfit/docs/specs/EVAL-JUDGE-SPEC.md) | PR2 独立 judge、证据校验、预算与评分契约 |
-| [EVAL-JUDGE-PLAN.md](/Users/silver/Documents/github/Overfit/docs/plans/EVAL-JUDGE-PLAN.md) | PR2 历史 v1/v2 离线验收、judge-v3 修订计划和执行证据 |
-| [EVAL-CHALLENGE-SPEC.md](/Users/silver/Documents/github/Overfit/docs/specs/EVAL-CHALLENGE-SPEC.md) | 人工 control/mutant 独立执行入口、信息隔离、记录与非目标 |
-| [EVAL-CHALLENGE-PLAN.md](/Users/silver/Documents/github/Overfit/docs/plans/EVAL-CHALLENGE-PLAN.md) | Challenge 入口实施与离线验收进度 |
+| [DOCUMENT-STRUCTURE-SPEC.md](specs/DOCUMENT-STRUCTURE-SPEC.md) | 核心实现契约：跨页来源保全、同 PDF 固定 ±1 定位容差；补充上下文为后续范围 |
+| [DOCUMENT-STRUCTURE-PLAN.md](plans/DOCUMENT-STRUCTURE-PLAN.md) | 实施与验证：来源保全和已记录材料内定位 MVP，后续可选补充引用复核 |
+| [EVAL-TRACE-SPEC.md](specs/EVAL-TRACE-SPEC.md) | PR 1 的行为与数据契约、兼容性、失败规则、AC-01 至 AC-12 验收标准 |
+| [EVAL-TRACE-PLAN.md](plans/EVAL-TRACE-PLAN.md) | PR1 历史里程碑、测试矩阵与执行证据 |
+| [EVAL-JUDGE-SPEC.md](specs/EVAL-JUDGE-SPEC.md) | PR2 独立 judge、证据校验、预算与评分契约 |
+| [EVAL-JUDGE-PLAN.md](plans/EVAL-JUDGE-PLAN.md) | PR2 历史 v1/v2 离线验收、judge-v3 修订计划和执行证据 |
+| [EVAL-CHALLENGE-SPEC.md](specs/EVAL-CHALLENGE-SPEC.md) | 人工 control/mutant 独立执行入口、信息隔离、记录与非目标 |
+| [EVAL-CHALLENGE-PLAN.md](plans/EVAL-CHALLENGE-PLAN.md) | Challenge 入口实施与离线验收进度 |
 
 先维护 spec，再按 plan 编码；行为或字段变化同步更新 spec、测试和 plan。PR1／judge-v1/v2/v3 的验收与试跑作为历史保留；当前 v4 与来源结构变更及限制见下节。真实生成已由用户跑通，但仍没有经人工校准的 judge 质量基线。
 
 
 ### 当前代码：来源保全与弹性定位核心
 
-新运行使用 **judge-v4 / citation-window-v1**：chunk 可以跨页，引用围绕固定最终锚点允许同 PDF 版本 ±1 个物理页，但这不豁免语义关系。程序保存来源与技术诊断，judge 负责语义；仅跨页或窗口内偏差不单独转人工。完整边界见 [spec](/Users/silver/Documents/github/Overfit/docs/specs/DOCUMENT-STRUCTURE-SPEC.md)，实际实施/测试/独立复核证据见 [plan](/Users/silver/Documents/github/Overfit/docs/plans/DOCUMENT-STRUCTURE-PLAN.md)。
+新运行使用 **judge-v4 / citation-window-v1**：chunk 可以跨页，引用围绕固定最终锚点允许同 PDF 版本 ±1 个物理页，但这不豁免语义关系。程序保存来源与技术诊断，judge 负责语义；仅跨页或窗口内偏差不单独转人工。完整边界见 [spec](specs/DOCUMENT-STRUCTURE-SPEC.md)，实际实施/测试/独立复核证据见 [plan](plans/DOCUMENT-STRUCTURE-PLAN.md)。
 
 **旧 trace 可以新建一次 v4 审查，不需要重新生成题目。** 旧材料没有来源元数据时显示定位 `unverified`，不会补读 PDF 或凭空恢复精度。旧 judge-v3 报告保持原样；当前实现明确拒绝将它作为 v4 replay。PR1 严格 diagnostics、golden 严格页指标、generator ±2 修复均不改含义。本页其余旧阶段测试数和试跑记录为历史，不是本轮质量校准证据。
 
@@ -79,7 +79,7 @@ Golden 的解释文本、精细证据、拒答题属于后续增强，按实际�
 
 ### 2.1 Golden set 审计
 
-文件：[ifn580_eval.json](/Users/silver/Documents/github/Overfit/eval/ifn580_eval.json)。
+文件：[ifn580_eval.json](../eval/ifn580_eval.json)。
 
 | 项目 | 实际结果 |
 | --- | --- |
@@ -109,8 +109,8 @@ Golden 的解释文本、精细证据、拒答题属于后续增强，按实际�
 
 | 索引绝对路径 | 文档 / chunk 数 | 61 个题干标注页的元数据覆盖 |
 | --- | --- | --- |
-| `/Users/silver/Documents/github/Overfit/index/IFN580_machine_learning.db` | 36 / 1,385 | 61 / 61 |
-| `/Users/silver/Documents/github/Overfit/index/IFN580-machine-learning.db`（已删除，历史记录） | 7 / 182 | 0 / 61 |
+| `index/IFN580_machine_learning.db` | 36 / 1,385 | 61 / 61 |
+| `index/IFN580-machine-learning.db`（已删除，历史记录） | 7 / 182 | 0 / 61 |
 
 **当前唯一有效的 IFN580 索引为下划线版本 `IFN580_machine_learning.db`，36 文档／1,385 chunks。** 它也覆盖全部 75 个标注页；旧连字符版本的来源命名和材料范围与 golden 不兼容。旧版 0/61 不是说里面完全没有相关知识，而是严格来源匹配失败。
 
@@ -120,22 +120,22 @@ Golden 的解释文本、精细证据、拒答题属于后续增强，按实际�
 
 另外：
 
-- 仓库 `/Users/silver/Documents/github/Overfit/courses` 当前没有 PDF。
-- 标注文档写的 `/Volumes/PortableSSD/public/QUT/IFN580_machine_learning` 本次不可访问，未能检查原 PDF 页数、视觉内容和原文件是否变更。
+- 仓库 `courses` 当前没有 PDF。
+- 标注文档写的原始课程目录本次不可访问，未能检查原 PDF 页数、视觉内容和原文件是否变更。
 - 因此可以先做**基于现存索引快照的诊断 baseline**；原始材料级的语义复核、重建和 parser 对比，需等材料恢复可访问。
-- PR1 历史测试使用 `/private/tmp/overfit-eval-trace-venv`（Python 3.12.14），当时项目环境损坏；随后用户通过 `uv run` 重建 `.venv` 为 Python 3.12.13。PR2 用当前项目环境完成 371 项离线测试，不重新安装依赖。
+- PR1 历史测试使用临时隔离 venv（Python 3.12.14），当时项目环境损坏；随后用户通过 `uv run` 重建 `.venv` 为 Python 3.12.13。PR2 用当前项目环境完成 371 项离线测试，不重新安装依赖。
 - 用户真实 run `1f5d21a7-c742-43f2-9287-9b832379906a` 生成／保留 3 题，PR1 replay 为 `completed / complete`；PR2 对该 run 的 prepare 和 judge-replay 均为零调用、6 个任务未评，不构成语义通过证据。
 
 ### 2.3 现有代码提供了什么？
 
 | 现有接入点 | 能复用的能力 / 边界 |
 | --- | --- |
-| [retriever.py](/Users/silver/Documents/github/Overfit/src/overfit/query/retriever.py) 的 `retrieve()` | query → embedding → 排序后的 chunk，适合检索 runner |
+| [retriever.py](../src/overfit/query/retriever.py) 的 `retrieve()` | query → embedding → 排序后的 chunk，适合检索 runner |
 | 同文件的 `gather_material()` | 无 topic 时聚类选材；有 topic 时检索 + MMR；这才是 `mock` 的选材路径 |
-| [store.py](/Users/silver/Documents/github/Overfit/src/overfit/storage/store.py) | 返回 `source/page/page_end/text/score`，可做页级评分；目前没有 reranker |
-| [models.py](/Users/silver/Documents/github/Overfit/src/overfit/models.py) | `GeneratedItem` 是开放式 question/answer/source/page，不是 A–D 答题模型 |
-| [generator.py](/Users/silver/Documents/github/Overfit/src/overfit/query/generator.py) | `mock_exam()` 生成新题；保留校验、重试和引用过滤，新增可选 recorder 记录每次调用与处理 |
-| [cli.py](/Users/silver/Documents/github/Overfit/src/overfit/cli.py) | 新增 `mock --trace`、`eval replay`、`eval judge`、`eval judge-replay`；仍无固定题答题接口 |
+| [store.py](../src/overfit/storage/store.py) | 返回 `source/page/page_end/text/score`，可做页级评分；目前没有 reranker |
+| [models.py](../src/overfit/models.py) | `GeneratedItem` 是开放式 question/answer/source/page，不是 A–D 答题模型 |
+| [generator.py](../src/overfit/query/generator.py) | `mock_exam()` 生成新题；保留校验、重试和引用过滤，新增可选 recorder 记录每次调用与处理 |
+| [cli.py](../src/overfit/cli.py) | 新增 `mock --trace`、`eval replay`、`eval judge`、`eval judge-replay`；仍无固定题答题接口 |
 
 `GenerationResult` 保留原有返回行为；开启 `mock --trace` 后，实际材料、各次可见请求/响应、失败和引用修复记录会写入独立 run 目录，并生成基础报告。**PR1 原报告语义状态保持 `not_evaluated`；已实现的 PR2 在独立目录中审查最终保留题，不改写原 trace。默认 prepare 也保持未评，只有显式 execute 才调用 judge。** 默认 `mock` 不创建 trace，不能从旧题卷反推生成时的真实材料。
 
@@ -279,12 +279,12 @@ golden.question → retrieve() → top-k chunks
 
 建议新增的文件均为后续计划，**本次未创建**：
 
-- `/Users/silver/Documents/github/Overfit/eval/generation_tasks.json`：首期固定出题请求、稳定 task ID、topic、题数与选材预算，不含新题标准答案。
-- `/Users/silver/Documents/github/Overfit/eval/protocol.json`：首期 judge 输入/输出规则、指标版本、预算、超时与重试策略；不同评测任务使用独立配置，不能把检索 k 当作全课程选材预算。
-- `/Users/silver/Documents/github/Overfit/eval/manifest.json`：后续 golden 路径的数据版本、文件 SHA、样本 ID、课程映射和页码协议。
-- `/Users/silver/Documents/github/Overfit/eval/annotations/`：仅在后续需要时保存补充标注；不是首期需要用户填的文件。
+- `eval/generation_tasks.json`：首期固定出题请求、稳定 task ID、topic、题数与选材预算，不含新题标准答案。
+- `eval/protocol.json`：首期 judge 输入/输出规则、指标版本、预算、超时与重试策略；不同评测任务使用独立配置，不能把检索 k 当作全课程选材预算。
+- `eval/manifest.json`：后续 golden 路径的数据版本、文件 SHA、样本 ID、课程映射和页码协议。
+- `eval/annotations/`：仅在后续需要时保存补充标注；不是首期需要用户填的文件。
 
-运行结果另存 `/Users/silver/Documents/github/Overfit/outputs/eval/<run_id>/`，不要混进 gold 文件。每次运行保存 resolved config，不只是保存环境变量名。
+运行结果另存 `outputs/eval/<run_id>/`，不要混进 gold 文件。每次运行保存 resolved config，不只是保存环境变量名。
 
 必要的 run manifest 包含：
 
@@ -457,7 +457,6 @@ Judge 的独立调用不要求接入 Ragas 或评测平台。PR2 只审最终保
 已有手动探针仍可使用，但不是新 eval 命令：
 
 ```bash
-cd /Users/silver/Documents/github/Overfit
 # 前提：环境已修复、embedding 服务可用，且配置与选定索引一致。
 uv run overfit search "bias variance tradeoff" --course IFN580_machine_learning --top-k 10
 ```
@@ -485,13 +484,13 @@ uv run overfit search "bias variance tradeoff" --course IFN580_machine_learning 
 已实现的 PR 1 产物位置如下（输出根尊重配置；有保留题才输出题卷/答案）：
 
 ```text
-/Users/silver/Documents/github/Overfit/outputs/eval/<run_id>/manifest.json
-/Users/silver/Documents/github/Overfit/outputs/eval/<run_id>/traces.jsonl
-/Users/silver/Documents/github/Overfit/outputs/eval/<run_id>/result.json
-/Users/silver/Documents/github/Overfit/outputs/eval/<run_id>/report.md
-/Users/silver/Documents/github/Overfit/outputs/eval/<run_id>/<course>_mock_exam.md
-/Users/silver/Documents/github/Overfit/outputs/eval/<run_id>/<course>_answers.md
-/Users/silver/Documents/github/Overfit/outputs/eval/<run_id>/replays/<replay_id>/
+outputs/eval/<run_id>/manifest.json
+outputs/eval/<run_id>/traces.jsonl
+outputs/eval/<run_id>/result.json
+outputs/eval/<run_id>/report.md
+outputs/eval/<run_id>/<course>_mock_exam.md
+outputs/eval/<run_id>/<course>_answers.md
+outputs/eval/<run_id>/replays/<replay_id>/
 ```
 
 `traces.jsonl` 保存原始运行事实，`result.json` 是派生汇总而不是终态提交标记。离线回放核验终态及文件摘要，并另写 replay 报告，不覆盖原记录。PR2 在 `judgments/<UUID>/` 保存 `manifest.json`、`tasks.json`、`calls.jsonl`、`judgments.jsonl`、`metrics.json`、`review_queue.jsonl`、`report.md` 和最后写入的 `complete.json`；`eval judge-replay` 从原始可见响应重验并写新 replay 目录，不信任旧分数。后续 golden 路径可独立增加 `predictions.jsonl`，按题 ID 展示配对变化和 week/type 分组；不要给新生成题冒用 golden ID。
@@ -524,11 +523,11 @@ PR1／judge-v1/v2 已实现；用户已试用本地和 OpenRouter，judge 校准
 
 ## 12 代码分批实施计划
 
-PR 1 模块已位于 `/Users/silver/Documents/github/Overfit/src/overfit/evaluation/`，离线测试位于 `/Users/silver/Documents/github/Overfit/tests/`；PR2 的 judge.py、runner.py、metrics.py 已实现，PR3 及以后仍为后续工作。
+PR 1 模块已位于 `src/overfit/evaluation/`，离线测试位于 `tests/`；PR2 的 judge.py、runner.py、metrics.py 已实现，PR3 及以后仍为后续工作。
 
 ### PR 1 生成过程记录与引用检查（已实现）
 
-本批以 [spec](/Users/silver/Documents/github/Overfit/docs/specs/EVAL-TRACE-SPEC.md) 为行为契约、以 [plan](/Users/silver/Documents/github/Overfit/docs/plans/EVAL-TRACE-PLAN.md) 为实施清单。已提供显式 `mock --trace`，默认关闭；开启后使用 run 专属题卷/答案，不覆盖默认课程文件。`eval replay RUN_DIR` 已可用，具体数据和故障边界以 spec 为准。
+本批以 [spec](specs/EVAL-TRACE-SPEC.md) 为行为契约、以 [plan](plans/EVAL-TRACE-PLAN.md) 为实施清单。已提供显式 `mock --trace`，默认关闭；开启后使用 run 专属题卷/答案，不覆盖默认课程文件。`eval replay RUN_DIR` 已可用，具体数据和故障边界以 spec 为准。
 
 - `contracts.py`：版本化 `Event`、`Manifest` 及专用读写错误；运行、调用和题目拥有独立身份。
 - `live.py`：真实生成路径的 opt-in 生命周期、索引身份读取、产物发布与失败终态。
@@ -552,7 +551,7 @@ PR 1 模块已位于 `/Users/silver/Documents/github/Overfit/src/overfit/evaluat
 
 ### 独立 challenge 入口（已实现并独立离线验收）
 
-[IFN580 人工挑战数据](/Users/silver/Documents/github/Overfit/eval/judge_challenges/ifn580_v1/README.md) 已独立验收：3 个未改 control、4 个单因素 mutant，共用原 6 个 chunks。已实现并独立离线验收 `overfit eval judge-challenge SUITE_DIR`，不是给正式 `judge RUN_DIR` 伪造 trace。完整 inputs/annotations 先严格校验，设计理由、预期目标、案例标识和配对类型只留本地报告，不进入 judge 请求。
+[IFN580 人工挑战数据](../eval/judge_challenges/ifn580_v1/README.md) 已独立验收：3 个未改 control、4 个单因素 mutant，共用原 6 个 chunks。已实现并独立离线验收 `overfit eval judge-challenge SUITE_DIR`，不是给正式 `judge RUN_DIR` 伪造 trace。完整 inputs/annotations 先严格校验，设计理由、预期目标、案例标识和配对类型只留本地报告，不进入 judge 请求。
 
 ```bash
 # 离线准备
@@ -564,7 +563,7 @@ JUDGE_MAX_ATTEMPTS=1 uv run overfit eval judge-challenge \
 
 可先 `--max-items 1 --max-calls 2` 做接通验证；前 1 条只有 control，不是变体检测实验。未选题仍可见，默认写当前工作目录 `outputs/eval/challenges/<UUID>/`，`--output-dir` 可改父目录。输出保存输入/注释快照、hash、原始可见响应、独立 challenge 覆盖、技术状态、人工队列及配对报告，不影响正式 judge 的指标或旧 replay 实现身份。
 
-人工设计目标只是待检验假设，control 也不是人工确认的正确题。报告不自动计算检测成功率、期待标签命中率或准确率，不把模型不同意设计目标当技术失败。本轮无 challenge replay/resume；正式 `judge-replay` 拒绝 challenge 类型。本次独立验收 **519 tests**、Ruff/diff check、8 项额外禁网络边界检查通过，90 个 baseline 文件未变；正式 v3 原记录 6/6 阶段只读重建仍兼容。真实 suite [prepare 报告](/Users/silver/Documents/github/Overfit/outputs/eval/challenges/47c16ac8-faed-450b-ae21-6acf7365272e/report.md) 为 prepared、7 cases、0/14 已评阶段、0 次调用。工程验收和 prepare 不等于新模型 pilot 或语义校准，实际执行由用户另行决定。
+人工设计目标只是待检验假设，control 也不是人工确认的正确题。报告不自动计算检测成功率、期待标签命中率或准确率，不把模型不同意设计目标当技术失败。本轮无 challenge replay/resume；正式 `judge-replay` 拒绝 challenge 类型。本次独立验收 **519 tests**、Ruff/diff check、8 项额外禁网络边界检查通过，90 个 baseline 文件未变；正式 v3 原记录 6/6 阶段只读重建仍兼容。真实 suite prepare 报告（本地产物：`outputs/eval/challenges/47c16ac8-faed-450b-ae21-6acf7365272e/report.md`） 为 prepared、7 cases、0/14 已评阶段、0 次调用。工程验收和 prepare 不等于新模型 pilot 或语义校准，实际执行由用户另行决定。
 
 ### PR 3 小批校准与回归基线
 

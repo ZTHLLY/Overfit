@@ -3,7 +3,7 @@
 > 日期：2026-10-06 · 状态：judge-v3 职责修订已实现并通过独立离线验收（439 tests）；v1/v2 验收保留为历史证据，未做在线 v3 pilot，真实模型校准未完成。
 > 用户授权本批文档后继续写代码；不调用真实模型，不执行 commit/push。
 
-行为规范以 [EVAL-JUDGE-SPEC.md](/Users/silver/Documents/github/Overfit/docs/specs/EVAL-JUDGE-SPEC.md) 为准，背景见 [EVALUATION.md](/Users/silver/Documents/github/Overfit/docs/EVALUATION.md)。本计划只组织实施和证据，不重复发明标签、分母或运行状态。
+行为规范以 [EVAL-JUDGE-SPEC.md](../specs/EVAL-JUDGE-SPEC.md) 为准，背景见 [EVALUATION.md](../EVALUATION.md)。本计划只组织实施和证据，不重复发明标签、分母或运行状态。
 
 ## 0 当前 judge-v3 职责修订（2026-10-06）
 
@@ -58,10 +58,10 @@
 - `.venv/bin/python -m pytest -q`：作者、主线程与独立 verifier 均为 **404 passed**；主线程最终 1.36 秒，独立 verifier 1.35 秒。`.venv/bin/python -m ruff check src tests` 与 `git diff --check` 均通过。独立复核无遗留阻塞。
 - 复核期间修复 replay 未核验 checker_identity 的问题：现在 judge.py／runner.py／metrics.py 三文件哈希均须一致，并补 3 项回归测试。
 - 独立 verifier 在 socket 禁用条件下追加验证 49 组 Unicode 空白的原文 span、重叠重复摘录的歧义拒绝、4 类非空白改写拒绝，以及实际旧运行 949ca 的 v1 replay 明确拒绝。另核对 27 个原 trace／历史 judge 产物 SHA-256 不变。
-- 回归 fixture 位于 `/Users/silver/Documents/github/Overfit/tests/fixtures/judge_local_pilot.json`，取自用户已保存本地试跑的最小可见材料／响应，不产生新模型调用。
+- 回归 fixture 位于 `tests/fixtures/judge_local_pilot.json`，取自用户已保存本地试跑的最小可见材料／响应，不产生新模型调用。
 - 主线程对旧运行 `949ca097-a871-4bec-934e-e926c72a34a9` 的可见响应做只读纯函数诊断：answerability 在新定位器下 accepted，两条 whitespace 映射为原文 `[263,649)`／`[653,912)`；support 的证据 valid，但一致性仍为 needs_review，原因为 material_aggregate_inconsistent。
 - 上一项仅证明新校验逻辑如何解释已有响应，**不是旧协议 replay、不是新模型 pilot，也不是将旧运行改判通过**。旧响应没有收到新 rubric；旧 run／judgment 产物保持不变。
-- 主线程复查 `/private/tmp/overfit-judge-v2-input-hashes.json` 中 28 个 golden／索引／依赖／原 trace／旧 judge 产物 SHA-256，全部不变。
+- 主线程复查本地哈希清单中 28 个 golden／索引／依赖／原 trace／旧 judge 产物 SHA-256，全部不变。
 - 本次模型调用数为 **0**，未启动或加载 Ollama，未修改模型配置，未执行 commit/push。测试证明分层协议和工程行为，不证明 judge 语义准确度；真实 v2 pilot 未运行，校准未完成。
 
 ## 1 历史 PR2 目标
@@ -85,12 +85,12 @@
 
 | 路径 | 职责与约束 |
 | --- | --- |
-| `/Users/silver/Documents/github/Overfit/src/overfit/evaluation/replay.py` | 复用 PR1 `inspect_run`；必要的提取接口不削弱原完整性校验 |
-| `/Users/silver/Documents/github/Overfit/src/overfit/evaluation/judge.py` | 独立配置、两个隔离请求、输出 schema、证据定位；仅 execute 初始化客户端 |
-| `/Users/silver/Documents/github/Overfit/src/overfit/evaluation/runner.py` | judge 输入提取、固定顺序、全局预算、独立记录与离线复算 |
-| `/Users/silver/Documents/github/Overfit/src/overfit/evaluation/metrics.py` | 纯函数聚合固定保留题分母，空分母、超量生成、错误覆盖 |
-| `/Users/silver/Documents/github/Overfit/src/overfit/cli.py` | 新增 `eval judge` / `eval judge-replay` 入口，打印状态与具体报告路径；不改变 PR1 命令 |
-| `/Users/silver/Documents/github/Overfit/tests/` | 新 judge fixture、假客户端、持久化故障、指标和 CLI 测试 |
+| `src/overfit/evaluation/replay.py` | 复用 PR1 `inspect_run`；必要的提取接口不削弱原完整性校验 |
+| `src/overfit/evaluation/judge.py` | 独立配置、两个隔离请求、输出 schema、证据定位；仅 execute 初始化客户端 |
+| `src/overfit/evaluation/runner.py` | judge 输入提取、固定顺序、全局预算、独立记录与离线复算 |
+| `src/overfit/evaluation/metrics.py` | 纯函数聚合固定保留题分母，空分母、超量生成、错误覆盖 |
+| `src/overfit/cli.py` | 新增 `eval judge` / `eval judge-replay` 入口，打印状态与具体报告路径；不改变 PR1 命令 |
+| `tests/` | 新 judge fixture、假客户端、持久化故障、指标和 CLI 测试 |
 
 文件可按实现调整；模块不得在 import 时加载 `.env`、初始化客户端、打开索引。复用 Pydantic 和现有 SDK，不为本批增加框架／依赖。SDK 行为以锁定版本本地签名及官方资料核对，不猜 API 参数。
 
@@ -197,11 +197,11 @@
 
 用户此前运行的源 run：
 
-`/Users/silver/Documents/github/Overfit/outputs/eval/1f5d21a7-c742-43f2-9287-9b832379906a`
+`outputs/eval/1f5d21a7-c742-43f2-9287-9b832379906a`
 
 该 run 最终保留 3 题，PR1 replay 为 `completed / complete`。本轮只运行 PR2 prepare 及离线 replay：
 
-- prepare 目录：`/Users/silver/Documents/github/Overfit/outputs/eval/1f5d21a7-c742-43f2-9287-9b832379906a/judgments/b70f0854-0a55-4309-93d3-ff7b2269e154`
+- prepare 目录：`outputs/eval/1f5d21a7-c742-43f2-9287-9b832379906a/judgments/b70f0854-0a55-4309-93d3-ff7b2269e154`
 - 新 replay 目录：上述目录下的 `replays/edbbb158-2e22-4a78-95d6-a9c6736f4edf`。
 - 两者均 **0 judge calls、3 保留题、0 / 6 审查任务已评**，状态 prepared / complete；报告可读，不把未评当内容不合格。
 - 独立 reviewer 禁用网络及 Settings/client 路径再验证已保存 prepare 数据；不修改源生成记录，不用 judge 补判断。

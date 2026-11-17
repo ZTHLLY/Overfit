@@ -28,7 +28,7 @@ source/page 是同一个引用因素的两个字段。所有变体共享原六�
 
 **数据集与 `judge-challenge` 独立执行入口均已独立离线验收（519 tests）。真实 suite 已完成零调用 prepare，但尚未执行真实 challenge 模型调用，也未完成语义校准。**
 
-规范与进度见 [challenge spec](/Users/silver/Documents/github/Overfit/docs/specs/EVAL-CHALLENGE-SPEC.md) 和 [challenge plan](/Users/silver/Documents/github/Overfit/docs/plans/EVAL-CHALLENGE-PLAN.md)。
+规范与进度见 [challenge spec](../../../docs/specs/EVAL-CHALLENGE-SPEC.md) 和 [challenge plan](../../../docs/plans/EVAL-CHALLENGE-PLAN.md)。
 
 不能直接把此文件夹传给 `overfit eval judge RUN_DIR`：该命令要求真实完整生成 trace。不得创建假 manifest、伪造事件或校验和来绕过 trace 完整性校验。新命令 `judge-challenge` 使用独立记录类型，不借用正式 judge 的 trace 身份。
 
@@ -58,7 +58,7 @@ JUDGE_MAX_ATTEMPTS=1 uv run overfit eval judge-challenge \
 
 默认在当前工作目录的 `outputs/eval/challenges/<UUID>/` 输出；`--output-dir PATH` 改变父目录。报告给出原始模型三维结论、技术完成、人工待复核和 control/mutant 配对变化，人工设计目标仅在本地展示，**不自动算检测成功率或正确率**。输入/注释原字节快照、hash、可见请求响应、usage 与终态独立保存，不覆盖本目录或历史正式评审。
 
-已生成的 [离线 prepare 报告](/Users/silver/Documents/github/Overfit/outputs/eval/challenges/47c16ac8-faed-450b-ae21-6acf7365272e/report.md) 为 prepared、7 cases、0/14 已评阶段、0 次调用；不是模型判断。
+已生成的 离线 prepare 报告（本地产物：`outputs/eval/challenges/47c16ac8-faed-450b-ae21-6acf7365272e/report.md`） 为 prepared、7 cases、0/14 已评阶段、0 次调用；不是模型判断。
 
 本轮不提供 challenge replay/resume；不要将输出传给正式 `eval judge-replay`，其应拒绝不同记录类型。保全记录是为了可审计与未来扩展，不代表已有回放入口。prepare 和离线测试不是模型实验结果，模型结论也不是人工校准真值。
 
