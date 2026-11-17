@@ -377,7 +377,7 @@ SQLite schema。因此表中不需要 embed query 的 index 命令（包括 `sta
 
 ## 自动化测试现状
 
-当前全量回归为 **743 passed**，覆盖 Parser、Loader、Chunker、Embedder、
+截至 2026-11-17，全量回归为 **990 passed**，覆盖 Parser、Loader、Chunker、Embedder、
 Store、Retriever/Selection、reranker、Generator、trace/replay、Judge、挑战评测与 CLI。
 默认测试使用 fake provider 并禁止真实 API；live integration/eval 只能由用户
 显式发起。Ruff 与 `git diff --check` 也是当前提交前验证的一部分。

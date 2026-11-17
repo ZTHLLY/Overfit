@@ -3,8 +3,8 @@
 > 状态：PR1 已实现并通过独立离线验收；2026-10-05。
 > 已完成 spec、代码、离线测试及证据记录。未调用真实模型，未执行 commit/push。
 
-规范：[EVAL-TRACE-SPEC.md](/Users/silver/Documents/github/Overfit/docs/specs/EVAL-TRACE-SPEC.md)。
-背景：[EVALUATION.md](/Users/silver/Documents/github/Overfit/docs/EVALUATION.md)。
+规范：[EVAL-TRACE-SPEC.md](../specs/EVAL-TRACE-SPEC.md)。
+背景：[EVALUATION.md](../EVALUATION.md)。
 schema、事件名、字段、终态和验收 ID 以 spec 为准；本计划组织实施顺序，不另立一套协议。
 
 ## 1. 本 PR 交付边界
@@ -41,25 +41,25 @@ schema、事件名、字段、终态和验收 ID 以 spec 为准；本计划组�
 
 | 文件 / 接入点 | 实施前行为 | PR1 接入 |
 | --- | --- | --- |
-| [/Users/silver/Documents/github/Overfit/src/overfit/cli.py](/Users/silver/Documents/github/Overfit/src/overfit/cli.py) 的 `mock` | 读取 settings、打开索引、选材、生成、直接写两个 Markdown；空结果退出 0 | 增加显式 trace 分支，在 `_open_store` 前建立记录；统一处理成功、空、失败、中断与发布边界 |
+| [src/overfit/cli.py](../../src/overfit/cli.py) 的 `mock` | 读取 settings、打开索引、选材、生成、直接写两个 Markdown；空结果退出 0 | 增加显式 trace 分支，在 `_open_store` 前建立记录；统一处理成功、空、失败、中断与发布边界 |
 | 同文件 `_open_store` | 获取 embedder 并探测维度，再打开 VectorStore | 不改现有行为；证明 run 开始事件早于这里，不让 replay 进入这里 |
-| [/Users/silver/Documents/github/Overfit/src/overfit/query/generator.py](/Users/silver/Documents/github/Overfit/src/overfit/query/generator.py) 的 `mock_exam` | 渲染真实 prompt，调用 `_complete`，随后修复/丢弃引用 | 在真实 prompt 与材料边界记录快照，在产品过滤前后记录结构化结果 |
+| [src/overfit/query/generator.py](../../src/overfit/query/generator.py) 的 `mock_exam` | 渲染真实 prompt，调用 `_complete`，随后修复/丢弃引用 | 在真实 prompt 与材料边界记录快照，在产品过滤前后记录结构化结果 |
 | 同文件 `_complete` | outer attempt 中可多次降级调用；格式失败后加入最多 2,000 字符 assistant 回复和纠错消息 | 每次调用记录当时实际 messages，不用初始 prompt 冒充后续请求；attempt 与 call 数分开 |
 | 同文件 `_stream` | 真实 `chat.completions.create` 与流式消费；返回拼接 content；另计 reasoning 更新 | 紧贴真实调用分配 call ID，保存完整/部分可见 content；不保存 reasoning 内容 |
 | 同文件 `_drop_invented_citations` | 近页修复、未知来源/远页丢弃，返回字符串 dropped 列表 | 添加可观察处理结果的接口，不改变选择规则；稳定关联不能靠字符串或内容匹配 |
-| [/Users/silver/Documents/github/Overfit/src/overfit/config.py](/Users/silver/Documents/github/Overfit/src/overfit/config.py) | `get_settings()` 会加载环境与 `.env`，`outputs_dir` 会解析为绝对路径 | live run 使用已有设置并显式白名单提取安全字段；replay 不读取/构造 Settings |
-| [/Users/silver/Documents/github/Overfit/src/overfit/models.py](/Users/silver/Documents/github/Overfit/src/overfit/models.py) | `Chunk` 有 `source/page/page_end`；`GeneratedExam` 允许显式空 items | 使用实际 chunk 元数据；不能把 schema-invalid 响应归为合法空结果 |
+| [src/overfit/config.py](../../src/overfit/config.py) | `get_settings()` 会加载环境与 `.env`，`outputs_dir` 会解析为绝对路径 | live run 使用已有设置并显式白名单提取安全字段；replay 不读取/构造 Settings |
+| [src/overfit/models.py](../../src/overfit/models.py) | `Chunk` 有 `source/page/page_end`；`GeneratedExam` 允许显式空 items | 使用实际 chunk 元数据；不能把 schema-invalid 响应归为合法空结果 |
 
 ### 已实现模块边界
 
 | 实现路径 | 职责 |
 | --- | --- |
-| `/Users/silver/Documents/github/Overfit/src/overfit/evaluation/contracts.py` | spec 的版本化 manifest/event 边界数据契约 |
-| `/Users/silver/Documents/github/Overfit/src/overfit/evaluation/live.py` | 显式 trace 生命周期、索引身份、产物发布与异常终态 |
-| `/Users/silver/Documents/github/Overfit/src/overfit/evaluation/trace.py` | 唯一运行目录、manifest、事件 writer、故障传播 |
-| `/Users/silver/Documents/github/Overfit/src/overfit/evaluation/citations.py` | 不联网、不修复的严格引用纯函数 |
-| `/Users/silver/Documents/github/Overfit/src/overfit/evaluation/replay.py` | 只读取既有运行文件、验证事件完整性、重算结果 |
-| `/Users/silver/Documents/github/Overfit/src/overfit/evaluation/report.py` | 从派生结果渲染报告；无生成器/Settings 依赖 |
+| `src/overfit/evaluation/contracts.py` | spec 的版本化 manifest/event 边界数据契约 |
+| `src/overfit/evaluation/live.py` | 显式 trace 生命周期、索引身份、产物发布与异常终态 |
+| `src/overfit/evaluation/trace.py` | 唯一运行目录、manifest、事件 writer、故障传播 |
+| `src/overfit/evaluation/citations.py` | 不联网、不修复的严格引用纯函数 |
+| `src/overfit/evaluation/replay.py` | 只读取既有运行文件、验证事件完整性、重算结果 |
+| `src/overfit/evaluation/report.py` | 从派生结果渲染报告；无生成器/Settings 依赖 |
 
 具体文件拆分允许调整，但离线依赖边界不能弱化。新模块不得在 import 时初始化模型、
 读取 `.env` 或打开索引；不要为了复用现有 `render_exam()` 引入配置和当前日期副作用。
@@ -72,9 +72,9 @@ schema、事件名、字段、终态和验收 ID 以 spec 为准；本计划组�
 
 - [x] 审阅 spec 中事件顺序、状态/完整性双轴、I/O 失败规则、发布边界和验收 ID。
 - [x] 保存实施前 `git status`，区分既有未提交文档与本 PR 新变更；不清理或覆盖用户文件。
-- [x] 记录解释器检查：当前 `/Users/silver/Documents/github/Overfit/.venv/bin/python` 指向
+- [x] 记录解释器检查：当前 `.venv/bin/python` 指向
   `/root/.local/share/uv/python/cpython-3.12-linux-aarch64-gnu/bin/python3.12`，是本机不可用目标。
-- [x] 实施时先建立独立临时开发环境，例如 `/private/tmp/overfit-eval-trace-venv`；保留原
+- [x] 实施时先建立独立临时开发环境；保留原
   `.venv`，不原地重建。已按锁文件安装 Python 3.12.14 独立环境。
 - [x] 显式使用独立环境运行测试；避免普通 `uv run` 隐式修复/替换仓库原 `.venv`。
 - [x] 使用纯人工构造 fixture，不复制真实日志中的密钥、材料或模型输出。
@@ -234,15 +234,15 @@ AC ID 对应主 spec；以下表格给出测试文件映射。每项均以 fixtu
 
 | AC | 测试组 | 必须覆盖的例子 | 证据位置 |
 | --- | --- | --- | --- |
-| AC-01 | 兼容/选择性 trace | 不加 flag 不建 eval 目录；加 flag 题卷/答案仅写 run 目录，默认课程文件 SHA 不变 | `/Users/silver/Documents/github/Overfit/tests/test_eval_cli.py` |
-| AC-02 | 实际材料/请求 | chunks 文本与顺序、跨页 metadata、冻结 messages/config 与 fake client 实收一致；初始记录先于全部服务 | `/Users/silver/Documents/github/Overfit/tests/test_generator_trace.py` |
+| AC-01 | 兼容/选择性 trace | 不加 flag 不建 eval 目录；加 flag 题卷/答案仅写 run 目录，默认课程文件 SHA 不变 | `tests/test_eval_cli.py` |
+| AC-02 | 实际材料/请求 | chunks 文本与顺序、跨页 metadata、冻结 messages/config 与 fake client 实收一致；初始记录先于全部服务 | `tests/test_generator_trace.py` |
 | AC-03 | Call capture | 首轮三档降级各有 ID；第二轮仅原有两档；outer attempt 与调用数分离；start 落盘/create 前硬 kill，start/finished/unresolved 分列且精确 call_count=null | 同上 |
 | AC-04 | Partial/异常 | 完整响应、空字符串、schema 无效、创建失败、流中断及部分 content、格式重试耗尽，均不推测内容 | 同上及 CLI 测试 |
-| AC-05 | 严格引用/mapping | 单页/跨页/区间空隙、同 basename 不同目录、未知 source、无效页、重复 chunk；重复题独立关联 | `/Users/silver/Documents/github/Overfit/tests/test_eval_citations.py` |
+| AC-05 | 严格引用/mapping | 单页/跨页/区间空隙、同 basename 不同目录、未知 source、无效页、重复 chunk；重复题独立关联 | `tests/test_eval_citations.py` |
 | AC-06 | 产品策略不变 | ±2 原始失败但产品修复；远页/未知来源丢弃；等距页不改策略；pre/post 无误配 | 同上及 generator 测试 |
-| AC-07 | Writer/提交/I/O | 唯一目录/碰撞；初次失败零服务调用；partial 保存失败不降级；产物 rename 失败；终态写/flush/fsync 失败 live 不成功；完整终态行后 fsync 失败的自洽 replay 不误称原 CLI exit 0；保留前缀 | `/Users/silver/Documents/github/Overfit/tests/test_eval_trace.py` 及 CLI 测试 |
-| AC-08 | Lifecycle | 早期索引/selection failed/interrupted 可完整且 not_started、无材料/请求；显式空、全丢弃、格式失败、成功、中断与硬 kill 缺终态分开 | `/Users/silver/Documents/github/Overfit/tests/test_eval_cli.py` |
-| AC-09 | Replay | 无配置/模型/索引/网络访问；不覆盖；坏前缀/未知版本/重复 ID/坏 seq/越界路径拒绝；早期失败无材料合法 vs 已进入调用缺材料不完整；缺终态/必需产物；原 SHA 不变 | `/Users/silver/Documents/github/Overfit/tests/test_eval_replay.py` |
+| AC-07 | Writer/提交/I/O | 唯一目录/碰撞；初次失败零服务调用；partial 保存失败不降级；产物 rename 失败；终态写/flush/fsync 失败 live 不成功；完整终态行后 fsync 失败的自洽 replay 不误称原 CLI exit 0；保留前缀 | `tests/test_eval_trace.py` 及 CLI 测试 |
+| AC-08 | Lifecycle | 早期索引/selection failed/interrupted 可完整且 not_started、无材料/请求；显式空、全丢弃、格式失败、成功、中断与硬 kill 缺终态分开 | `tests/test_eval_cli.py` |
+| AC-09 | Replay | 无配置/模型/索引/网络访问；不覆盖；坏前缀/未知版本/重复 ID/坏 seq/越界路径拒绝；早期失败无材料合法 vs 已进入调用缺材料不完整；缺终态/必需产物；原 SHA 不变 | `tests/test_eval_replay.py` |
 | AC-10 | Secret/reasoning | 假 API key、带凭证 endpoint、header、异常字符串、reasoning 均不泄漏；可见 content 保留；usage 缺失为 null | writer/generator/replay 测试 |
 | AC-11 | 边界/回归 | golden、索引、依赖、prompt 不变；既有 parser 与全部离线测试；禁止 socket/真实模型入口 | CLI/generator 和现有测试 |
 | AC-12 | Reporting | pre/post 分母、N/A、未知/失败分开、partial 局部计数、语义未评、提交状态限制、同输入内容可重复 | replay/report 测试 |
@@ -252,9 +252,8 @@ AC ID 对应主 spec；以下表格给出测试文件映射。每项均以 fixtu
 以下命令已在独立环境实际运行；原仓库 `.venv` 未改动：
 
 ```bash
-cd /Users/silver/Documents/github/Overfit
-/private/tmp/overfit-eval-trace-venv/bin/python -m pytest -q
-/private/tmp/overfit-eval-trace-venv/bin/ruff check src tests
+pytest -q
+ruff check src tests
 git diff --check
 ```
 
@@ -262,8 +261,8 @@ git diff --check
 模型，真实 pilot 尚未执行：
 
 ```text
-/private/tmp/overfit-eval-trace-venv/bin/overfit mock --course IFN580_machine_learning --questions 3 --trace
-/private/tmp/overfit-eval-trace-venv/bin/overfit eval replay /Users/silver/Documents/github/Overfit/outputs/eval/<run_id>
+overfit mock --course IFN580_machine_learning --questions 3 --trace
+overfit eval replay outputs/eval/<run_id>
 ```
 
 trace 的真实根目录来自 `settings.outputs_dir`，上面路径仅代表仓库默认 outputs 配置。
@@ -276,10 +275,10 @@ replay 的输入是已有 run 目录，不根据当前 settings 猜目录或重�
 | 内容 | 实际证据 / 限制 |
 | --- | --- |
 | 代码基线 | HEAD `9e68aa9` + 当前工作区变更；既有文档与 golden 未清理；未 commit/push |
-| 环境 | `/private/tmp/overfit-eval-trace-venv`；Python 3.12.14；`uv sync --locked` 成功，未改 pyproject/uv.lock |
+| 环境 | 临时隔离 venv；Python 3.12.14；`uv sync --locked` 成功，未改 pyproject/uv.lock |
 | 原环境 | `.venv/bin/python` 仍指向 `/root/.local/share/uv/python/cpython-3.12-linux-aarch64-gnu/bin/python3.12`，保留未替换 |
-| 全套测试 | `/private/tmp/overfit-eval-trace-venv/bin/python -m pytest -q` → **187 passed**（包含原有 5 个 parser 测试） |
-| 静态检查 | `/private/tmp/overfit-eval-trace-venv/bin/ruff check src tests` → All checks passed；`git diff --check` 通过 |
+| 全套测试 | `pytest -q` → **187 passed**（包含原有 5 个 parser 测试） |
+| 静态检查 | `ruff check src tests` → All checks passed；`git diff --check` 通过 |
 | CLI 表面 | `overfit mock --help` 显示 `--trace`；`overfit eval replay --help` 显示 `RUN_DIR`；未调用真实服务 |
 | 黄金集 | `eval/ifn580_eval.json` SHA256：`60d1455702a17df25119d4232b3ee2c95cda493cb255f4811d14de0107cb5a5f`，与实施前一致 |
 | 不变边界 | prompt、retriever、依赖定义/锁文件及原 parser 测试无差异；本轮没有写索引、运行 ingest 或真实模型 |

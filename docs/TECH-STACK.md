@@ -176,7 +176,7 @@ uv run pytest -q
 uv run ruff check .
 ```
 
-当前分支的提交前验证结果是 pytest **743 passed**、Ruff
+截至 2026-11-17 的验证结果是 pytest **990 passed**、Ruff
 `All checks passed!` 和 `git diff --check` 通过。测试覆盖 Parser/Loader/
 Chunker、embedding/store、retrieval/selection/reranking、Generator、trace/replay、
 Judge/challenge 与 CLI；默认使用 fake provider 并不访问真实 API。仓库仍没有

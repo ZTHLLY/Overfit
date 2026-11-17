@@ -1,12 +1,12 @@
 # Eval 生成记录与引用检查 Spec
 
-> **2026-10-06 版本更新：** 新写 trace envelope 为 2、materials schema 为 2，严格引用诊断含义保持；兼容读取历史 trace 1，缺来源为 unknown，不补读 PDF。完整新契约与验收见 [文档结构 spec](/Users/silver/Documents/github/Overfit/docs/specs/DOCUMENT-STRUCTURE-SPEC.md) 第 9 节和 [实施计划](/Users/silver/Documents/github/Overfit/docs/plans/DOCUMENT-STRUCTURE-PLAN.md)。下文保留旧阶段契约与证据；版本差异以本说明和新契约为准，历史产物不改写。
+> **2026-10-06 版本更新：** 新写 trace envelope 为 2、materials schema 为 2，严格引用诊断含义保持；兼容读取历史 trace 1，缺来源为 unknown，不补读 PDF。完整新契约与验收见 [文档结构 spec](DOCUMENT-STRUCTURE-SPEC.md) 第 9 节和 [实施计划](../plans/DOCUMENT-STRUCTURE-PLAN.md)。下文保留旧阶段契约与证据；版本差异以本说明和新契约为准，历史产物不改写。
 
 
 > 版本：0.2 · 日期：2026-10-05 · 状态：已实现并通过离线验收。
 > 范围：总体 Eval 方案中的 PR 1。实现、fixture 测试与独立复核已完成；未进行真实模型 pilot，不代表语义质量已验证。
 
-总体方向见 [EVALUATION.md](/Users/silver/Documents/github/Overfit/docs/EVALUATION.md)，实施顺序见 [EVAL-TRACE-PLAN.md](/Users/silver/Documents/github/Overfit/docs/plans/EVAL-TRACE-PLAN.md)。本文是这一批代码的数据和行为契约；plan 引用验收编号，不另外定义冲突的行为。
+总体方向见 [EVALUATION.md](../EVALUATION.md)，实施顺序见 [EVAL-TRACE-PLAN.md](../plans/EVAL-TRACE-PLAN.md)。本文是这一批代码的数据和行为契约；plan 引用验收编号，不另外定义冲突的行为。
 
 ## 1 目标与交付边界
 
@@ -30,9 +30,9 @@
 
 | 文件与接入点 | 当前事实 | 本批约束 |
 | --- | --- | --- |
-| [cli.py](/Users/silver/Documents/github/Overfit/src/overfit/cli.py) 的 `mock()` | 打开索引、选材、调用生成器，写题卷/答案 Markdown | 未开启 trace 时保留原路径和行为；开启时增加可审计流程 |
-| [retriever.py](/Users/silver/Documents/github/Overfit/src/overfit/query/retriever.py) 的 `gather_material()` | 无 topic 聚类选材；有 topic 检索 + MMR | 不换选材策略，记录真实结果与顺序 |
-| [generator.py](/Users/silver/Documents/github/Overfit/src/overfit/query/generator.py) 的 `_complete()` | 外层校验重试，内层 response-format fallback | 不能把外层 attempt 当实际 API 调用数 |
+| [cli.py](../../src/overfit/cli.py) 的 `mock()` | 打开索引、选材、调用生成器，写题卷/答案 Markdown | 未开启 trace 时保留原路径和行为；开启时增加可审计流程 |
+| [retriever.py](../../src/overfit/query/retriever.py) 的 `gather_material()` | 无 topic 聚类选材；有 topic 检索 + MMR | 不换选材策略，记录真实结果与顺序 |
+| [generator.py](../../src/overfit/query/generator.py) 的 `_complete()` | 外层校验重试，内层 response-format fallback | 不能把外层 attempt 当实际 API 调用数 |
 | 同文件 `_stream()` | 读取可见 content；reasoning 字段只用于进度计数 | 记录可见 content，绝不把 reasoning 字段写入 trace |
 | 同文件 `_drop_invented_citations()` | 可修复相差不超过 2 页的引用；也可能丢弃题目 | 保存原值、结果与动作；本批不改变该策略 |
 | `GenerationResult` | 返回最后一次 raw、attempts、dropped、最终 exam | 保持已有调用方兼容；新记录不能只靠这个摘要补出来 |
@@ -60,7 +60,7 @@
 
 ### 3.2 输出与运行身份
 
-默认输出根在本工作区对应 `/Users/silver/Documents/github/Overfit/outputs/eval/`，但实现必须尊重配置，不能硬编码该绝对路径。
+默认输出根在本工作区对应 `outputs/eval/`，但实现必须尊重配置，不能硬编码该绝对路径。
 
 每次生成新建随机 UUID `run_id`，目录排他创建；碰撞重试新 ID，不覆盖或接续旧运行。课程名不能控制任意文件路径。单次 run 内的逻辑 task ID 与 run ID 分开：前者可复用以比较同一请求，后者标识一次实际执行。
 
@@ -249,12 +249,12 @@ Judge 型号、预算、语义评分协议与校准方式留给 PR 2 spec，不�
 - `evaluation/replay.py`：版本/关系/计数/摘要验证、有效前缀及离线报告。
 - `query/generator.py`：可选 recorder；`cli.py`：两个显式入口。
 
-本机原 `.venv` 保留不动；当前可用的隔离入口是 `/private/tmp/overfit-eval-trace-venv/bin/overfit`。
+本机原 `.venv` 保留不动；当时使用临时隔离 venv 中的 `overfit` 入口。
 生成命令会使用现有 embedding/LLM 配置，尚未运行；回放仅需已有 run 目录：
 
 ```text
-/private/tmp/overfit-eval-trace-venv/bin/overfit mock --course IFN580_machine_learning --questions 3 --trace
-/private/tmp/overfit-eval-trace-venv/bin/overfit eval replay /Users/silver/Documents/github/Overfit/outputs/eval/<run_id>
+overfit mock --course IFN580_machine_learning --questions 3 --trace
+overfit eval replay outputs/eval/<run_id>
 ```
 
 回放输出中的 `run_status` 是已记录终态，`trace_integrity` 是记录完整性，两者要一起看。
