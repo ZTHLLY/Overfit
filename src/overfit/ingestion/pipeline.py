@@ -31,7 +31,7 @@ from pathlib import Path
 
 from overfit import models, provenance
 from overfit.embedding import Embedder
-from overfit.errors import OverfitError
+from overfit.errors import MissingSourcesError, OverfitError
 from overfit.ingestion import chunker, loader, parser
 from overfit.models import EmbeddedChunk
 from overfit.storage.store import VectorStore
@@ -75,6 +75,7 @@ def ingest(
     pdf_backend: str = "pypdf",
     force: bool = False,
     exclude: frozenset[Path] = frozenset(),
+    course: str = "",
     on_file: Callable[[int, int, Path], None] | None = None,
     on_result: Callable[[FileOutcome], None] | None = None,
     on_embed: Callable[[int, int], None] | None = None,
@@ -85,6 +86,11 @@ def ingest(
         force: re-embed even when both content and processing identity match.
             Parser/cleaner/chunker code and dependency changes already invalidate
             the cache automatically.
+        course: only used to word the rebuild hint in errors.
+
+    Raises:
+        MissingSourcesError: an indexed file is no longer among the files
+            found, before anything is parsed, embedded or written.
     """
     store.require_writable()
     identity = processing_identity(pdf_backend, chunk_size, chunk_overlap)
@@ -93,6 +99,9 @@ def ingest(
     files = loader.find_documents(
         directory, extensions or loader.SUPPORTED_EXTENSIONS, exclude=exclude
     )
+    present = {path.relative_to(directory).as_posix() for path in files}
+    if missing := store.indexed_sources() - present:
+        raise MissingSourcesError(sorted(missing), course)
 
     def finish(outcome: FileOutcome) -> None:
         """Record and announce one file, immediately.

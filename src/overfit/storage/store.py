@@ -530,6 +530,13 @@ class VectorStore:
             for row in rows
         ]
 
+    def indexed_sources(self) -> set[str]:
+        """Every source the index knows about, including any without chunks."""
+        rows = self._db.execute(
+            "SELECT source FROM documents UNION SELECT DISTINCT source FROM chunks"
+        ).fetchall()
+        return {row[0] for row in rows}
+
     def sources(self) -> list[tuple[str, int]]:
         return list(
             self._db.execute(
