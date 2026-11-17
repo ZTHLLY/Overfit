@@ -336,6 +336,10 @@ outputs/<safe-course>_mock_exam.md   # stem + A–D text；隐藏 topic/解释/�
 outputs/<safe-course>_answers.md     # topic、正确项、A–D 反馈及各自引用
 ```
 
+课程目录模式（不传 `--course`）下这两个文件直接写在课程文件夹根目录，trace 写在
+`./.overfit/eval/`；重复运行覆盖同名文件。Overfit 渲染的这两类文件（以模板标题
+识别）不会在后续 ingest 中被当作课程材料。
+
 新 `mock` 固定为 MCQ v1，不生成短答、计算题或 difficulty 元数据。普通运行明确
 标记语义唯一性和 distractor 正确性为 `not judged`；只有显式 `--judge` 才调用
 独立 MCQ Judge。

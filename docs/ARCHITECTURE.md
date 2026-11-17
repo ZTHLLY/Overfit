@@ -32,7 +32,9 @@ Overfit 是一条本地优先、手写且可检查的 RAG 内容生产流水线�
 1. **Pre-index diagnostics**：`inspect` 和 `chunks` 直接读取课程目录，不访问
    embedding 服务，也不创建数据库。它们让人先检查解析和分块，再支付建库成本。
 2. **Ingestion**：`ingest` 执行 Loader → Parser → Chunker → Embedder，并写入该课程
-   自己的 `index/<course>.db`。未变化文件由 SHA-256 内容 hash 跳过。
+   自己的 `index/<course>.db`。未变化文件由 SHA-256 内容 hash 跳过。不传
+   `--course` 时当前目录即课程：索引在 `./.overfit/index/<course>.db`，课程名取
+   文件夹名，`mock` 会先自动增量 ingest；profile 不匹配仍报错，不自动重建。
 3. **Query / artifact production**：`search`、`topics`、`coverage`、`status` 和
    `mock` 只读取索引；其中只有 `mock` 调用生成模型并写入 Markdown。
 

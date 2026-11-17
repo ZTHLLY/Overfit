@@ -31,7 +31,7 @@ Overfit 当前是一套轻量、手写、本地优先的 Python RAG CLI。这里
 | 检索 | 项目自有 Python 代码 | dense top-k cosine search |
 | 生成选材 | 项目自有 Python 代码 + OpenRouter reranker | no-topic clustering/allocation；topic dense Top-40 → rerank → diversity scan |
 | Prompt / Markdown | Jinja2 `>=3.1.6` | system/user prompts 与两个输出模板 |
-| 生成模型 | endpoint 配置；默认 `qwen3.6:27b` | 当前仅 `mock` |
+| 生成模型 | endpoint 配置；默认 DeepSeek `deepseek-v4-flash` | 当前仅 `mock` |
 | 开发检查 | pytest `>=9.1.1`、Ruff `>=0.16.1` | dev dependency group |
 
 最低版本是声明约束，不等于文档承诺只支持该精确版本；实际解析出的版本由
@@ -118,8 +118,8 @@ hash。相同 source + hash 的文件在下一次 ingestion 中完全跳过 Pars
 - `client.embeddings.create()`；
 - `client.chat.completions.create(..., stream=True)`。
 
-所以当前 provider 边界只有 endpoint、key、model 三个配置值。Ollama 是默认值，
-不是代码层的唯一 provider。具体兼容度仍有两层现实限制：
+所以当前 provider 边界只有 endpoint、key、model 三个配置值。Embedding 默认本机
+Ollama、generation 默认 DeepSeek API，都只是默认值，不是代码层的唯一 provider。具体兼容度仍有两层现实限制：
 
 1. embedding endpoint 必须接受批量字符串并返回带 `index` 的 vectors；
 2. generation endpoint 最好支持 `json_object`；拒绝该参数时，代码能降级到
@@ -160,13 +160,13 @@ hash。相同 source + hash 的文件在下一次 ingestion 中完全跳过 Pars
 
 ## 配置技术细节
 
-Pydantic Settings 读取根目录 `.env`（UTF-8）和 process environment。路径值会
+Pydantic Settings 依次读取 `~/.config/overfit/.env`、当前目录 `.env`（仅显式
+`--course` 时）和 process environment，后者覆盖前者，空值不覆盖已有值。路径值会
 `expanduser().resolve()`；course name 会清理为安全路径片段；`CHUNK_SIZE >= 50`、
 `CHUNK_OVERLAP >= 0` 且 overlap 必须小于 size；temperature、timeout 等也有范围
 校验。
 
-完整变量表见 [README](../README.md#configuration) 和
-[MODELS.md](./MODELS.md)。`.env` 被 `.gitignore` 排除，`.env.example` 不含真实
+完整变量表见 [MODELS.md](./MODELS.md) 和 `.env.example`。`.env` 被 `.gitignore` 排除，`.env.example` 不含真实
 credential。
 
 ## 测试与质量现状
