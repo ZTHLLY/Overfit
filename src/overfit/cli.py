@@ -806,6 +806,7 @@ def _run_ingest(
                 pdf_backend=settings.pdf_backend,
                 force=force,
                 exclude=settings.generated_files(course),
+                course=course,
                 on_file=announce,
                 on_result=report_one,
             )

@@ -19,6 +19,7 @@ __all__ = [
     "IndexMismatchError",
     "IndexMissingError",
     "MissingApiKeyError",
+    "MissingSourcesError",
     "NoDocumentsError",
     "OverfitError",
     "RerankConfigurationError",
@@ -91,6 +92,34 @@ class MissingApiKeyError(OverfitError):
             f"e.g.\n    {variable}=sk-..."
         )
         self.variable = variable
+
+
+class MissingSourcesError(OverfitError):
+    """Indexed files are no longer in the course folder.
+
+    Incremental ingestion only looks at files that exist, so a deleted or
+    renamed lecture would otherwise stay in the index: its chunks keep being
+    drawn into exams, cite a file that is gone, and a rename doubles the
+    content. Rather than guess which case it is, stop before any work and
+    leave the index untouched.
+    """
+
+    _SHOWN = 5
+
+    def __init__(self, missing: list[str] | tuple[str, ...], course: str = "") -> None:
+        self.missing = tuple(sorted(missing))
+        shown = "\n".join(f"    {source}" for source in self.missing[: self._SHOWN])
+        more = len(self.missing) - self._SHOWN
+        if more > 0:
+            shown += f"\n    ... and {more} more"
+        command = _ingest_command(course) if course else "overfit ingest"
+        super().__init__(
+            f"{len(self.missing)} indexed file(s) are no longer in the course folder:\n"
+            f"{shown}\n"
+            "They were removed, renamed, or are now excluded by EXTENSIONS. "
+            "Nothing was indexed or generated, and the index was not changed.\n"
+            f"Restore the files, or rebuild the index:\n    {command} --rebuild"
+        )
 
 
 class CourseNotFoundError(OverfitError):
